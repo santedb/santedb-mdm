@@ -156,7 +156,7 @@ namespace SanteDB.Persistence.MDM.Services
             // Now that bundle is processed , process it
             if ((eventArgs as DataPersistingEventArgs<Bundle>)?.Cancel == true && (methodName == "OnInserting" || methodName == "OnSaving"))
             {
-                var businessRulesSerice = ApplicationServiceContext.Current.GetBusinessRulesService<Bundle>();
+                var businessRulesSerice = ApplicationServiceContext.Current.GetService<IBusinessRulesService<Bundle>>();
                 bundle = businessRulesSerice?.BeforeInsert(bundle) ?? bundle;
                 // Business rules shouldn't be used for relationships, we need to delay load the sources
                 bundle.Item.OfType<EntityRelationship>().ToList().ForEach((i) =>

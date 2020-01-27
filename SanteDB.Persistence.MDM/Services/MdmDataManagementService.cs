@@ -111,7 +111,7 @@ namespace SanteDB.Persistence.MDM.Services
             {
                 if (ApplicationServiceContext.Current.GetService<IRecordMatchingService>() == null)
                     throw new InvalidOperationException("MDM requires a matching service to be configured");
-                else if (ApplicationContext.Current.GetService<SimResourceMergeService>() != null)
+                else if (ApplicationServiceContext.Current.GetService<SimResourceMergeService>() != null)
                     throw new System.Configuration.ConfigurationException("Cannot use MDM and SIM merging strategies at the same time. Please disable one or the other");
 
                 foreach(var itm in this.m_configuration.ResourceTypes)

@@ -1,6 +1,5 @@
 ﻿using SanteDB.Core.Security.Services;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using SanteDB.Caching.Memory;
 using SanteDB.Core;
 using SanteDB.Core.Model;
 using SanteDB.Core.Model.Collection;
@@ -12,7 +11,6 @@ using SanteDB.Core.Model.Security;
 using SanteDB.Core.Security;
 using SanteDB.Core.Security.Services;
 using SanteDB.Core.Services;
-using SanteDB.Persistence.Data.ADO.Test;
 using SanteDB.Persistence.MDM.Services;
 using System;
 using System.Collections.Generic;
@@ -36,7 +34,6 @@ namespace SanteDB.Persistence.MDM.Test
         public static void ClassInitialize(TestContext context)
         {
             typeof(MdmDataManagementService).Equals(null); // Trick - Force test context to load
-            typeof(MemoryCacheService).Equals(null);
             TestApplicationContext.TestAssembly = typeof(MdmAssociationTest).Assembly;
             TestApplicationContext.Initialize(context.DeploymentDirectory);
 

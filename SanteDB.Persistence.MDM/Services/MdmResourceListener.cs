@@ -32,8 +32,9 @@ using SanteDB.Core.Model.Query;
 using SanteDB.Core.Model.Security;
 using SanteDB.Core.Model.Serialization;
 using SanteDB.Core.Security;
-using SanteDB.Core.Security.Attribute;
 using SanteDB.Core.Security.Claims;
+using SanteDB.Core.Security.Principal;
+using SanteDB.Core.Security.Services;
 using SanteDB.Core.Services;
 using SanteDB.Persistence.MDM.Model;
 using System;
@@ -142,7 +143,7 @@ namespace SanteDB.Persistence.MDM.Services
             {
                 // Did the person ask specifically for a local record? if so we need to demand permission
                 if (query.TryGetValue("tag[mdm.type].value", out List<String> mdmFilters) && mdmFilters.Contains("L"))
-                    new PolicyPermission(PermissionState.Unrestricted, MdmPermissionPolicyIdentifiers.ReadMdmLocals).Demand();
+                    ApplicationServiceContext.Current.GetService<IPolicyEnforcementService>().Demand(MdmPermissionPolicyIdentifiers.ReadMdmLocals);
                 else // We want to modify the query to only include masters and rewrite the query
                 {
                     var localQuery = new NameValueCollection(query.ToDictionary(o => $"relationship[MDM-Master].source@{typeof(T).Name}.{o.Key}", o => o.Value));
@@ -275,7 +276,7 @@ namespace SanteDB.Persistence.MDM.Services
             // We are touching a master record and we are not system?
             if (classConcept.GetValueOrDefault() == MdmConstants.MasterRecordClassification &&
                 !e.Principal.IsInRole("SYSTEM"))
-                new PolicyPermission(PermissionState.Unrestricted, MdmPermissionPolicyIdentifiers.WriteMdmMaster).Demand();
+                ApplicationServiceContext.Current.GetService<IPolicyEnforcementService>().Demand(MdmPermissionPolicyIdentifiers.WriteMdmMaster);
 
             // We want to ensure that a master link is not being explicitly persisted
             var identified = e.Data as IIdentifiedEntity;
@@ -290,7 +291,7 @@ namespace SanteDB.Persistence.MDM.Services
                     if (tr == 0 || dbRelationship.First().TargetEntityKey == eRelationship.TargetEntityKey)
                         return;
                     else if (!e.Principal.IsInRole("SYSTEM")) // The target entity is being re-associated make sure the principal is allowed to do this
-                        new PolicyPermission(PermissionState.Unrestricted, MdmPermissionPolicyIdentifiers.WriteMdmMaster).Demand();
+                        ApplicationServiceContext.Current.GetService<IPolicyEnforcementService>().Demand(MdmPermissionPolicyIdentifiers.WriteMdmMaster);
                 }
 
                 if ((e.Data as ITaggable)?.Tags.Any(o => o.TagKey == "mdm.type" && o.Value == "T") == true &&
@@ -308,7 +309,7 @@ namespace SanteDB.Persistence.MDM.Services
                     if (tr == 0 || dbRelationship.First().TargetActKey == eRelationship.TargetActKey)
                         return;
                     else if (!e.Principal.IsInRole("SYSTEM")) // The target entity is being re-associated make sure the principal is allowed to do this
-                        new PolicyPermission(PermissionState.Unrestricted, MdmPermissionPolicyIdentifiers.WriteMdmMaster).Demand();
+                        ApplicationServiceContext.Current.GetService<IPolicyEnforcementService>().Demand(MdmPermissionPolicyIdentifiers.WriteMdmMaster);
                 }
 
                 if ((e.Data as ITaggable)?.Tags.Any(o => o.TagKey == "mdm.type" && o.Value == "T") == true &&
@@ -333,7 +334,7 @@ namespace SanteDB.Persistence.MDM.Services
             // We are touching a master record and we are not system?
             if (classConcept.GetValueOrDefault() == MdmConstants.MasterRecordClassification &&
                 !e.Principal.IsInRole("SYSTEM"))
-                new PolicyPermission(PermissionState.Unrestricted, MdmPermissionPolicyIdentifiers.WriteMdmMaster).Demand();
+                ApplicationServiceContext.Current.GetService<IPolicyEnforcementService>().Demand(MdmPermissionPolicyIdentifiers.WriteMdmMaster);
 
             // We will receive an obsolete on a MASTER for its type however the repository needs to be redirected as we aren't getting that particular object
         }
@@ -377,7 +378,7 @@ namespace SanteDB.Persistence.MDM.Services
                 else
                 {
                     // Manually fire the business rules trigger for Bundle
-                    var businessRulesService = ApplicationServiceContext.Current.GetBusinessRulesService<Bundle>();
+                    var businessRulesService = ApplicationServiceContext.Current.GetService<IBusinessRulesService<Bundle>>();
                     bundle = businessRulesService?.BeforeUpdate(bundle) ?? bundle;
                     // Business rules shouldn't be used for relationships, we need to delay load the sources
                     bundle.Item.OfType<EntityRelationship>().ToList().ForEach((i) =>
@@ -439,8 +440,8 @@ namespace SanteDB.Persistence.MDM.Services
                 }
                 else
                 {
-                    var businessRulesSerice = ApplicationServiceContext.Current.GetBusinessRulesService<Bundle>();
-                    bundle = businessRulesSerice?.BeforeInsert(bundle) ?? bundle;
+                    var businessRulesService = ApplicationServiceContext.Current.GetService<IBusinessRulesService<Bundle>>();
+                    bundle = businessRulesService?.BeforeInsert(bundle) ?? bundle;
                     // Business rules shouldn't be used for relationships, we need to delay load the sources
                     bundle.Item.OfType<EntityRelationship>().ToList().ForEach((i) =>
                     {
@@ -448,7 +449,7 @@ namespace SanteDB.Persistence.MDM.Services
                             i.SourceEntity = bundle.Item.Find(o => o.Key == i.SourceEntityKey) as Entity;
                     });
                     bundle = this.m_persistence.Insert(bundle, TransactionMode.Commit, AuthenticationContext.Current.Principal);
-                    bundle = businessRulesSerice?.AfterInsert(bundle) ?? bundle;
+                    bundle = businessRulesService?.AfterInsert(bundle) ?? bundle;
                 }
                 //ApplicationServiceContext.Current.GetService<IThreadPoolService>().QueueUserWorkItem(this.PerformMdmMatch, identified);
             }
@@ -779,7 +780,7 @@ namespace SanteDB.Persistence.MDM.Services
             IDataPersistenceService masterService = master is Entity ? ApplicationServiceContext.Current.GetService<IDataPersistenceService<Entity>>() as IDataPersistenceService : ApplicationServiceContext.Current.GetService<IDataPersistenceService<Act>>() as IDataPersistenceService;
             var masterData = masterService.Get(master.Key.Value) as IClassifiable;
             if (masterData.ClassConceptKey == MdmConstants.MasterRecordClassification && !AuthenticationContext.Current.Principal.IsInRole("SYSTEM"))
-                new PolicyPermission(PermissionState.Unrestricted, MdmPermissionPolicyIdentifiers.WriteMdmMaster).Demand();
+                ApplicationServiceContext.Current.GetService<IPolicyEnforcementService>().Demand(MdmPermissionPolicyIdentifiers.WriteMdmMaster);
             else
             {
                 this.EnsureProvenance(master, AuthenticationContext.Current.Principal);
@@ -796,7 +797,7 @@ namespace SanteDB.Persistence.MDM.Services
                 // Is the linked duplicate a master record?
                 var linkedClass = masterService.Get(ldpl.Key.Value) as IClassifiable;
                 if (linkedClass.ClassConceptKey == MdmConstants.MasterRecordClassification && !AuthenticationContext.Current.Principal.IsInRole("SYSTEM"))
-                    new PolicyPermission(PermissionState.Unrestricted, MdmPermissionPolicyIdentifiers.MergeMdmMaster).Demand();
+                    ApplicationServiceContext.Current.GetService<IPolicyEnforcementService>().Demand(MdmPermissionPolicyIdentifiers.MergeMdmMaster);
                 else
                     this.EnsureProvenance(ldpl, AuthenticationContext.Current.Principal);
 
@@ -903,11 +904,11 @@ namespace SanteDB.Persistence.MDM.Services
         {
             var provenance = (master as BaseEntityData)?.LoadProperty<SecurityProvenance>("CreatedBy");
             var claimsPrincipal = principal as IClaimsPrincipal;
-            var applicationPrincipal = claimsPrincipal.Identities.OfType<Core.Security.ApplicationIdentity>().SingleOrDefault();
+            var applicationPrincipal = claimsPrincipal.Identities.OfType<IApplicationIdentity>().SingleOrDefault();
             if (applicationPrincipal != null &&
                 applicationPrincipal.Name != provenance?.LoadProperty<SecurityApplication>("Application")?.Name // was not the original author
                 || !AuthenticationContext.Current.Principal.IsInRole("SYSTEM"))
-                new PolicyPermission(PermissionState.Unrestricted, MdmPermissionPolicyIdentifiers.ReadMdmLocals).Demand();
+                ApplicationServiceContext.Current.GetService<IPolicyEnforcementService>().Demand(MdmPermissionPolicyIdentifiers.ReadMdmLocals);
         }
 
         /// <summary>
