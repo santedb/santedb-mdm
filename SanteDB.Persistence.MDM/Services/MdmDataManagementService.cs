@@ -33,6 +33,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Linq.Expressions;
 using SanteDB.Core.Model;
+using SanteDB.Core.Model.Subscription;
 
 namespace SanteDB.Persistence.MDM.Services
 {
@@ -96,7 +97,7 @@ namespace SanteDB.Persistence.MDM.Services
             this.Starting?.Invoke(this, EventArgs.Empty);
 
             // Pre-register types for serialization
-            foreach(var itm in this.m_configuration.ResourceTypes)
+            foreach (var itm in this.m_configuration.ResourceTypes)
             {
                 var rt = itm.ResourceType;
                 string typeName = $"{rt.Name}Master";
@@ -114,7 +115,7 @@ namespace SanteDB.Persistence.MDM.Services
                 else if (ApplicationServiceContext.Current.GetService<SimResourceMergeService>() != null)
                     throw new System.Configuration.ConfigurationException("Cannot use MDM and SIM merging strategies at the same time. Please disable one or the other");
 
-                foreach(var itm in this.m_configuration.ResourceTypes)
+                foreach (var itm in this.m_configuration.ResourceTypes)
                 {
                     this.m_traceSource.TraceInfo("Adding MDM listener for {0}...", itm.ResourceType.Name);
                     var idt = typeof(MdmResourceListener<>).MakeGenericType(itm.ResourceType);
@@ -123,7 +124,7 @@ namespace SanteDB.Persistence.MDM.Services
 
                 // Add an MDM listener for subscriptions
                 var subscService = ApplicationServiceContext.Current.GetService<ISubscriptionExecutor>();
-                if(subscService != null)
+                if (subscService != null)
                     subscService.Executed += MdmSubscriptionExecuted;
 
                 this.m_listeners.Add(new BundleResourceListener(this.m_listeners));
@@ -138,34 +139,29 @@ namespace SanteDB.Persistence.MDM.Services
         /// </summary>
         private void MdmSubscriptionExecuted(object sender, Core.Event.QueryResultEventArgs<Core.Model.IdentifiedData> e)
         {
-            var lresults = e.Results.ToList();
-
-            foreach(var itm in this.m_configuration.ResourceTypes)
+            foreach (var itm in this.m_configuration.ResourceTypes)
             {
-                var exprFunc = typeof(Func<,>).MakeGenericType(itm.ResourceType, typeof(Boolean));
-                exprFunc = typeof(Expression<>).MakeGenericType(exprFunc);
-                if (!exprFunc.IsAssignableFrom(e.Query.GetType())) continue;
+                if (!e.Results.All(o => o.GetType() == itm.ResourceType)) continue;
 
                 // We have a resource type that matches
-                foreach(var res in e.Results)
+                e.Results.AsParallel().ForAll((res) =>
                 {
                     // Result is taggable and a tag exists for MDM
-                    if(res is Entity entity && entity.Tags.Any(o=>o.TagKey == "mdm.type" && o.Value != "M"))
+                    if (res is Entity entity && entity.Tags.Any(o => o.TagKey == "mdm.type" && o.Value != "M"))
                     {
                         // Attempt to load the master and add to the results
                         var master = entity.LoadCollection<EntityRelationship>(nameof(Entity.Relationships)).FirstOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship);
-                        lresults.Add(master.LoadProperty<Entity>(nameof(EntityRelationship.TargetEntity)));
+                        master.LoadProperty<Entity>(nameof(EntityRelationship.TargetEntity));
                     }
-                    else if(res is Act act && act.Tags.Any(o=>o.TagKey == "mdm.type" && o.Value != "M"))
+                    else if (res is Act act && act.Tags.Any(o => o.TagKey == "mdm.type" && o.Value != "M"))
                     {
                         // Attempt to load the master and add to the results
                         var master = act.LoadCollection<ActRelationship>(nameof(Act.Relationships)).FirstOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship);
-                        lresults.Add(master.LoadProperty<Act>(nameof(ActRelationship.TargetAct)));
+                        master.LoadProperty<Act>(nameof(ActRelationship.TargetAct));
                     }
-                }
-            }
 
-            e.Results = lresults;
+                });
+            }
         }
 
         /// <summary>

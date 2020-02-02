@@ -272,6 +272,10 @@ namespace SanteDB.Persistence.MDM.Services
         /// being sent with tag of MASTER are indeed sent by the MDM or SYSTEM user.</remarks>
         protected virtual void OnPrePersistenceValidate(object sender, DataPersistingEventArgs<T> e)
         {
+            // Only the server is allowed to establish master records , clients are not permitted
+            if (ApplicationServiceContext.Current.HostType != SanteDBHostType.Server)
+                return;
+
             Guid? classConcept = (e.Data as Entity)?.ClassConceptKey ?? (e.Data as Act)?.ClassConceptKey;
             // We are touching a master record and we are not system?
             if (classConcept.GetValueOrDefault() == MdmConstants.MasterRecordClassification &&
@@ -329,6 +333,10 @@ namespace SanteDB.Persistence.MDM.Services
         /// obsolete and also require that all LOCAL records be either re-assigned or obsoleted as well.</remarks>
         protected virtual void OnObsoleting(object sender, DataPersistingEventArgs<T> e)
         {
+            // Only the server is allowed to establish master records , clients are not permitted
+            if (ApplicationServiceContext.Current.HostType != SanteDBHostType.Server)
+                return;
+
             // Obsoleting a master record requires that the user be a SYSTEM user or has WriteMDM permission
             Guid? classConcept = (e.Data as Entity)?.ClassConceptKey ?? (e.Data as Act)?.ClassConceptKey;
             // We are touching a master record and we are not system?
@@ -344,6 +352,10 @@ namespace SanteDB.Persistence.MDM.Services
         /// </summary>
         protected virtual void OnSaving(object sender, DataPersistingEventArgs<T> e)
         {
+            // Only the server is allowed to establish master records , clients are not permitted
+            if (ApplicationServiceContext.Current.HostType != SanteDBHostType.Server)
+                return;
+
             // Is this object a ROT or MASTER, if it is then we do not perform any changes to re-binding
             var taggable = e.Data as ITaggable;
            
@@ -403,6 +415,10 @@ namespace SanteDB.Persistence.MDM.Services
         /// and merged into any existing MASTER record.</remarks>
         protected virtual void OnInserting(object sender, DataPersistingEventArgs<T> e)
         {
+
+            // Only the server is allowed to establish master records , clients are not permitted
+            if (ApplicationServiceContext.Current.HostType != SanteDBHostType.Server)
+                return;
 
             if (!e.Data.Key.HasValue)
                 e.Data.Key = Guid.NewGuid(); // Assign a key if one is not set
