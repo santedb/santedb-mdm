@@ -139,6 +139,7 @@ namespace SanteDB.Persistence.MDM.Services
         /// </summary>
         private void MdmSubscriptionExecuted(object sender, Core.Event.QueryResultEventArgs<Core.Model.IdentifiedData> e)
         {
+
             foreach (var itm in this.m_configuration.ResourceTypes)
             {
                 if (!e.Results.All(o => o.GetType() == itm.ResourceType)) continue;

@@ -273,8 +273,9 @@ namespace SanteDB.Persistence.MDM.Services
         protected virtual void OnPrePersistenceValidate(object sender, DataPersistingEventArgs<T> e)
         {
             // Only the server is allowed to establish master records , clients are not permitted
-            if (ApplicationServiceContext.Current.HostType != SanteDBHostType.Server)
-                return;
+            if (ApplicationServiceContext.Current.HostType == SanteDBHostType.Client ||
+                ApplicationServiceContext.Current.HostType == SanteDBHostType.Gateway)
+                return; 
 
             Guid? classConcept = (e.Data as Entity)?.ClassConceptKey ?? (e.Data as Act)?.ClassConceptKey;
             // We are touching a master record and we are not system?
@@ -334,8 +335,10 @@ namespace SanteDB.Persistence.MDM.Services
         protected virtual void OnObsoleting(object sender, DataPersistingEventArgs<T> e)
         {
             // Only the server is allowed to establish master records , clients are not permitted
-            if (ApplicationServiceContext.Current.HostType != SanteDBHostType.Server)
+            if (ApplicationServiceContext.Current.HostType == SanteDBHostType.Client ||
+                ApplicationServiceContext.Current.HostType == SanteDBHostType.Gateway)
                 return;
+
 
             // Obsoleting a master record requires that the user be a SYSTEM user or has WriteMDM permission
             Guid? classConcept = (e.Data as Entity)?.ClassConceptKey ?? (e.Data as Act)?.ClassConceptKey;
@@ -353,8 +356,10 @@ namespace SanteDB.Persistence.MDM.Services
         protected virtual void OnSaving(object sender, DataPersistingEventArgs<T> e)
         {
             // Only the server is allowed to establish master records , clients are not permitted
-            if (ApplicationServiceContext.Current.HostType != SanteDBHostType.Server)
+            if (ApplicationServiceContext.Current.HostType == SanteDBHostType.Client ||
+                ApplicationServiceContext.Current.HostType == SanteDBHostType.Gateway)
                 return;
+
 
             // Is this object a ROT or MASTER, if it is then we do not perform any changes to re-binding
             var taggable = e.Data as ITaggable;
@@ -417,7 +422,8 @@ namespace SanteDB.Persistence.MDM.Services
         {
 
             // Only the server is allowed to establish master records , clients are not permitted
-            if (ApplicationServiceContext.Current.HostType != SanteDBHostType.Server)
+            if (ApplicationServiceContext.Current.HostType == SanteDBHostType.Client ||
+                ApplicationServiceContext.Current.HostType == SanteDBHostType.Gateway)
                 return;
 
             if (!e.Data.Key.HasValue)
