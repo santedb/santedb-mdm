@@ -17,6 +17,8 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using SanteDB.Core.TestFramework;
+using SanteDB.Core.Security.Claims;
+using SanteDB.Core.Services.Impl;
 
 namespace SanteDB.Persistence.MDM.Test
 {
@@ -36,8 +38,53 @@ namespace SanteDB.Persistence.MDM.Test
             typeof(MdmDataManagementService).Equals(null); // Trick - Force test context to load
             TestApplicationContext.TestAssembly = typeof(MdmAssociationTest).Assembly;
             TestApplicationContext.Initialize(context.DeploymentDirectory);
+            ApplicationServiceContext.Current.AddBusinessRule(typeof(BundleBusinessRule));
+            ApplicationServiceContext.Current.AddBusinessRule(typeof(NationalHealthIdRule));
+        }
 
+        /// <summary>
+        /// Test - When there is no MASTER a new one is created and an identifier is assigned to it
+        /// </summary>
+        [TestMethod]
+        public void TestShouldAllowLookupByElevatedProperty()
+        {
+            var patientUnderTest = new Patient()
+            {
+                DateOfBirth = DateTime.Parse("1983-02-10"),
+                Names = new List<EntityName>()
+                {
+                    new EntityName(NameUseKeys.Legal, "Smith", "Testy")
+                },
+                Identifiers = new List<EntityIdentifier>()
+                {
+                    new EntityIdentifier(new AssigningAuthority("TEST-MDM", "TEST-MDM", "1.2.3.4.9999"), "TC-12")
+                },
+                GenderConceptKey = Guid.Parse("F4E3A6BB-612E-46B2-9F77-FF844D971198")
+            };
 
+            Patient createdPatient = null;
+            try
+            {
+                createdPatient = ApplicationServiceContext.Current.GetService<IRepositoryService<Patient>>().Insert(patientUnderTest);
+            }
+            catch (Exception e)
+            {
+                Debug.WriteLine(e.ToString());
+                Assert.Fail(e.Message);
+            }
+            Assert.IsNotNull(createdPatient);
+            // The creation / matching of a master record may take some time, so we need to wait for the matcher to finish
+            //Thread.Sleep(1000);
+
+            // Now attempt to query for the record just created, it should be a synthetic MASTER record
+            var nhid = NationalHealthIdRule.LastGeneratedNhid.ToString();
+            var masterPatient = ApplicationServiceContext.Current.GetService<IRepositoryService<Patient>>().Find(o => o.Identifiers.Any(i => i.Value == nhid));
+            Assert.AreEqual(1, masterPatient.Count());
+            Assert.AreEqual("TC-12", masterPatient.First().Identifiers.Last().Value);
+            Assert.AreEqual(NationalHealthIdRule.LastGeneratedNhid.ToString(), masterPatient.First().Identifiers.First().Value);
+            Assert.AreEqual("M", masterPatient.First().Tags.First().Value);
+            Assert.AreEqual("mdm.type", masterPatient.First().Tags.First().TagKey);
+            Assert.AreEqual(createdPatient.Key, masterPatient.First().LoadCollection<EntityRelationship>("Relationships").First().SourceEntityKey); // Ensure master is pointed properly
         }
 
         /// <summary>
@@ -77,7 +124,7 @@ namespace SanteDB.Persistence.MDM.Test
             // Now attempt to query for the record just created, it should be a synthetic MASTER record
             var masterPatient = ApplicationServiceContext.Current.GetService<IRepositoryService<Patient>>().Find(o => o.Identifiers.Any(i => i.Value == "TC-1"));
             Assert.AreEqual(1, masterPatient.Count());
-            Assert.AreEqual("TC-1", masterPatient.First().Identifiers.First().Value);
+            Assert.AreEqual("TC-1", masterPatient.First().Identifiers.Last().Value);
             Assert.AreEqual("M", masterPatient.First().Tags.First().Value);
             Assert.AreEqual("mdm.type", masterPatient.First().Tags.First().TagKey);
             Assert.AreEqual(createdPatient.Key, masterPatient.First().LoadCollection<EntityRelationship>("Relationships").First().SourceEntityKey); // Ensure master is pointed properly
@@ -85,7 +132,7 @@ namespace SanteDB.Persistence.MDM.Test
             // Should redirect a retrieve request
             var masterGet = ApplicationServiceContext.Current.GetService<IRepositoryService<Patient>>().Get(masterPatient.First().Key.Value, Guid.Empty);
             Assert.AreEqual(masterPatient.First().Key, masterGet.Key);
-            Assert.AreEqual("TC-1", masterGet.Identifiers.First().Value);
+            Assert.AreEqual("TC-1", masterGet.Identifiers.Last().Value);
             Assert.AreEqual("M", masterGet.Tags.First().Value);
             Assert.AreEqual("mdm.type", masterGet.Tags.First().TagKey);
 
@@ -120,7 +167,7 @@ namespace SanteDB.Persistence.MDM.Test
             // Assert that a master record was created
             var masterPatient1 = pservice.Find(o => o.Identifiers.Any(i => i.Value == "TC-2")).FirstOrDefault();
             Assert.IsNotNull(masterPatient1);
-            Assert.AreEqual("TC-2", masterPatient1.Identifiers.First().Value);
+            Assert.AreEqual("TC-2", masterPatient1.Identifiers.Last().Value);
             Assert.AreEqual("M", masterPatient1.Tags.First().Value);
             Assert.AreEqual("mdm.type", masterPatient1.Tags.First().TagKey);
             Assert.AreEqual(localPatient1.Key, masterPatient1.Relationships.First().SourceEntityKey); // Ensure master is pointed properly
@@ -146,7 +193,7 @@ namespace SanteDB.Persistence.MDM.Test
             var masterPatient2 = pservice.Find(o => o.Identifiers.Any(i => i.Value == "TC-2B")).FirstOrDefault();
             Assert.IsNotNull(masterPatient2);
             Assert.AreEqual(masterPatient1.Key, masterPatient2.Key);
-            Assert.AreEqual(2, masterPatient2.Identifiers.Count()); // has both identifiers
+            Assert.AreEqual(3, masterPatient2.Identifiers.Count()); // has both identifiers
             Assert.IsTrue(masterPatient2.Identifiers.Any(o => o.Value == "TC-2"));
             Assert.IsTrue(masterPatient2.Identifiers.Any(o => o.Value == "TC-2B"));
             Assert.AreEqual(1, masterPatient2.Names.Count());
@@ -185,7 +232,7 @@ namespace SanteDB.Persistence.MDM.Test
             // Assert that a master record was created
             var masterPatientPre = pservice.Find(o => o.Identifiers.Any(i => i.Value == "TC-3")).SingleOrDefault();
             Assert.IsNotNull(masterPatientPre);
-            Assert.AreEqual("TC-3", masterPatientPre.Identifiers.First().Value);
+            Assert.AreEqual("TC-3", masterPatientPre.Identifiers.Last().Value);
             Assert.AreEqual("M", masterPatientPre.Tags.First().Value);
             Assert.AreEqual("mdm.type", masterPatientPre.Tags.First().TagKey);
             Assert.AreEqual(localPatient1.Key, masterPatientPre.Relationships.First().SourceEntityKey); // Ensure master is pointed properly
@@ -325,7 +372,7 @@ namespace SanteDB.Persistence.MDM.Test
             // There should now be one master
             Assert.AreEqual(1, masters.Count());
             Assert.AreEqual(2, masters.First().Relationships.Count(r => r.RelationshipTypeKey == MdmConstants.MasterRecordRelationship));
-            Assert.AreEqual(2, masters.First().Identifiers.Count());
+            Assert.AreEqual(3, masters.First().Identifiers.Count());
             Assert.AreEqual(1, masters.First().Names.Count());
         }
 
@@ -435,7 +482,7 @@ namespace SanteDB.Persistence.MDM.Test
             Assert.AreEqual(2, masters.First().Names.Count);
             Assert.IsTrue(masters.First().Names.Any(n => n.Component.Any(c => c.Value == "SMITH")));
             Assert.AreEqual(1, masters.First().Addresses.Count);
-            Assert.AreEqual(2, masters.First().Identifiers.Count);
+            Assert.AreEqual(3, masters.First().Identifiers.Count);
             Assert.AreEqual("Male", masters.First().LoadProperty<Concept>("GenderConcept").Mnemonic);
         }
 
@@ -483,7 +530,7 @@ namespace SanteDB.Persistence.MDM.Test
             Assert.AreEqual(1, masters.Count());
             // Note that only one identifier from the locals can be in the master synthetic
             Assert.AreEqual(1, masters.First().Names.Count);
-            Assert.AreEqual(1, masters.First().Identifiers.Count);
+            Assert.AreEqual(2, masters.First().Identifiers.Count);
             Assert.IsFalse(masters.First().Identifiers.Any(o => o.Value == "TC-8B")); // Shoudl not contain the HIV identifier
         }
 
@@ -544,7 +591,7 @@ namespace SanteDB.Persistence.MDM.Test
             Assert.AreEqual(1, masters.Count());
             // Note that only one identifier from the locals can be in the master synthetic
             Assert.AreEqual(1, masters.First().Names.Count);
-            Assert.AreEqual(1, masters.First().Identifiers.Count);
+            Assert.AreEqual(2, masters.First().Identifiers.Count);
             Assert.IsFalse(masters.First().Identifiers.Any(o => o.Value == "TC-9B")); // Shoudl not contain the HIV identifier
             Assert.AreEqual(1, masters.First().Policies.Count);  // Should not contains any policies
 
@@ -555,7 +602,7 @@ namespace SanteDB.Persistence.MDM.Test
             Assert.AreEqual(1, masters.Count());
             // Note that two identifiers from the locals should be in the synthetic
             Assert.AreEqual(2, masters.First().Names.Count);
-            Assert.AreEqual(2, masters.First().Identifiers.Count);
+            Assert.AreEqual(3, masters.First().Identifiers.Count);
             Assert.IsTrue(masters.First().Identifiers.Any(o => o.Value == "TC-9B")); // Shoudl not contain the HIV identifier
             Assert.AreEqual(1, masters.First().Policies.Count);
 
@@ -599,7 +646,7 @@ namespace SanteDB.Persistence.MDM.Test
             // Now attempt to query for the record just created, it should be a synthetic MASTER record
             var masterPatient = ApplicationServiceContext.Current.GetService<IRepositoryService<Patient>>().Find(o => o.Identifiers.Any(i => i.Value == "TC-10"));
             Assert.AreEqual(1, masterPatient.Count());
-            Assert.AreEqual("TC-10", masterPatient.First().Identifiers.First().Value);
+            Assert.AreEqual("TC-10", masterPatient.First().Identifiers.Last().Value);
             Assert.AreEqual("M", masterPatient.First().Tags.First().Value);
             Assert.AreEqual("mdm.type", masterPatient.First().Tags.First().TagKey);
             Assert.AreEqual(patientUnderTest.Key, masterPatient.First().Relationships.First().SourceEntityKey); // Ensure master is pointed properly
@@ -607,10 +654,100 @@ namespace SanteDB.Persistence.MDM.Test
             // Should redirect a retrieve request
             var masterGet = ApplicationServiceContext.Current.GetService<IRepositoryService<Patient>>().Get(masterPatient.First().Key.Value, Guid.Empty);
             Assert.AreEqual(masterPatient.First().Key, masterGet.Key);
-            Assert.AreEqual("TC-10", masterGet.Identifiers.First().Value);
+            Assert.AreEqual("TC-10", masterGet.Identifiers.Last().Value);
             Assert.AreEqual("M", masterGet.Tags.First().Value);
             Assert.AreEqual("mdm.type", masterGet.Tags.First().TagKey);
 
         }
+
+        /// <summary>
+        /// Tests that the MDM layer actually creates a new local when a master is attempted to be updated
+        /// </summary>
+        /// <remarks>
+        /// This test will ensure that the MDM subsystem will actually create a new local record from a different device 
+        /// and that the local record is subjected to matching (i.e. the local record does not have the data associated 
+        /// with the master record). 
+        /// </remarks>
+        [TestMethod]
+        public void TestShouldCreateLocalRecordWhenAttemptingToCreateMaster()
+        {
+
+            var deviceIdentityService = ApplicationServiceContext.Current.GetService<IDeviceIdentityProviderService>();
+            var applicationIdentityService = ApplicationServiceContext.Current.GetService<IApplicationIdentityProviderService>();
+            var pipService = ApplicationServiceContext.Current.GetService<IPolicyInformationService>();
+
+            if (deviceIdentityService.GetIdentity("DCG_A") == null)
+                pipService.AddPolicies(ApplicationServiceContext.Current.GetService<IDataPersistenceService<SecurityDevice>>().Insert(
+                    new SecurityDevice()
+                    {
+                        Name = "DCG_A",
+                        DeviceSecret = ApplicationServiceContext.Current.GetService<IPasswordHashingService>().ComputeHash("Test123")
+                    }, TransactionMode.Commit, AuthenticationContext.SystemPrincipal), PolicyGrantType.Grant, AuthenticationContext.SystemPrincipal, PermissionPolicyIdentifiers.Login);
+
+            if (deviceIdentityService.GetIdentity("DCG_B") == null)
+                pipService.AddPolicies(ApplicationServiceContext.Current.GetService<IDataPersistenceService<SecurityDevice>>().Insert(
+                    new SecurityDevice()
+                    {
+                        Name = "DCG_B",
+                        DeviceSecret = ApplicationServiceContext.Current.GetService<IPasswordHashingService>().ComputeHash("Test123")
+                    }, TransactionMode.Commit, AuthenticationContext.SystemPrincipal), PolicyGrantType.Grant, AuthenticationContext.SystemPrincipal, PermissionPolicyIdentifiers.Login);
+
+            if (applicationIdentityService.GetIdentity("DCG") == null)
+                pipService.AddPolicies(ApplicationServiceContext.Current.GetService<IDataPersistenceService<SecurityApplication>>().Insert(
+                    new SecurityApplication()
+                    {
+                        Name = "DCG",
+                        ApplicationSecret = ApplicationServiceContext.Current.GetService<IPasswordHashingService>().ComputeHash("Test123")
+                    }, TransactionMode.Commit, AuthenticationContext.SystemPrincipal), PolicyGrantType.Grant, AuthenticationContext.SystemPrincipal, PermissionPolicyIdentifiers.Login);
+
+            // First, establish identity as DCG_A
+            var dcgIdentity = applicationIdentityService.Authenticate("DCG", "Test123");
+            var deviceAIdentity = deviceIdentityService.Authenticate("DCG_A", "Test123");
+            var deviceBIdentity = deviceIdentityService.Authenticate("DCG_B", "Test123");
+
+            // Principal A and Principal B
+            var principalA = new SanteDBClaimsPrincipal(new IClaimsIdentity[] { deviceAIdentity.Identity as IClaimsIdentity , dcgIdentity.Identity as IClaimsIdentity });
+            var principalB = new SanteDBClaimsPrincipal(new IClaimsIdentity[] { deviceBIdentity.Identity as IClaimsIdentity , dcgIdentity.Identity as IClaimsIdentity });
+
+            // Now authenticate as Device A and create a new master
+            var patientUnderTest = new Patient()
+            {
+                DateOfBirth = DateTime.Parse("1984-03-20"),
+                Names = new List<EntityName>()
+                {
+                    new EntityName(NameUseKeys.Legal, "Smith", "Device")
+                },
+                Identifiers = new List<EntityIdentifier>()
+                {
+                    new EntityIdentifier(new AssigningAuthority("TEST-MDM", "TEST-MDM", "1.2.3.4.999"), "TC-11")
+                },
+                GenderConceptKey = Guid.Parse("F4E3A6BB-612E-46B2-9F77-FF844D971198")
+            };
+
+            // Should create a local patient
+            var patientService = ApplicationServiceContext.Current.GetService<IRepositoryService<Patient>>();
+            AuthenticationContext.Current = new AuthenticationContext(principalA);
+            var deviceAPatient = patientService.Insert(patientUnderTest);
+
+            // Now authenticate as device B - Simulates what a local would do to the record when performing an update by a field in the master
+            AuthenticationContext.Current = new AuthenticationContext(principalB);
+            var nhid = NationalHealthIdRule.LastGeneratedNhid.ToString();
+            var masterPatient = patientService.Find(o => o.Identifiers.Any(i => i.Authority.DomainName == "NHID" && i.Value == nhid)).SingleOrDefault();
+            Assert.AreEqual(1, masterPatient.Relationships.Where(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship).Count());
+            Assert.IsNotNull(masterPatient);
+            Assert.AreEqual("M", masterPatient.Tags.FirstOrDefault(o => o.TagKey == "mdm.type").Value);
+
+            // Attempt to update the patient as device B -> Should result in a new record being created with the master
+            masterPatient.Addresses.Add(new EntityAddress(AddressUseKeys.Public, "123 Main Street", "Hamilton", "ON", "CA", null));
+            patientService.Save(masterPatient);
+
+            // Now authenticate as SYSTEM and ensure that proper master was created
+            AuthenticationContext.Current = new AuthenticationContext(AuthenticationContext.SystemPrincipal);
+            masterPatient = patientService.Find(o => o.Identifiers.Any(i => i.Authority.DomainName == "NHID" && i.Value == nhid)).SingleOrDefault();
+            Assert.AreEqual(2, masterPatient.Relationships.Where(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship).Count());
+            Assert.AreEqual(1, masterPatient.Relationships.First().LoadProperty<Entity>(nameof(EntityRelationship.SourceEntity)).Identifiers.Count);
+            Assert.AreEqual(2, masterPatient.Relationships.Last().LoadProperty<Entity>(nameof(EntityRelationship.SourceEntity)).Identifiers.Count);
+        }
+        
     }
 }
