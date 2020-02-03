@@ -145,23 +145,26 @@ namespace SanteDB.Persistence.MDM.Services
                 if (!e.Results.All(o => o.GetType() == itm.ResourceType)) continue;
 
                 // We have a resource type that matches
-                e.Results.AsParallel().ForAll((res) =>
+                e.Results = e.Results.AsParallel().AsOrdered().Select((res) =>
                 {
                     // Result is taggable and a tag exists for MDM
                     if (res is Entity entity && entity.Tags.Any(o => o.TagKey == "mdm.type" && o.Value != "M"))
                     {
                         // Attempt to load the master and add to the results
                         var master = entity.LoadCollection<EntityRelationship>(nameof(Entity.Relationships)).FirstOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship);
-                        master.LoadProperty<Entity>(nameof(EntityRelationship.TargetEntity));
+                        var masterType = typeof(EntityMaster<>).MakeGenericType(itm.ResourceType);
+                        return Activator.CreateInstance(masterType, master.LoadProperty<Entity>(nameof(EntityRelationship.TargetEntity)));
                     }
                     else if (res is Act act && act.Tags.Any(o => o.TagKey == "mdm.type" && o.Value != "M"))
                     {
                         // Attempt to load the master and add to the results
                         var master = act.LoadCollection<ActRelationship>(nameof(Act.Relationships)).FirstOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship);
-                        master.LoadProperty<Act>(nameof(ActRelationship.TargetAct));
+                        var masterType = typeof(EntityMaster<>).MakeGenericType(itm.ResourceType);
+                        return Activator.CreateInstance(masterType, master.LoadProperty<Act>(nameof(ActRelationship.TargetAct)));
                     }
-
-                });
+                    else
+                        throw new InvalidOperationException($"Result of type {res.GetType().Name} is not supported in MDM contexts");
+                }).OfType<IdentifiedData>();
             }
         }
 
