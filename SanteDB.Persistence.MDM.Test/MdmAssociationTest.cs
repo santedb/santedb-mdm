@@ -492,6 +492,7 @@ namespace SanteDB.Persistence.MDM.Test
         [TestMethod]
         public void TestTabooInformationNotDisclosedInMaster()
         {
+            AuthenticationContext.Current = new AuthenticationContext(AuthenticationContext.SystemPrincipal);
             var pservice = ApplicationServiceContext.Current.GetService<IRepositoryService<Patient>>();
             var patient1 = new Patient()
             {
