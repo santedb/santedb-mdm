@@ -57,7 +57,7 @@ namespace SanteDB.Persistence.MDM.Test
                 },
                 Identifiers = new List<EntityIdentifier>()
                 {
-                    new EntityIdentifier(new AssigningAuthority("TEST-MDM", "TEST-MDM", "1.2.3.4.9999"), "TC-12")
+                    new EntityIdentifier(new AssigningAuthority("TEST-MDM", "TEST-MDM", "1.2.3.4.9999"), "MDM-12")
                 },
                 GenderConceptKey = Guid.Parse("F4E3A6BB-612E-46B2-9F77-FF844D971198")
             };
@@ -80,7 +80,7 @@ namespace SanteDB.Persistence.MDM.Test
             var nhid = NationalHealthIdRule.LastGeneratedNhid.ToString();
             var masterPatient = ApplicationServiceContext.Current.GetService<IRepositoryService<Patient>>().Find(o => o.Identifiers.Any(i => i.Value == nhid));
             Assert.AreEqual(1, masterPatient.Count());
-            Assert.AreEqual("TC-12", masterPatient.First().Identifiers.Last().Value);
+            Assert.AreEqual("MDM-12", masterPatient.First().Identifiers.Last().Value);
             Assert.AreEqual(NationalHealthIdRule.LastGeneratedNhid.ToString(), masterPatient.First().Identifiers.First().Value);
             Assert.AreEqual("M", masterPatient.First().Tags.First().Value);
             Assert.AreEqual("mdm.type", masterPatient.First().Tags.First().TagKey);
@@ -102,7 +102,7 @@ namespace SanteDB.Persistence.MDM.Test
                 },
                 Identifiers = new List<EntityIdentifier>()
                 {
-                    new EntityIdentifier(new AssigningAuthority("TEST-MDM", "TEST-MDM", "1.2.3.4.9999"), "TC-1")
+                    new EntityIdentifier(new AssigningAuthority("TEST-MDM", "TEST-MDM", "1.2.3.4.9999"), "MDM-1")
                 },
                 GenderConceptKey = Guid.Parse("F4E3A6BB-612E-46B2-9F77-FF844D971198")
             };
@@ -122,9 +122,9 @@ namespace SanteDB.Persistence.MDM.Test
             //Thread.Sleep(1000);
 
             // Now attempt to query for the record just created, it should be a synthetic MASTER record
-            var masterPatient = ApplicationServiceContext.Current.GetService<IRepositoryService<Patient>>().Find(o => o.Identifiers.Any(i => i.Value == "TC-1"));
+            var masterPatient = ApplicationServiceContext.Current.GetService<IRepositoryService<Patient>>().Find(o => o.Identifiers.Any(i => i.Value == "MDM-1"));
             Assert.AreEqual(1, masterPatient.Count());
-            Assert.AreEqual("TC-1", masterPatient.First().Identifiers.Last().Value);
+            Assert.AreEqual("MDM-1", masterPatient.First().Identifiers.Last().Value);
             Assert.AreEqual("M", masterPatient.First().Tags.First().Value);
             Assert.AreEqual("mdm.type", masterPatient.First().Tags.First().TagKey);
             Assert.AreEqual(createdPatient.Key, masterPatient.First().LoadCollection<EntityRelationship>("Relationships").First().SourceEntityKey); // Ensure master is pointed properly
@@ -132,7 +132,7 @@ namespace SanteDB.Persistence.MDM.Test
             // Should redirect a retrieve request
             var masterGet = ApplicationServiceContext.Current.GetService<IRepositoryService<Patient>>().Get(masterPatient.First().Key.Value, Guid.Empty);
             Assert.AreEqual(masterPatient.First().Key, masterGet.Key);
-            Assert.AreEqual("TC-1", masterGet.Identifiers.Last().Value);
+            Assert.AreEqual("MDM-1", masterGet.Identifiers.Last().Value);
             Assert.AreEqual("M", masterGet.Tags.First().Value);
             Assert.AreEqual("mdm.type", masterGet.Tags.First().TagKey);
 
@@ -155,7 +155,7 @@ namespace SanteDB.Persistence.MDM.Test
                 },
                 Identifiers = new List<EntityIdentifier>()
                 {
-                    new EntityIdentifier(new AssigningAuthority("TEST-MDM", "TEST-MDM", "1.2.3.4.999"), "TC-2")
+                    new EntityIdentifier(new AssigningAuthority("TEST-MDM", "TEST-MDM", "1.2.3.4.999"), "MDM-2")
                 },
                 GenderConceptKey = Guid.Parse("F4E3A6BB-612E-46B2-9F77-FF844D971198"),
                 MultipleBirthOrder = 0
@@ -165,9 +165,9 @@ namespace SanteDB.Persistence.MDM.Test
             // Wait for master
             //Thread.Sleep(1000);
             // Assert that a master record was created
-            var masterPatient1 = pservice.Find(o => o.Identifiers.Any(i => i.Value == "TC-2")).FirstOrDefault();
+            var masterPatient1 = pservice.Find(o => o.Identifiers.Any(i => i.Value == "MDM-2")).FirstOrDefault();
             Assert.IsNotNull(masterPatient1);
-            Assert.AreEqual("TC-2", masterPatient1.Identifiers.Last().Value);
+            Assert.AreEqual("MDM-2", masterPatient1.Identifiers.Last().Value);
             Assert.AreEqual("M", masterPatient1.Tags.First().Value);
             Assert.AreEqual("mdm.type", masterPatient1.Tags.First().TagKey);
             Assert.AreEqual(localPatient1.Key, masterPatient1.Relationships.First().SourceEntityKey); // Ensure master is pointed properly
@@ -182,7 +182,7 @@ namespace SanteDB.Persistence.MDM.Test
                 },
                 Identifiers = new List<EntityIdentifier>()
                 {
-                    new EntityIdentifier(new AssigningAuthority("TEST2", "TEST2", "1.2.3.4.999.5"), "TC-2B")
+                    new EntityIdentifier(new AssigningAuthority("TEST2", "TEST2", "1.2.3.4.999.5"), "MDM-2B")
                 },
                 GenderConceptKey = Guid.Parse("F4E3A6BB-612E-46B2-9F77-FF844D971198"),
                 MultipleBirthOrder = 0
@@ -190,12 +190,12 @@ namespace SanteDB.Persistence.MDM.Test
             var localPatient2 = pservice.Insert(patient2);
             //Thread.Sleep(1000);
             // Assert that master was linked
-            var masterPatient2 = pservice.Find(o => o.Identifiers.Any(i => i.Value == "TC-2B")).FirstOrDefault();
+            var masterPatient2 = pservice.Find(o => o.Identifiers.Any(i => i.Value == "MDM-2B")).FirstOrDefault();
             Assert.IsNotNull(masterPatient2);
             Assert.AreEqual(masterPatient1.Key, masterPatient2.Key);
             Assert.AreEqual(3, masterPatient2.Identifiers.Count()); // has both identifiers
-            Assert.IsTrue(masterPatient2.Identifiers.Any(o => o.Value == "TC-2"));
-            Assert.IsTrue(masterPatient2.Identifiers.Any(o => o.Value == "TC-2B"));
+            Assert.IsTrue(masterPatient2.Identifiers.Any(o => o.Value == "MDM-2"));
+            Assert.IsTrue(masterPatient2.Identifiers.Any(o => o.Value == "MDM-2B"));
             Assert.AreEqual(1, masterPatient2.Names.Count());
             // Assert that both local patients are linked to MASTER
             Assert.AreEqual(2, masterPatient2.Relationships.Count(r => r.RelationshipTypeKey == MdmConstants.MasterRecordRelationship));
@@ -221,7 +221,7 @@ namespace SanteDB.Persistence.MDM.Test
                 },
                 Identifiers = new List<EntityIdentifier>()
                 {
-                    new EntityIdentifier(new AssigningAuthority("TEST-MDM", "TEST-MDM", "1.2.3.4.999"), "TC-3")
+                    new EntityIdentifier(new AssigningAuthority("TEST-MDM", "TEST-MDM", "1.2.3.4.999"), "MDM-3")
                 },
                 GenderConceptKey = Guid.Parse("F4E3A6BB-612E-46B2-9F77-FF844D971198")
             };
@@ -230,9 +230,9 @@ namespace SanteDB.Persistence.MDM.Test
             // Wait for master
             //Thread.Sleep(1000);
             // Assert that a master record was created
-            var masterPatientPre = pservice.Find(o => o.Identifiers.Any(i => i.Value == "TC-3")).SingleOrDefault();
+            var masterPatientPre = pservice.Find(o => o.Identifiers.Any(i => i.Value == "MDM-3")).SingleOrDefault();
             Assert.IsNotNull(masterPatientPre);
-            Assert.AreEqual("TC-3", masterPatientPre.Identifiers.Last().Value);
+            Assert.AreEqual("MDM-3", masterPatientPre.Identifiers.Last().Value);
             Assert.AreEqual("M", masterPatientPre.Tags.First().Value);
             Assert.AreEqual("mdm.type", masterPatientPre.Tags.First().TagKey);
             Assert.AreEqual(localPatient1.Key, masterPatientPre.Relationships.First().SourceEntityKey); // Ensure master is pointed properly
@@ -243,7 +243,7 @@ namespace SanteDB.Persistence.MDM.Test
 
             // After updating the MASTER should reflect the newest data for the local
             //Thread.Sleep(1000);
-            var masterPatientPost = pservice.Find(o => o.Identifiers.Any(i => i.Value == "TC-3")).SingleOrDefault();
+            var masterPatientPost = pservice.Find(o => o.Identifiers.Any(i => i.Value == "MDM-3")).SingleOrDefault();
             Assert.AreEqual(masterPatientPre.Key, masterPatientPost.Key);
             Assert.AreEqual("Smithie", masterPatientPost.Names.First().Component.First().Value);
             Assert.AreEqual("1984-05-22", masterPatientPost.DateOfBirth.Value.ToString("yyyy-MM-dd"));
@@ -266,7 +266,7 @@ namespace SanteDB.Persistence.MDM.Test
                 },
                 Identifiers = new List<EntityIdentifier>()
                 {
-                    new EntityIdentifier(new AssigningAuthority("TEST-MDM", "TEST-MDM", "1.2.3.4.999"), "TC-4A")
+                    new EntityIdentifier(new AssigningAuthority("TEST-MDM", "TEST-MDM", "1.2.3.4.999"), "MDM-4A")
                 },
                 GenderConceptKey = Guid.Parse("F4E3A6BB-612E-46B2-9F77-FF844D971198"),
                 MultipleBirthOrder = 1
@@ -281,7 +281,7 @@ namespace SanteDB.Persistence.MDM.Test
                 },
                 Identifiers = new List<EntityIdentifier>()
                 {
-                    new EntityIdentifier(new AssigningAuthority("TEST-MDM", "TEST-MDM", "1.2.3.4.999"), "TC-4B")
+                    new EntityIdentifier(new AssigningAuthority("TEST-MDM", "TEST-MDM", "1.2.3.4.999"), "MDM-4B")
                 },
                 GenderConceptKey = Guid.Parse("F4E3A6BB-612E-46B2-9F77-FF844D971198"),
                 MultipleBirthOrder = 2
@@ -290,7 +290,7 @@ namespace SanteDB.Persistence.MDM.Test
 
             // There should be two masters
             //Thread.Sleep(1000);
-            var masters = pservice.Find(o => o.Identifiers.Any(i => i.Value.Contains("TC-4")));
+            var masters = pservice.Find(o => o.Identifiers.Any(i => i.Value.Contains("MDM-4")));
             Assert.AreEqual(2, masters.Count());
 
             // Insert a local record that will trigger a MATCH with both local patients
@@ -303,7 +303,7 @@ namespace SanteDB.Persistence.MDM.Test
                 },
                 Identifiers = new List<EntityIdentifier>()
                 {
-                    new EntityIdentifier(new AssigningAuthority("TEST-MDM", "TEST-MDM", "1.2.3.4.999"), "TC-4C")
+                    new EntityIdentifier(new AssigningAuthority("TEST-MDM", "TEST-MDM", "1.2.3.4.999"), "MDM-4C")
                 },
                 GenderConceptKey = Guid.Parse("F4E3A6BB-612E-46B2-9F77-FF844D971198"),
                 MultipleBirthOrder = null
@@ -312,9 +312,9 @@ namespace SanteDB.Persistence.MDM.Test
             //Thread.Sleep(1000);
 
             // The previous insert should result in a new MASTER being created
-            masters = pservice.Find(o => o.Identifiers.Any(i => i.Value.Contains("TC-4")));
+            masters = pservice.Find(o => o.Identifiers.Any(i => i.Value.Contains("MDM-4")));
             Assert.AreEqual(3, masters.Count());
-            var patient3Master = pservice.Find(o => o.Identifiers.Any(i => i.Value == "TC-4C")).SingleOrDefault();
+            var patient3Master = pservice.Find(o => o.Identifiers.Any(i => i.Value == "MDM-4C")).SingleOrDefault();
             Assert.IsNotNull(patient3Master);
 
             // There should be 2 probables
@@ -339,7 +339,7 @@ namespace SanteDB.Persistence.MDM.Test
                 },
                 Identifiers = new List<EntityIdentifier>()
                 {
-                    new EntityIdentifier(new AssigningAuthority("TEST-MDM", "TEST-MDM", "1.2.3.4.5.5"), "TC-5A")
+                    new EntityIdentifier(new AssigningAuthority("TEST-MDM", "TEST-MDM", "1.2.3.4.5.5"), "MDM-5A")
                 },
                 GenderConceptKey = Guid.Parse("F4E3A6BB-612E-46B2-9F77-FF844D971198")
             };
@@ -353,7 +353,7 @@ namespace SanteDB.Persistence.MDM.Test
                 },
                 Identifiers = new List<EntityIdentifier>()
                 {
-                    new EntityIdentifier(new AssigningAuthority("TEST-MDM", "TEST-MDM", "1.2.3.4.5.6"), "TC-5B")
+                    new EntityIdentifier(new AssigningAuthority("TEST-MDM", "TEST-MDM", "1.2.3.4.5.6"), "MDM-5B")
                 },
                 GenderConceptKey = Guid.Parse("F4E3A6BB-612E-46B2-9F77-FF844D971198")
             };
@@ -361,14 +361,14 @@ namespace SanteDB.Persistence.MDM.Test
 
             // There should be two masters
             //Thread.Sleep(1000);
-            var masters = pservice.Find(o => o.Identifiers.Any(i => i.Value.Contains("TC-5")));
+            var masters = pservice.Find(o => o.Identifiers.Any(i => i.Value.Contains("MDM-5")));
             Assert.AreEqual(2, masters.Count());
 
             // Now update patient 2 
             patient2.DateOfBirth = new DateTime(1985, 01, 04);
             localPatient2 = pservice.Save(patient2);
             //Thread.Sleep(1000);
-            masters = pservice.Find(o => o.Identifiers.Any(i => i.Value.Contains("TC-5")));
+            masters = pservice.Find(o => o.Identifiers.Any(i => i.Value.Contains("MDM-5")));
             // There should now be one master
             Assert.AreEqual(1, masters.Count());
             Assert.AreEqual(2, masters.First().Relationships.Count(r => r.RelationshipTypeKey == MdmConstants.MasterRecordRelationship));
@@ -392,7 +392,7 @@ namespace SanteDB.Persistence.MDM.Test
                 },
                 Identifiers = new List<EntityIdentifier>()
                 {
-                    new EntityIdentifier(new AssigningAuthority("TEST-MDM", "TEST-MDM", "1.2.3.4.5.5"), "TC-6A")
+                    new EntityIdentifier(new AssigningAuthority("TEST-MDM", "TEST-MDM", "1.2.3.4.5.5"), "MDM-6A")
                 },
                 GenderConceptKey = Guid.Parse("F4E3A6BB-612E-46B2-9F77-FF844D971198")
             };
@@ -406,7 +406,7 @@ namespace SanteDB.Persistence.MDM.Test
                 },
                 Identifiers = new List<EntityIdentifier>()
                 {
-                    new EntityIdentifier(new AssigningAuthority("TEST-MDM", "TEST-MDM", "1.2.3.4.5.6"), "TC-6B")
+                    new EntityIdentifier(new AssigningAuthority("TEST-MDM", "TEST-MDM", "1.2.3.4.5.6"), "MDM-6B")
                 },
                 GenderConceptKey = Guid.Parse("F4E3A6BB-612E-46B2-9F77-FF844D971198")
             };
@@ -414,7 +414,7 @@ namespace SanteDB.Persistence.MDM.Test
 
             // There should be one masters
             //Thread.Sleep(1000);
-            var masters = pservice.Find(o => o.Identifiers.Any(i => i.Value.Contains("TC-6")));
+            var masters = pservice.Find(o => o.Identifiers.Any(i => i.Value.Contains("MDM-6")));
             Assert.AreEqual(1, masters.Count());
 
             // Now we want to update the second local patient
@@ -422,7 +422,7 @@ namespace SanteDB.Persistence.MDM.Test
             patient2.DateOfBirth = new DateTime(1985, 06, 06);
             localPatient2 = pservice.Save(patient2);
             //Thread.Sleep(1000);
-            masters = pservice.Find(o => o.Identifiers.Any(i => i.Value.Contains("TC-6")));
+            masters = pservice.Find(o => o.Identifiers.Any(i => i.Value.Contains("MDM-6")));
             Assert.AreEqual(2, masters.Count());
 
         }
@@ -444,7 +444,7 @@ namespace SanteDB.Persistence.MDM.Test
                 },
                 Identifiers = new List<EntityIdentifier>()
                 {
-                    new EntityIdentifier(new AssigningAuthority("TEST-MDM", "TEST-MDM", "1.2.3.4.5.5"), "TC-7A")
+                    new EntityIdentifier(new AssigningAuthority("TEST-MDM", "TEST-MDM", "1.2.3.4.5.5"), "MDM-7A")
                 },
                 GenderConceptKey = Guid.Parse("F4E3A6BB-612E-46B2-9F77-FF844D971198")
             };
@@ -458,14 +458,14 @@ namespace SanteDB.Persistence.MDM.Test
                 },
                 Identifiers = new List<EntityIdentifier>()
                 {
-                    new EntityIdentifier(new AssigningAuthority("TEST7", "TEST7", "1.2.3.4.5.7"), "TC-7B")
+                    new EntityIdentifier(new AssigningAuthority("TEST7", "TEST7", "1.2.3.4.5.7"), "MDM-7B")
                 },
                 GenderConceptKey = Guid.Parse("F4E3A6BB-612E-46B2-9F77-FF844D971198")
             };
             var localPatient2 = pservice.Insert(patient2);
 
             // Thread.Sleep(1000);
-            var masters = pservice.Find(o => o.Identifiers.Any(i => i.Value.Contains("TC-7")));
+            var masters = pservice.Find(o => o.Identifiers.Any(i => i.Value.Contains("MDM-7")));
             Assert.AreEqual(1, masters.Count());
             Assert.AreEqual(1, masters.First().Names.Count);
             Assert.AreEqual(0, masters.First().Addresses.Count);
@@ -477,7 +477,7 @@ namespace SanteDB.Persistence.MDM.Test
             localPatient2 = pservice.Save(patient2);
 
             // Thread.Sleep(1000);
-            masters = pservice.Find(o => o.Identifiers.Any(i => i.Value.Contains("TC-7")));
+            masters = pservice.Find(o => o.Identifiers.Any(i => i.Value.Contains("MDM-7")));
             Assert.AreEqual(1, masters.Count());
             Assert.AreEqual(2, masters.First().Names.Count);
             Assert.IsTrue(masters.First().Names.Any(n => n.Component.Any(c => c.Value == "SMITH")));
@@ -502,7 +502,7 @@ namespace SanteDB.Persistence.MDM.Test
                 },
                 Identifiers = new List<EntityIdentifier>()
                 {
-                    new EntityIdentifier(new AssigningAuthority("TEST-MDM", "TEST-MDM", "1.2.3.4.5.5"), "TC-8A")
+                    new EntityIdentifier(new AssigningAuthority("TEST-MDM", "TEST-MDM", "1.2.3.4.5.5"), "MDM-8A")
                 },
                 GenderConceptKey = Guid.Parse("F4E3A6BB-612E-46B2-9F77-FF844D971198")
             };
@@ -518,7 +518,7 @@ namespace SanteDB.Persistence.MDM.Test
                 },
                 Identifiers = new List<EntityIdentifier>()
                 {
-                    new EntityIdentifier(new AssigningAuthority("HIVCLINIC", "HIVCLINIC", "9.9.9.9.9"), "TC-8B")
+                    new EntityIdentifier(new AssigningAuthority("HIVCLINIC", "HIVCLINIC", "9.9.9.9.9"), "MDM-8B")
                 },
                 GenderConceptKey = Guid.Parse("F4E3A6BB-612E-46B2-9F77-FF844D971198")
             };
@@ -526,12 +526,12 @@ namespace SanteDB.Persistence.MDM.Test
             var localPatient2 = pservice.Insert(patient2);
 
             // Thread.Sleep(1000);
-            var masters = pservice.Find(o => o.Identifiers.Any(i => i.Value.Contains("TC-8")));
+            var masters = pservice.Find(o => o.Identifiers.Any(i => i.Value.Contains("MDM-8")));
             Assert.AreEqual(1, masters.Count());
             // Note that only one identifier from the locals can be in the master synthetic
             Assert.AreEqual(1, masters.First().Names.Count);
             Assert.AreEqual(2, masters.First().Identifiers.Count);
-            Assert.IsFalse(masters.First().Identifiers.Any(o => o.Value == "TC-8B")); // Shoudl not contain the HIV identifier
+            Assert.IsFalse(masters.First().Identifiers.Any(o => o.Value == "MDM-8B")); // Shoudl not contain the HIV identifier
         }
 
         /// <summary>
@@ -562,7 +562,7 @@ namespace SanteDB.Persistence.MDM.Test
                 },
                 Identifiers = new List<EntityIdentifier>()
                 {
-                    new EntityIdentifier(new AssigningAuthority("TEST-MDM", "TEST-MDM", "1.2.3.4.5.5"), "TC-9A")
+                    new EntityIdentifier(new AssigningAuthority("TEST-MDM", "TEST-MDM", "1.2.3.4.5.5"), "MDM-9A")
                 },
                 GenderConceptKey = Guid.Parse("F4E3A6BB-612E-46B2-9F77-FF844D971198")
             };
@@ -578,7 +578,7 @@ namespace SanteDB.Persistence.MDM.Test
                 },
                 Identifiers = new List<EntityIdentifier>()
                 {
-                    new EntityIdentifier(new AssigningAuthority("HIVCLINIC", "HIVCLINIC", "9.9.9.9.9"), "TC-9B")
+                    new EntityIdentifier(new AssigningAuthority("HIVCLINIC", "HIVCLINIC", "9.9.9.9.9"), "MDM-9B")
                 },
                 GenderConceptKey = Guid.Parse("F4E3A6BB-612E-46B2-9F77-FF844D971198")
             };
@@ -587,23 +587,23 @@ namespace SanteDB.Persistence.MDM.Test
 
             // Thread.Sleep(1000);
             // When running as SYSTEM - A user which does not have access
-            var masters = pservice.Find(o => o.Identifiers.Any(i => i.Value.Contains("TC-9")));
+            var masters = pservice.Find(o => o.Identifiers.Any(i => i.Value.Contains("MDM-9")));
             Assert.AreEqual(1, masters.Count());
             // Note that only one identifier from the locals can be in the master synthetic
             Assert.AreEqual(1, masters.First().Names.Count);
             Assert.AreEqual(2, masters.First().Identifiers.Count);
-            Assert.IsFalse(masters.First().Identifiers.Any(o => o.Value == "TC-9B")); // Shoudl not contain the HIV identifier
+            Assert.IsFalse(masters.First().Identifiers.Any(o => o.Value == "MDM-9B")); // Shoudl not contain the HIV identifier
             Assert.AreEqual(1, masters.First().Policies.Count);  // Should not contains any policies
 
             // When running as our user which has access
             var restrictedUser = userService.Authenticate("RESTRICTED", "TEST123");
             AuthenticationContext.Current = new AuthenticationContext(restrictedUser);
-            masters = pservice.Find(o => o.Identifiers.Any(i => i.Value.Contains("TC-9")));
+            masters = pservice.Find(o => o.Identifiers.Any(i => i.Value.Contains("MDM-9")));
             Assert.AreEqual(1, masters.Count());
             // Note that two identifiers from the locals should be in the synthetic
             Assert.AreEqual(2, masters.First().Names.Count);
             Assert.AreEqual(3, masters.First().Identifiers.Count);
-            Assert.IsTrue(masters.First().Identifiers.Any(o => o.Value == "TC-9B")); // Shoudl not contain the HIV identifier
+            Assert.IsTrue(masters.First().Identifiers.Any(o => o.Value == "MDM-9B")); // Shoudl not contain the HIV identifier
             Assert.AreEqual(1, masters.First().Policies.Count);
 
         }
@@ -623,7 +623,7 @@ namespace SanteDB.Persistence.MDM.Test
                 },
                 Identifiers = new List<EntityIdentifier>()
                 {
-                    new EntityIdentifier(new AssigningAuthority("TEST-MDM", "TEST-MDM", "1.2.3.4.999"), "TC-10")
+                    new EntityIdentifier(new AssigningAuthority("TEST-MDM", "TEST-MDM", "1.2.3.4.999"), "MDM-10")
                 },
                 GenderConceptKey = Guid.Parse("F4E3A6BB-612E-46B2-9F77-FF844D971198")
             };
@@ -644,9 +644,9 @@ namespace SanteDB.Persistence.MDM.Test
             //Thread.Sleep(1000);
 
             // Now attempt to query for the record just created, it should be a synthetic MASTER record
-            var masterPatient = ApplicationServiceContext.Current.GetService<IRepositoryService<Patient>>().Find(o => o.Identifiers.Any(i => i.Value == "TC-10"));
+            var masterPatient = ApplicationServiceContext.Current.GetService<IRepositoryService<Patient>>().Find(o => o.Identifiers.Any(i => i.Value == "MDM-10"));
             Assert.AreEqual(1, masterPatient.Count());
-            Assert.AreEqual("TC-10", masterPatient.First().Identifiers.Last().Value);
+            Assert.AreEqual("MDM-10", masterPatient.First().Identifiers.Last().Value);
             Assert.AreEqual("M", masterPatient.First().Tags.First().Value);
             Assert.AreEqual("mdm.type", masterPatient.First().Tags.First().TagKey);
             Assert.AreEqual(patientUnderTest.Key, masterPatient.First().Relationships.First().SourceEntityKey); // Ensure master is pointed properly
@@ -654,7 +654,7 @@ namespace SanteDB.Persistence.MDM.Test
             // Should redirect a retrieve request
             var masterGet = ApplicationServiceContext.Current.GetService<IRepositoryService<Patient>>().Get(masterPatient.First().Key.Value, Guid.Empty);
             Assert.AreEqual(masterPatient.First().Key, masterGet.Key);
-            Assert.AreEqual("TC-10", masterGet.Identifiers.Last().Value);
+            Assert.AreEqual("MDM-10", masterGet.Identifiers.Last().Value);
             Assert.AreEqual("M", masterGet.Tags.First().Value);
             Assert.AreEqual("mdm.type", masterGet.Tags.First().TagKey);
 
@@ -719,7 +719,7 @@ namespace SanteDB.Persistence.MDM.Test
                 },
                 Identifiers = new List<EntityIdentifier>()
                 {
-                    new EntityIdentifier(new AssigningAuthority("TEST-MDM", "TEST-MDM", "1.2.3.4.999"), "TC-11")
+                    new EntityIdentifier(new AssigningAuthority("TEST-MDM", "TEST-MDM", "1.2.3.4.999"), "MDM-11")
                 },
                 GenderConceptKey = Guid.Parse("F4E3A6BB-612E-46B2-9F77-FF844D971198")
             };
