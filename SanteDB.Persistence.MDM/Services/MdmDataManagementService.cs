@@ -34,6 +34,7 @@ using System.Linq;
 using System.Linq.Expressions;
 using SanteDB.Core.Model;
 using SanteDB.Core.Model.Subscription;
+using SanteDB.Core.Security;
 
 namespace SanteDB.Persistence.MDM.Services
 {
@@ -144,6 +145,8 @@ namespace SanteDB.Persistence.MDM.Services
             {
                 if (!e.Results.All(o => o.GetType() == itm.ResourceType)) continue;
 
+                var authPrincipal = AuthenticationContext.Current.Principal;
+
                 // We have a resource type that matches
                 e.Results = e.Results.AsParallel().AsOrdered().Select((res) =>
                 {
@@ -153,18 +156,19 @@ namespace SanteDB.Persistence.MDM.Services
                         // Attempt to load the master and add to the results
                         var master = entity.LoadCollection<EntityRelationship>(nameof(Entity.Relationships)).FirstOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship);
                         var masterType = typeof(EntityMaster<>).MakeGenericType(itm.ResourceType);
-                        return Activator.CreateInstance(masterType, master.LoadProperty<Entity>(nameof(EntityRelationship.TargetEntity)));
+                        return (Activator.CreateInstance(masterType, master.LoadProperty<Entity>(nameof(EntityRelationship.TargetEntity))) as IMdmMaster).GetMaster(authPrincipal);
                     }
                     else if (res is Act act && act.Tags.Any(o => o.TagKey == "mdm.type" && o.Value != "M"))
                     {
                         // Attempt to load the master and add to the results
                         var master = act.LoadCollection<ActRelationship>(nameof(Act.Relationships)).FirstOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship);
                         var masterType = typeof(EntityMaster<>).MakeGenericType(itm.ResourceType);
-                        return Activator.CreateInstance(masterType, master.LoadProperty<Act>(nameof(ActRelationship.TargetAct)));
+                        return (Activator.CreateInstance(masterType, master.LoadProperty<Act>(nameof(ActRelationship.TargetAct))) as IMdmMaster).GetMaster(authPrincipal);
                     }
                     else
                         throw new InvalidOperationException($"Result of type {res.GetType().Name} is not supported in MDM contexts");
-                }).OfType<IdentifiedData>();
+                }).OfType<IdentifiedData>().ToArray();
+                return;
             }
         }
 

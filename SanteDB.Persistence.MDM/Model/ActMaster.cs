@@ -23,6 +23,7 @@ using SanteDB.Core.Model;
 using SanteDB.Core.Model.Acts;
 using SanteDB.Core.Model.DataTypes;
 using SanteDB.Core.Model.EntityLoader;
+using SanteDB.Core.Model.Interfaces;
 using SanteDB.Core.Model.Security;
 using SanteDB.Core.Security.Audit;
 using SanteDB.Core.Security.Services;
@@ -113,7 +114,7 @@ namespace SanteDB.Persistence.MDM.Model
         /// Get the local records of this master
         /// </summary>
         [XmlIgnore, JsonIgnore]
-        public List<T> LocalRecords
+        public IEnumerable<T> LocalRecords
         {
             get
             {
@@ -122,5 +123,16 @@ namespace SanteDB.Persistence.MDM.Model
                 return this.m_localRecords;
             }
         }
+
+
+        /// <summary>
+        /// Get master record
+        /// </summary>
+        IIdentifiedEntity IMdmMaster.GetMaster(IPrincipal principal) => this.GetMaster(principal);
+
+        /// <summary>
+        /// Gets local records
+        /// </summary>
+        IEnumerable<IIdentifiedEntity> IMdmMaster.LocalRecords => this.LocalRecords.OfType<IIdentifiedEntity>();
     }
 }

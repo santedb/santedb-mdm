@@ -23,10 +23,27 @@ using System.Security.Principal;
 
 namespace SanteDB.Persistence.MDM.Model
 {
+
     /// <summary>
     /// Marks a class as an MDM master record
     /// </summary>
-    public interface IMdmMaster<T> : IVersionedEntity, IIdentifiedEntity, ITaggable, ISecurable
+    public interface IMdmMaster
+    {
+        /// <summary>
+        /// Constructs the master record from local records
+        /// </summary>
+        IIdentifiedEntity GetMaster(IPrincipal principal);
+
+        /// <summary>
+        /// Gets the local records
+        /// </summary>
+        IEnumerable<IIdentifiedEntity> LocalRecords { get; }
+    }
+
+    /// <summary>
+    /// Marks a class as an MDM master record
+    /// </summary>
+    public interface IMdmMaster<T> : IMdmMaster, IVersionedEntity, IIdentifiedEntity, ITaggable, ISecurable
     {
 
         /// <summary>
@@ -37,7 +54,7 @@ namespace SanteDB.Persistence.MDM.Model
         /// <summary>
         /// Gets the local records
         /// </summary>
-        List<T> LocalRecords { get; }
+        IEnumerable<T> LocalRecords { get; }
 
     }
 }
