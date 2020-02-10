@@ -187,6 +187,7 @@ namespace SanteDB.Persistence.MDM.Model
         /// <summary>
         /// Gets local records
         /// </summary>
+        [XmlIgnore, JsonIgnore]
         IEnumerable<IIdentifiedEntity> IMdmMaster.LocalRecords => this.LocalRecords.OfType<IIdentifiedEntity>();
     }
 }

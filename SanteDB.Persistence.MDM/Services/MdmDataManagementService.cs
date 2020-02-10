@@ -108,6 +108,7 @@ namespace SanteDB.Persistence.MDM.Services
                     rt = typeof(ActMaster<>).MakeGenericType(rt);
                 ModelSerializationBinder.RegisterModelType(typeName, rt);
             }
+
             // Wait until application context is started
             ApplicationServiceContext.Current.Started += (o, e) =>
             {

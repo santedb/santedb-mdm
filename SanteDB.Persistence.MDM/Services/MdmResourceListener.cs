@@ -679,9 +679,9 @@ namespace SanteDB.Persistence.MDM.Services
 
                     // Query for other masters
                     query = typeof(QueryExpressionParser).GetGenericMethod(nameof(QueryExpressionParser.BuildLinqExpression), new Type[] { relationshipType }, new Type[] { typeof(NameValueCollection) })
-                    .Invoke(null, new object[] { NameValueCollection.ParseQueryString($"target={oldMasterId}&source=!{entity.Key}&relationshipType={MdmConstants.MasterRecordRelationship}") }) as Expression;
+                        .Invoke(null, new object[] { NameValueCollection.ParseQueryString($"target={oldMasterId}&source=!{entity.Key}&relationshipType={MdmConstants.MasterRecordRelationship}") }) as Expression;
                     relationshipService.Query(query, 0, 0, out tr);
-                    if(tr > 0) // Old master has other records, we want to detach
+                    if (tr > 0) // Old master has other records, we want to obsolete our current reference to it and then establish a new master
                     {
                         var master = this.CreateMasterRecord();
                         insertData.Add(master as IdentifiedData);
@@ -691,7 +691,11 @@ namespace SanteDB.Persistence.MDM.Services
                         else
                             (oldMasterRel as ActRelationship).ObsoleteVersionSequenceId = Int32.MaxValue;
                         insertData.Add(oldMasterRel);
-                    } // otherwise we just leave the master 
+                    }
+                    // If not we want to keep our link to the current master
+                    else {
+                        insertData.Add(oldMasterRel);
+                    }
                 }
                 // Now we persist
                 if (matchGroups[RecordMatchClassification.Match] != null)
@@ -701,6 +705,7 @@ namespace SanteDB.Persistence.MDM.Services
                         .Invoke(null, new object[] { NameValueCollection.ParseQueryString($"source={entity.Key}&relationshipType={MdmConstants.CandidateLocalRelationship}") }) as Expression;
                     rels = relationshipService.Query(query, 0, 100, out tr);
 
+                    // Add any NEW match data which we didn't know about before
                     insertData.AddRange( matchGroups[RecordMatchClassification.Match]
                         .Where(m => !ignoreList.Contains(m.ToString()) && // ignore list
                             !rels.OfType<EntityRelationship>().Any(er => er.TargetEntityKey == m) && // existing relationships
@@ -708,8 +713,11 @@ namespace SanteDB.Persistence.MDM.Services
                         .Select(m => this.CreateRelationship(relationshipType, MdmConstants.CandidateLocalRelationship, entity, m)));
 
                     // Remove all rels which don't appear in the insert data
-                    foreach (var r in rels.OfType<IdentifiedData>().Where(r => !matchGroups[RecordMatchClassification.Match].Any(a => a == (r as EntityRelationship)?.TargetEntityKey || a == (r as ActRelationship)?.TargetActKey)))
-                        relationshipService.Obsolete(r.Key.Value);
+                    foreach (var r in rels.OfType<IdentifiedData>())
+                        if (!matchGroups[RecordMatchClassification.Match].Any(a => a == (r as EntityRelationship)?.TargetEntityKey || a == (r as ActRelationship)?.TargetActKey))
+                            (r as IVersionedAssociation).ObsoleteVersionSequenceId = Int32.MaxValue;
+                        else
+                            insertData.Add(r);
                 }
             }
 
