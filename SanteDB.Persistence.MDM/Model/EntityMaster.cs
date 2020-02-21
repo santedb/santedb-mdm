@@ -166,7 +166,8 @@ namespace SanteDB.Persistence.MDM.Model
                         o.Relationships.ForEach(r =>
                         {
                             if (r.RelationshipTypeKey == MdmConstants.MasterRecordRelationship ||
-                                r.RelationshipTypeKey == MdmConstants.MasterRecordOfTruthRelationship)
+                                r.RelationshipTypeKey == MdmConstants.MasterRecordOfTruthRelationship ||
+                                r.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship)
                                 return;
                             else if (r.SourceEntityKey == o.Key)
                                 r.SourceEntityKey = this.m_masterRecord.Key;
