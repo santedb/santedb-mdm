@@ -35,6 +35,7 @@ using System.Linq.Expressions;
 using SanteDB.Core.Model;
 using SanteDB.Core.Model.Subscription;
 using SanteDB.Core.Security;
+using SanteDB.Core.Model.EntityLoader;
 
 namespace SanteDB.Persistence.MDM.Services
 {
@@ -156,6 +157,9 @@ namespace SanteDB.Persistence.MDM.Services
                     {
                         // Attempt to load the master and add to the results
                         var master = entity.LoadCollection<EntityRelationship>(nameof(Entity.Relationships)).FirstOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship);
+                        if (master == null) // load from DB
+                            master = EntitySource.Current.Provider.Query<EntityRelationship>(o => o.SourceEntityKey == entity.Key && o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship).FirstOrDefault();
+
                         var masterType = typeof(EntityMaster<>).MakeGenericType(itm.ResourceType);
                         return (Activator.CreateInstance(masterType, master.LoadProperty<Entity>(nameof(EntityRelationship.TargetEntity))) as IMdmMaster).GetMaster(authPrincipal);
                     }
@@ -163,6 +167,8 @@ namespace SanteDB.Persistence.MDM.Services
                     {
                         // Attempt to load the master and add to the results
                         var master = act.LoadCollection<ActRelationship>(nameof(Act.Relationships)).FirstOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship);
+                        if (master == null) // load from DB
+                            master = EntitySource.Current.Provider.Query<ActRelationship>(o => o.SourceEntityKey == act.Key && o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship).FirstOrDefault();
                         var masterType = typeof(EntityMaster<>).MakeGenericType(itm.ResourceType);
                         return (Activator.CreateInstance(masterType, master.LoadProperty<Act>(nameof(ActRelationship.TargetAct))) as IMdmMaster).GetMaster(authPrincipal);
                     }
