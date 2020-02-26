@@ -35,6 +35,7 @@ using SanteDB.Core.Model.Roles;
 using SanteDB.Core.Model.Interfaces;
 using SanteDB.Core.Security;
 using SanteDB.Core.Model.Constants;
+using SanteDB.Core.Model.Attributes;
 
 namespace SanteDB.Persistence.MDM.Model
 {
@@ -48,6 +49,7 @@ namespace SanteDB.Persistence.MDM.Model
         /// <summary>
         /// Get the type name
         /// </summary>
+        [DataIgnore, XmlIgnore, JsonProperty("$type")]
         public override string Type { get => $"{typeof(T).Name}Master"; set { } }
 
         // The master record
