@@ -259,7 +259,7 @@ namespace SanteDB.Persistence.MDM.Services
             // 1. The user actually requested the local
             // 2. The user is the original owner of the local, or
             // 2a. The user has READ LOCAL permission
-            if ((e.Data as ITaggable)?.Tags.Any(t => t.TagKey == "mdm.type" && t.Value == "L") == true) // is a local record
+            if ((e.Data as ITaggable)?.Tags.Any(t => t.TagKey == "$mdm.type" && t.Value == "L") == true) // is a local record
             {
                 // Is the requesting user the provenance of that record?
                 this.EnsureProvenance(e.Data, AuthenticationContext.Current.Principal);
@@ -284,7 +284,7 @@ namespace SanteDB.Persistence.MDM.Services
             var idpType = typeof(IDataPersistenceService<>).MakeGenericType(e.Data is Entity ? typeof(Entity) : typeof(Act));
             var idp = ApplicationServiceContext.Current.GetService(idpType) as IDataPersistenceService;
             var identified = e.Data as IdentifiedData;
-            var mdmTag = (e.Data as ITaggable).Tags.FirstOrDefault(o => o.TagKey == "mdm.type");
+            var mdmTag = (e.Data as ITaggable).Tags.FirstOrDefault(o => o.TagKey == "$mdm.type");
 
             // Maybe a current value? Let's check the database and 
             // open the existing, this may be a master record...
@@ -295,7 +295,7 @@ namespace SanteDB.Persistence.MDM.Services
 
                 // This entity is attempting to update a master record, however the incoming data is not an appropriate type for MDM management 
                 // They must intend to submit the data
-                if ((classConcept.GetValueOrDefault() == MdmConstants.MasterRecordClassification || mdmTag?.Value == "M") && !e.Principal.IsInRole("SYSTEM") &&
+                if ((classConcept.GetValueOrDefault() == MdmConstants.MasterRecordClassification) && !e.Principal.IsInRole("SYSTEM") &&
                     existing.GetType() != e.Data.GetType())
                 {
                     // Entity being persisted is an entity (data needs to migrated to either the local which belongs to the application or a new local if an existing local doesn't exist)
@@ -305,9 +305,9 @@ namespace SanteDB.Persistence.MDM.Services
                         object identity = (AuthenticationContext.Current.Principal as IClaimsPrincipal)?.Identities.OfType<IDeviceIdentity>().FirstOrDefault() as Object ??
                             (AuthenticationContext.Current.Principal as IClaimsPrincipal)?.Identities.OfType<IApplicationIdentity>().FirstOrDefault() as Object;
                         if (identity is IDeviceIdentity deviceIdentity)
-                            existingLocal = (idp as IDataPersistenceService<Entity>).Query(o => o.Tags.Any(t=>t.TagKey == "mdm.type" && t.Value == "L") && o.Relationships.Where(g => g.RelationshipType.Mnemonic == "MDM-Master").Any(g => g.TargetEntityKey == existing.Key) && o.CreatedBy.Device.Name == deviceIdentity.Name, 0, 1, out int tr, AuthenticationContext.SystemPrincipal).FirstOrDefault();
+                            existingLocal = (idp as IDataPersistenceService<Entity>).Query(o => o.ClassConceptKey == dataEntity.ClassConceptKey && o.Relationships.Where(g => g.RelationshipType.Mnemonic == "MDM-Master").Any(g => g.TargetEntityKey == existing.Key) && o.CreatedBy.Device.Name == deviceIdentity.Name, 0, 1, out int tr, AuthenticationContext.SystemPrincipal).FirstOrDefault();
                         else if (identity is IApplicationIdentity applicationIdentity)
-                            existingLocal = (idp as IDataPersistenceService<Entity>).Query(o => o.Tags.Any(t => t.TagKey == "mdm.type" && t.Value == "L") && o.Relationships.Where(g => g.RelationshipType.Mnemonic == "MDM-Master").Any(g => g.TargetEntityKey == existing.Key) && o.CreatedBy.Application.Name == applicationIdentity.Name, 0, 1, out int tr, AuthenticationContext.SystemPrincipal).FirstOrDefault();
+                            existingLocal = (idp as IDataPersistenceService<Entity>).Query(o => o.ClassConceptKey == dataEntity.ClassConceptKey && o.Relationships.Where(g => g.RelationshipType.Mnemonic == "MDM-Master").Any(g => g.TargetEntityKey == existing.Key) && o.CreatedBy.Application.Name == applicationIdentity.Name, 0, 1, out int tr, AuthenticationContext.SystemPrincipal).FirstOrDefault();
 
                         // We're updating the existing local identity 
                         if (existingLocal != null)
@@ -324,7 +324,7 @@ namespace SanteDB.Persistence.MDM.Services
                             e.Data.Key = identified.Key = Guid.NewGuid(); // New key
                             dataEntity.VersionKey = Guid.NewGuid();
                             dataEntity.VersionSequence = null;
-                            dataEntity.Tags.RemoveAll(o => o.TagKey == "mdm.type" || o.TagKey.StartsWith("$"));
+                            dataEntity.Tags.RemoveAll(o => o.TagKey == "$mdm.type" || o.TagKey.StartsWith("$"));
                         }
 
                         dataEntity.StripAssociatedItemSources();
@@ -348,7 +348,7 @@ namespace SanteDB.Persistence.MDM.Services
                         ApplicationServiceContext.Current.GetService<IPolicyEnforcementService>().Demand(MdmPermissionPolicyIdentifiers.WriteMdmMaster);
                 }
 
-                if ((e.Data as ITaggable)?.Tags?.Any(o => o.TagKey == "mdm.type" && o.Value == "T") == true &&
+                if ((e.Data as ITaggable)?.Tags?.Any(o => o.TagKey == "$mdm.type" && o.Value == "T") == true &&
                         (e.Data as Entity).Relationships?.Single(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship) == null)
                     throw new InvalidOperationException("Records of truth must have exactly one MASTER");
 
@@ -366,7 +366,7 @@ namespace SanteDB.Persistence.MDM.Services
                         ApplicationServiceContext.Current.GetService<IPolicyEnforcementService>().Demand(MdmPermissionPolicyIdentifiers.WriteMdmMaster);
                 }
 
-                if ((e.Data as ITaggable)?.Tags.Any(o => o.TagKey == "mdm.type" && o.Value == "T") == true &&
+                if ((e.Data as ITaggable)?.Tags.Any(o => o.TagKey == "$mdm.type" && o.Value == "T") == true &&
                     (e.Data as Act).Relationships.Single(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship) == null)
                     throw new InvalidOperationException("Records of truth must have exactly one MASTER");
 
@@ -413,20 +413,20 @@ namespace SanteDB.Persistence.MDM.Services
             // Is this object a ROT or MASTER, if it is then we do not perform any changes to re-binding
             var taggable = e.Data as ITaggable;
            
-            var mdmTag = taggable?.Tags?.FirstOrDefault(o => o.TagKey == "mdm.type");
+            var mdmTag = taggable?.Tags?.FirstOrDefault(o => o.TagKey == "$mdm.type");
             if (mdmTag?.Value == "T")
                 return; // Record of truth is never re-matched and remains bound to the original object
-            else if (mdmTag == null || mdmTag?.Value != "M") // record is a local and may need to be re-matched
+            else if (e.Data is IClassifiable classifiable && classifiable.ClassConceptKey != MdmConstants.MasterRecordClassification) // record is a local and may need to be re-matched
             {
                 if (e.Data is Entity && mdmTag == null)
                 {
-                    var et = new EntityTag("mdm.type", "L");
+                    var et = new EntityTag("$mdm.type", "L");
                     (e.Data as Entity).Tags.Add(et);
                     mdmTag = et;
                 }
                 else if (e.Data is Act && mdmTag == null)
                 {
-                    var at = new ActTag("mdm.type", "L");
+                    var at = new ActTag("$mdm.type", "L");
                     (e.Data as Act).Tags.Add(at);
                     mdmTag = at;
                 }
@@ -480,18 +480,18 @@ namespace SanteDB.Persistence.MDM.Services
 
             // Gather tags to determine whether the object has been linked to a master
             var taggable = e.Data as ITaggable;
-            var mdmTag = taggable?.Tags.FirstOrDefault(o => o.TagKey == "mdm.type");
+            var mdmTag = taggable?.Tags.FirstOrDefault(o => o.TagKey == "$mdm.type");
             if (mdmTag == null || (mdmTag.Value != "M" && mdmTag.Value != "T")) // Record is a master - MASTER duplication on input is rare
             {
                 if (e.Data is Entity)
                 {
-                    var et = new EntityTag("mdm.type", "L");
+                    var et = new EntityTag("$mdm.type", "L");
                     (e.Data as Entity).Tags.Add(et);
                     mdmTag = et;
                 }
                 else if (e.Data is Act)
                 {
-                    var at = new ActTag("mdm.type", "L");
+                    var at = new ActTag("$mdm.type", "L");
                     (e.Data as Act).Tags.Add(at);
                     mdmTag = at;
                 }
@@ -690,11 +690,11 @@ namespace SanteDB.Persistence.MDM.Services
                             (oldMasterRel as EntityRelationship).ObsoleteVersionSequenceId = Int32.MaxValue;
                         else
                             (oldMasterRel as ActRelationship).ObsoleteVersionSequenceId = Int32.MaxValue;
-                        insertData.Add(oldMasterRel);
+                        insertData.Insert(0, oldMasterRel);
                     }
                     // If not we want to keep our link to the current master
                     else {
-                        insertData.Add(oldMasterRel);
+                        insertData.Insert(0, oldMasterRel);
                     }
                 }
                 // Now we persist
@@ -737,7 +737,7 @@ namespace SanteDB.Persistence.MDM.Services
         private Guid? GetMaster(IdentifiedData match)
         {
             // Is the object already a master?
-            var mdmType = match.LoadCollection<ITag>(nameof(ITaggable.Tags)).FirstOrDefault(o=>o.TagKey == "mdm.type")?.Value;
+            var mdmType = match.LoadCollection<ITag>(nameof(ITaggable.Tags)).FirstOrDefault(o=>o.TagKey == "$mdm.type")?.Value;
             Guid? retVal = null;
             switch(mdmType)
             {

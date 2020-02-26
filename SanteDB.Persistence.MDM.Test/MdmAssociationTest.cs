@@ -83,7 +83,7 @@ namespace SanteDB.Persistence.MDM.Test
             Assert.AreEqual("MDM-12", masterPatient.First().Identifiers.Last().Value);
             Assert.AreEqual(NationalHealthIdRule.LastGeneratedNhid.ToString(), masterPatient.First().Identifiers.First().Value);
             Assert.AreEqual("M", masterPatient.First().Tags.First().Value);
-            Assert.AreEqual("mdm.type", masterPatient.First().Tags.First().TagKey);
+            Assert.AreEqual("$mdm.type", masterPatient.First().Tags.First().TagKey);
             Assert.AreEqual(createdPatient.Key, masterPatient.First().LoadCollection<EntityRelationship>("Relationships").First().SourceEntityKey); // Ensure master is pointed properly
         }
 
@@ -126,7 +126,7 @@ namespace SanteDB.Persistence.MDM.Test
             Assert.AreEqual(1, masterPatient.Count());
             Assert.AreEqual("MDM-1", masterPatient.First().Identifiers.Last().Value);
             Assert.AreEqual("M", masterPatient.First().Tags.First().Value);
-            Assert.AreEqual("mdm.type", masterPatient.First().Tags.First().TagKey);
+            Assert.AreEqual("$mdm.type", masterPatient.First().Tags.First().TagKey);
             Assert.AreEqual(createdPatient.Key, masterPatient.First().LoadCollection<EntityRelationship>("Relationships").First().SourceEntityKey); // Ensure master is pointed properly
 
             // Should redirect a retrieve request
@@ -134,7 +134,7 @@ namespace SanteDB.Persistence.MDM.Test
             Assert.AreEqual(masterPatient.First().Key, masterGet.Key);
             Assert.AreEqual("MDM-1", masterGet.Identifiers.Last().Value);
             Assert.AreEqual("M", masterGet.Tags.First().Value);
-            Assert.AreEqual("mdm.type", masterGet.Tags.First().TagKey);
+            Assert.AreEqual("$mdm.type", masterGet.Tags.First().TagKey);
 
         }
 
@@ -169,7 +169,7 @@ namespace SanteDB.Persistence.MDM.Test
             Assert.IsNotNull(masterPatient1);
             Assert.AreEqual("MDM-2", masterPatient1.Identifiers.Last().Value);
             Assert.AreEqual("M", masterPatient1.Tags.First().Value);
-            Assert.AreEqual("mdm.type", masterPatient1.Tags.First().TagKey);
+            Assert.AreEqual("$mdm.type", masterPatient1.Tags.First().TagKey);
             Assert.AreEqual(localPatient1.Key, masterPatient1.Relationships.First().SourceEntityKey); // Ensure master is pointed properly
 
             // Second local patient that exactly matches
@@ -234,7 +234,7 @@ namespace SanteDB.Persistence.MDM.Test
             Assert.IsNotNull(masterPatientPre);
             Assert.AreEqual("MDM-3", masterPatientPre.Identifiers.Last().Value);
             Assert.AreEqual("M", masterPatientPre.Tags.First().Value);
-            Assert.AreEqual("mdm.type", masterPatientPre.Tags.First().TagKey);
+            Assert.AreEqual("$mdm.type", masterPatientPre.Tags.First().TagKey);
             Assert.AreEqual(localPatient1.Key, masterPatientPre.Relationships.First().SourceEntityKey); // Ensure master is pointed properly
 
             patient1.DateOfBirth = new DateTime(1984, 05, 22);
@@ -649,7 +649,7 @@ namespace SanteDB.Persistence.MDM.Test
             Assert.AreEqual(1, masterPatient.Count());
             Assert.AreEqual("MDM-10", masterPatient.First().Identifiers.Last().Value);
             Assert.AreEqual("M", masterPatient.First().Tags.First().Value);
-            Assert.AreEqual("mdm.type", masterPatient.First().Tags.First().TagKey);
+            Assert.AreEqual("$mdm.type", masterPatient.First().Tags.First().TagKey);
             Assert.AreEqual(patientUnderTest.Key, masterPatient.First().Relationships.First().SourceEntityKey); // Ensure master is pointed properly
 
             // Should redirect a retrieve request
@@ -657,7 +657,7 @@ namespace SanteDB.Persistence.MDM.Test
             Assert.AreEqual(masterPatient.First().Key, masterGet.Key);
             Assert.AreEqual("MDM-10", masterGet.Identifiers.Last().Value);
             Assert.AreEqual("M", masterGet.Tags.First().Value);
-            Assert.AreEqual("mdm.type", masterGet.Tags.First().TagKey);
+            Assert.AreEqual("$mdm.type", masterGet.Tags.First().TagKey);
 
         }
 
@@ -736,7 +736,7 @@ namespace SanteDB.Persistence.MDM.Test
             var masterPatient = patientService.Find(o => o.Identifiers.Any(i => i.Authority.DomainName == "NHID" && i.Value == nhid)).SingleOrDefault();
             Assert.AreEqual(1, masterPatient.Relationships.Where(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship).Count());
             Assert.IsNotNull(masterPatient);
-            Assert.AreEqual("M", masterPatient.Tags.FirstOrDefault(o => o.TagKey == "mdm.type").Value);
+            Assert.AreEqual("M", masterPatient.Tags.FirstOrDefault(o => o.TagKey == "$mdm.type").Value);
 
             // Attempt to update the patient as device B -> Should result in a new record being created with the master
             masterPatient.Addresses.Add(new EntityAddress(AddressUseKeys.Public, "123 Main Street", "Hamilton", "ON", "CA", null));

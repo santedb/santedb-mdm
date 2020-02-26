@@ -153,7 +153,7 @@ namespace SanteDB.Persistence.MDM.Services
                 e.Results = e.Results.AsParallel().AsOrdered().Select((res) =>
                 {
                     // Result is taggable and a tag exists for MDM
-                    if (res is Entity entity && entity.Tags.Any(o => o.TagKey == "mdm.type" && o.Value != "M"))
+                    if (res is Entity entity && entity.ClassConceptKey != MdmConstants.MasterRecordClassification)
                     {
                         // Attempt to load the master and add to the results
                         var master = entity.LoadCollection<EntityRelationship>(nameof(Entity.Relationships)).FirstOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship);
@@ -163,7 +163,7 @@ namespace SanteDB.Persistence.MDM.Services
                         var masterType = typeof(EntityMaster<>).MakeGenericType(itm.ResourceType);
                         return (Activator.CreateInstance(masterType, master.LoadProperty<Entity>(nameof(EntityRelationship.TargetEntity))) as IMdmMaster).GetMaster(authPrincipal);
                     }
-                    else if (res is Act act && act.Tags.Any(o => o.TagKey == "mdm.type" && o.Value != "M"))
+                    else if (res is Act act && act.ClassConceptKey != MdmConstants.MasterRecordClassification)
                     {
                         // Attempt to load the master and add to the results
                         var master = act.LoadCollection<ActRelationship>(nameof(Act.Relationships)).FirstOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship);

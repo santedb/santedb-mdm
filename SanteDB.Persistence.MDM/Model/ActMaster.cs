@@ -104,8 +104,8 @@ namespace SanteDB.Persistence.MDM.Model
                 master.SemanticCopyNullFields(locals);
             }
                 (master as Act).Policies = this.LocalRecords.SelectMany(o => (o as Act).Policies).Where(o => o.Policy.CanOverride).ToList();
-            (master as Act).Tags.RemoveAll(o => o.TagKey == "mdm.type");
-            (master as Act).Tags.Add(new ActTag("mdm.type", "M"));
+            (master as Act).Tags.RemoveAll(o => o.TagKey == "$mdm.type");
+            (master as Act).Tags.Add(new ActTag("$mdm.type", "M"));
             return master;
         }
 
