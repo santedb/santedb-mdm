@@ -68,5 +68,13 @@ namespace SanteDB.Persistence.MDM
         /// MDM configuration name
         /// </summary>
         public const String ConfigurationSectionName = "santedb.mdm";
+
+        /// <summary>
+        /// Indicates that the source entity is a local, however it isn't a local in that the matcher "found" it, 
+        /// rather it is a local which was the result of someone editing the master
+        /// </summary>
+        public static readonly Guid OriginalMasterRelationship = Guid.Parse("a2837281-7e30-4dcd-94cd-fd532d111578");
+
+
     }
 }

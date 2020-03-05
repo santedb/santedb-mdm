@@ -26,6 +26,21 @@
   </update>
   <update insertIfNotExists="true">
     <Concept xmlns="http://santedb.org/model">
+      <id>a2837281-7e30-4dcd-94cd-fd532d111578</id>
+      <mnemonic>MDM-OriginalMaster</mnemonic>
+      <statusConcept>c8064cbd-fa06-4530-b430-1a52f1530c27</statusConcept>
+      <conceptClass>92cdea39-b9a3-4a5b-bc88-a6646c74240d</conceptClass>
+      <name>
+        <language>en</language>
+        <value>Original Master Record</value>
+      </name>
+      <conceptSet>eba4783b-f7a3-4f7b-ac74-bb3beef8d15e</conceptSet>
+      <conceptSet>ee16a667-2085-440a-b1e7-4032d10b9f40</conceptSet>
+      <conceptSet>cf686a21-86e5-41e7-af07-0016a054227a</conceptSet>
+    </Concept>
+  </update>
+  <update insertIfNotExists="true">
+    <Concept xmlns="http://santedb.org/model">
       <id>1C778948-2CB6-4696-BC04-4A6ECA140C20</id>
       <mnemonic>MDM-RecordOfTruth</mnemonic>
       <statusConcept>c8064cbd-fa06-4530-b430-1a52f1530c27</statusConcept>
@@ -63,6 +78,12 @@ INSERT INTO ent_rel_vrfy_cdtbl (rel_typ_cd_id, src_cls_cd_id, trg_cls_cd_id, err
 		'97730a52-7e30-4dcd-94cd-fd532d111578', CD_ID, '49328452-7e30-4dcd-94cd-fd532d111578', 'MDM MASTER POINTER'
 	FROM CD_SET_MEM_ASSOC_TBL WHERE SET_ID = '4e6da567-0094-4f23-8555-11da499593af';
 
+-- FOR ORIGINAL MASTER RELATIONSHIP TYPE
+INSERT INTO ent_rel_vrfy_cdtbl (rel_typ_cd_id, src_cls_cd_id, trg_cls_cd_id, err_desc) 
+	SELECT 
+		'a2837281-7e30-4dcd-94cd-fd532d111578', CD_ID, '49328452-7e30-4dcd-94cd-fd532d111578', 'MDM MASTER POINTER'
+	FROM CD_SET_MEM_ASSOC_TBL WHERE SET_ID = '4e6da567-0094-4f23-8555-11da499593af';
+
 -- FOR PROBABLE RELATIONSHIP TYPE
 INSERT INTO ent_rel_vrfy_cdtbl (rel_typ_cd_id, src_cls_cd_id, trg_cls_cd_id, err_desc) 
 	SELECT 
@@ -84,6 +105,12 @@ SELECT REG_PATCH('MDM-RELATIONSHIP');
 INSERT INTO ent_rel_vrfy_cdtbl (rel_typ_cd_id, src_cls_cd_id, trg_cls_cd_id, err_desc) 
 	SELECT 
 		char_to_uuid('97730a52-7e30-4dcd-94cd-fd532d111578'), CD_ID, char_to_uuid('49328452-7e30-4dcd-94cd-fd532d111578'), 'MDM MASTER POINTER'
+	FROM CD_SET_MEM_ASSOC_TBL WHERE SET_ID = char_to_uuid('4e6da567-0094-4f23-8555-11da499593af');
+
+-- FOR ORIGINAL MASTER RELATIONSHIP TYPE
+INSERT INTO ent_rel_vrfy_cdtbl (rel_typ_cd_id, src_cls_cd_id, trg_cls_cd_id, err_desc) 
+	SELECT 
+		char_to_uuid('a2837281-7e30-4dcd-94cd-fd532d111578'), CD_ID, char_to_uuid('49328452-7e30-4dcd-94cd-fd532d111578'), 'MDM ORIGINAL MASTER POINTER'
 	FROM CD_SET_MEM_ASSOC_TBL WHERE SET_ID = char_to_uuid('4e6da567-0094-4f23-8555-11da499593af');
 
 -- FOR PROBABLE RELATIONSHIP TYPE

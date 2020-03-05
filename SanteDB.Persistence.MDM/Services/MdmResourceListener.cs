@@ -318,12 +318,13 @@ namespace SanteDB.Persistence.MDM.Services
                             existingLocal.CopyObjectData(dataEntity, true, true); // HACK: Run again to clear out any delayed load properties
                             identified = e.Data = (T)(object)existingLocal;
                         }
-                        else
+                        else // We're creating a new local entity for this system
                         {
                             dataEntity.Relationships.RemoveAll(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship || o.RelationshipTypeKey == MdmConstants.MasterRecordOfTruthRelationship);
                             e.Data.Key = identified.Key = Guid.NewGuid(); // New key
                             dataEntity.VersionKey = Guid.NewGuid();
                             dataEntity.VersionSequence = null;
+                            dataEntity.Relationships.Add(new EntityRelationship(MdmConstants.OriginalMasterRelationship, existing as Entity));
                             dataEntity.Tags.RemoveAll(o => o.TagKey == "$mdm.type" || o.TagKey.StartsWith("$"));
                         }
 
@@ -613,7 +614,9 @@ namespace SanteDB.Persistence.MDM.Services
                 // We want to remove all previous master matches
                 var query = typeof(QueryExpressionParser).GetGenericMethod(nameof(QueryExpressionParser.BuildLinqExpression), new Type[] { relationshipType }, new Type[] { typeof(NameValueCollection) })
                     .Invoke(null, new object[] { NameValueCollection.ParseQueryString($"source={entity.Key}&relationshipType={MdmConstants.MasterRecordRelationship}") }) as Expression;
+
                 var rels = relationshipService.Query(query, 0, 100, out tr);
+
                 // Are there any matches, then obsolete them and redirect to this master
                 bool needsRelation = true;
                 foreach (var r in rels)
@@ -664,8 +667,9 @@ namespace SanteDB.Persistence.MDM.Services
                 // We want to create a new master for this record?
                 var query = typeof(QueryExpressionParser).GetGenericMethod(nameof(QueryExpressionParser.BuildLinqExpression), new Type[] { relationshipType }, new Type[] { typeof(NameValueCollection) })
                     .Invoke(null, new object[] { NameValueCollection.ParseQueryString($"source={entity.Key}&relationshipType={MdmConstants.MasterRecordRelationship}") }) as Expression;
-                var rels = relationshipService.Query(query, 0, 100, out tr);
-                if (!rels.OfType<Object>().Any()) // There is no master
+                var rels = relationshipService.Query(query, 0, 100, out tr).OfType<Object>();
+
+                if (!rels.Any()) // There is no master
                 {
                     var master = this.CreateMasterRecord();
                     insertData.Add(master as IdentifiedData);
@@ -699,13 +703,14 @@ namespace SanteDB.Persistence.MDM.Services
                         insertData.Insert(0, oldMasterRel);
                     }
                 }
-                // Now we persist
+
+                // Direct matches become candidate records
                 if (matchGroups[RecordMatchClassification.Match] != null)
                 {
                     // Get existing candidate locals (we don't want to report twice)
                     query = typeof(QueryExpressionParser).GetGenericMethod(nameof(QueryExpressionParser.BuildLinqExpression), new Type[] { relationshipType }, new Type[] { typeof(NameValueCollection) })
                         .Invoke(null, new object[] { NameValueCollection.ParseQueryString($"source={entity.Key}&relationshipType={MdmConstants.CandidateLocalRelationship}") }) as Expression;
-                    rels = relationshipService.Query(query, 0, 100, out tr);
+                    rels = relationshipService.Query(query, 0, 100, out tr).OfType<Object>();
 
                     // Add any NEW match data which we didn't know about before
                     insertData.AddRange(matchGroups[RecordMatchClassification.Match]
@@ -729,7 +734,6 @@ namespace SanteDB.Persistence.MDM.Services
                     .Where(m => !ignoreList.Contains(m.ToString())) // ignore list
                     .Select(m => this.CreateRelationship(relationshipType, MdmConstants.CandidateLocalRelationship, entity, m)));
 
-
             return new Bundle() { Item = insertData };
         }
 
@@ -750,17 +754,16 @@ namespace SanteDB.Persistence.MDM.Services
                 {
                     // Record of truth
                     if (entity.DeterminerConceptKey == MdmConstants.RecordOfTruthDeterminer)
-                        retVal = ApplicationServiceContext.Current.GetService<IDataPersistenceService<EntityRelationship>>().Query(o => o.TargetEntityKey == match.Key && o.RelationshipTypeKey == MdmConstants.MasterRecordOfTruthRelationship, 0, 1, out int t, AuthenticationContext.SystemPrincipal).SingleOrDefault().SourceEntityKey;
-                    else // local
-                        retVal = ApplicationServiceContext.Current.GetService<IDataPersistenceService<EntityRelationship>>().Query(o => o.SourceEntityKey == match.Key && o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship, 0, 1, out int t, AuthenticationContext.SystemPrincipal).SingleOrDefault().TargetEntityKey;
-
+                        retVal = ApplicationServiceContext.Current.GetService<IDataPersistenceService<EntityRelationship>>().Query(o => o.TargetEntityKey == match.Key && o.RelationshipTypeKey == MdmConstants.MasterRecordOfTruthRelationship, 0, 1, out int t, AuthenticationContext.SystemPrincipal).SingleOrDefault()?.SourceEntityKey;
+                    else
+                        retVal = ApplicationServiceContext.Current.GetService<IDataPersistenceService<EntityRelationship>>().Query(o => o.SourceEntityKey == match.Key && o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship, 0, 1, out int t, AuthenticationContext.SystemPrincipal).SingleOrDefault()?.TargetEntityKey;
                 }
                 else if (match is Act act) // Act
                 {
                     if (act.MoodConceptKey == MdmConstants.RecordOfTruthDeterminer) // ROT
-                        retVal = ApplicationServiceContext.Current.GetService<IDataPersistenceService<ActRelationship>>().Query(o => o.TargetActKey == match.Key && o.RelationshipTypeKey == MdmConstants.MasterRecordOfTruthRelationship, 0, 1, out int t, AuthenticationContext.SystemPrincipal).SingleOrDefault().SourceEntityKey;
+                        retVal = ApplicationServiceContext.Current.GetService<IDataPersistenceService<ActRelationship>>().Query(o => o.TargetActKey == match.Key && o.RelationshipTypeKey == MdmConstants.MasterRecordOfTruthRelationship, 0, 1, out int t, AuthenticationContext.SystemPrincipal).SingleOrDefault()?.SourceEntityKey;
                     else // local
-                        retVal = ApplicationServiceContext.Current.GetService<IDataPersistenceService<ActRelationship>>().Query(o => o.SourceEntityKey == match.Key && o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship, 0, 1, out int t, AuthenticationContext.SystemPrincipal).SingleOrDefault().TargetActKey;
+                        retVal = ApplicationServiceContext.Current.GetService<IDataPersistenceService<ActRelationship>>().Query(o => o.SourceEntityKey == match.Key && o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship, 0, 1, out int t, AuthenticationContext.SystemPrincipal).SingleOrDefault()?.TargetActKey;
                 }
             }
             else

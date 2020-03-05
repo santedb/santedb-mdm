@@ -162,7 +162,14 @@ namespace SanteDB.Persistence.MDM.Services
                             master = EntitySource.Current.Provider.Query<EntityRelationship>(o => o.SourceEntityKey == entity.Key && o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship).FirstOrDefault();
 
                         var masterType = typeof(EntityMaster<>).MakeGenericType(itm.ResourceType);
-                        return (Activator.CreateInstance(masterType, master.LoadProperty<Entity>(nameof(EntityRelationship.TargetEntity))) as IMdmMaster).GetMaster(authPrincipal);
+
+                        if (master != null)
+                            return (Activator.CreateInstance(masterType, master.LoadProperty<Entity>(nameof(EntityRelationship.TargetEntity))) as IMdmMaster).GetMaster(authPrincipal);
+                        else
+                        {
+                            entity.Tags.Add(new Core.Model.DataTypes.EntityTag("$mdm.type", "O")); // Orphan record
+                            return entity;
+                        }
                     }
                     else if (res is Act act && act.ClassConceptKey != MdmConstants.MasterRecordClassification)
                     {
