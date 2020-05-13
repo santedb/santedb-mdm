@@ -117,6 +117,7 @@ namespace SanteDB.Persistence.MDM.Model
                 master.SemanticCopyNullFields(locals);
             }
 
+            entityMaster.DeterminerConceptKey = MdmConstants.MasterRecordDeterminer;
             entityMaster.Policies = this.LocalRecords.SelectMany(o => (o as Entity).Policies).Select(o => new SecurityPolicyInstance(o.Policy, (PolicyGrantType)(int)pdp.GetPolicyOutcome(principal, o.Policy.Oid))).Where(o => o.GrantType == PolicyGrantType.Grant || o.Policy.CanOverride).ToList();
             entityMaster.Tags.RemoveAll(o => o.TagKey == "$mdm.type");
             entityMaster.Tags.Add(new EntityTag("$mdm.type", "M")); // This is a master

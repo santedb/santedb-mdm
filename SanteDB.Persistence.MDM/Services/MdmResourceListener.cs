@@ -629,9 +629,9 @@ namespace SanteDB.Persistence.MDM.Services
                 .ToDictionary(o => o.Key, o => o.Select(g => g.Master).Distinct());
 
             if (!matchGroups.ContainsKey(RecordMatchClassification.Match))
-                matchGroups.Add(RecordMatchClassification.Match, null);
+                matchGroups.Add(RecordMatchClassification.Match, new List<Guid>());
             if (!matchGroups.ContainsKey(RecordMatchClassification.Probable))
-                matchGroups.Add(RecordMatchClassification.Probable, null);
+                matchGroups.Add(RecordMatchClassification.Probable, new List<Guid>());
 
             this.m_traceSource.TraceVerbose("{0} : Matching layer has identified {1} matches exceeding configured threshold for definitive match and {2} probable matches", entity, matchGroups[RecordMatchClassification.Match]?.Count(), matchGroups[RecordMatchClassification.Probable]?.Count());
 
@@ -746,10 +746,9 @@ namespace SanteDB.Persistence.MDM.Services
                     .Invoke(null, new object[] { NameValueCollection.ParseQueryString($"source={entity.Key}&relationshipType={MdmConstants.MasterRecordRelationship}") }) as Expression;
                 var rels = relationshipService.Query(query, 0, 100, out tr).OfType<Object>();
 
-                if (!rels.Any()) // There is no master
+                if (!existingMasterKey.HasValue) // There is no master
                 {
                     this.m_traceSource.TraceVerbose("{0}: Entity has no existing master record. Creating one.", entity);
-
                     var master = this.CreateMasterRecord();
                     insertData.Add(master as IdentifiedData);
                     insertData.Add(this.CreateRelationship(relationshipType, MdmConstants.MasterRecordRelationship, entity, master.Key));
@@ -783,12 +782,14 @@ namespace SanteDB.Persistence.MDM.Services
                     {
                         insertData.Add(oldMasterRel);
                         this.m_traceSource.TraceVerbose("{0}: Entity was identified as not matching its current MASTER however the old master only has one local so we'll keep it", entity);
-
                     }
-
                 }
+                else if(rels.Any()) // no change in master so just reuse rels from DB
+                    insertData.Add(rels.OfType<IdentifiedData>().SingleOrDefault());
 
-                var nonMasterMatches = matchGroups[RecordMatchClassification.Match].Where(o => o != existingMasterKey);
+
+                var nonMasterMatches = matchGroups[RecordMatchClassification.Match]?.Where(o => o != existingMasterKey);
+
                 // Direct matches become candidate records
                 if (nonMasterMatches.Any())
                 {
@@ -845,7 +846,13 @@ namespace SanteDB.Persistence.MDM.Services
                     if (entity.DeterminerConceptKey == MdmConstants.RecordOfTruthDeterminer)
                         retVal = ApplicationServiceContext.Current.GetService<IDataPersistenceService<EntityRelationship>>().Query(o => o.TargetEntityKey == match.Key && o.RelationshipTypeKey == MdmConstants.MasterRecordOfTruthRelationship, 0, 1, out int t, AuthenticationContext.SystemPrincipal).SingleOrDefault()?.SourceEntityKey;
                     else
-                        retVal = ApplicationServiceContext.Current.GetService<IDataPersistenceService<EntityRelationship>>().Query(o => o.SourceEntityKey == match.Key && o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship, 0, 1, out int t, AuthenticationContext.SystemPrincipal).SingleOrDefault()?.TargetEntityKey;
+                    {
+                        var er = entity.Relationships.SingleOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship);
+                        if (er != null)
+                            return er.TargetEntityKey;
+                        else
+                            retVal = ApplicationServiceContext.Current.GetService<IDataPersistenceService<EntityRelationship>>().Query(o => o.SourceEntityKey == match.Key && o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship, 0, 1, out int t, AuthenticationContext.SystemPrincipal).SingleOrDefault()?.TargetEntityKey;
+                    }
                 }
                 else if (match is Act act) // Act
                 {
