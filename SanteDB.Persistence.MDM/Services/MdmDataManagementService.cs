@@ -37,6 +37,9 @@ using SanteDB.Core.Model.Subscription;
 using SanteDB.Core.Security;
 using SanteDB.Core.Model.EntityLoader;
 using SanteDB.Core.Data;
+using SanteDB.Core.Model.Constants;
+using SanteDB.Core.Model.Roles;
+using SanteDB.Core.Model.Map;
 
 namespace SanteDB.Persistence.MDM.Services
 {
@@ -129,8 +132,10 @@ namespace SanteDB.Persistence.MDM.Services
                 // Add an MDM listener for subscriptions
                 var subscService = ApplicationServiceContext.Current.GetService<ISubscriptionExecutor>();
                 if (subscService != null)
+                {
+                    subscService.Executing += MdmSubscriptionExecuting;
                     subscService.Executed += MdmSubscriptionExecuted;
-
+                }
                 this.m_listeners.Add(new BundleResourceListener(this.m_listeners));
             };
 
@@ -139,29 +144,39 @@ namespace SanteDB.Persistence.MDM.Services
         }
 
         /// <summary>
+        /// The subscription is executing
+        /// </summary>
+        private void MdmSubscriptionExecuting(object sender, Core.Event.QueryRequestEventArgs<IdentifiedData> e)
+        {
+            e.Count = e.Count + 1; // Fetch one additional record
+            e.UseFuzzyTotals = true;
+        }
+
+        /// <summary>
         /// Fired when the MDM Subscription has been executed
         /// </summary>
         private void MdmSubscriptionExecuted(object sender, Core.Event.QueryResultEventArgs<Core.Model.IdentifiedData> e)
         {
 
-            foreach (var itm in this.m_configuration.ResourceTypes)
+            var authPrincipal = AuthenticationContext.Current.Principal;
+
+            // Results contain LOCAL records most likely
+            // We have a resource type that matches
+            e.Results = e.Results.AsParallel().AsOrdered().Select((res) =>
             {
-                if (!e.Results.All(o => o.GetType() == itm.ResourceType)) continue;
-
-                var authPrincipal = AuthenticationContext.Current.Principal;
-
-                // We have a resource type that matches
-                e.Results = e.Results.AsParallel().AsOrdered().Select((res) =>
+                if (!this.m_configuration.ResourceTypes.Any(o => o.ResourceType == res.GetType())) return res;
+                // Result is taggable and a tag exists for MDM
+                if (res is Entity entity)
                 {
-                    // Result is taggable and a tag exists for MDM
-                    if (res is Entity entity && entity.ClassConceptKey != MdmConstants.MasterRecordClassification)
+                    if (entity.ClassConceptKey != MdmConstants.MasterRecordClassification)
                     {
+                        // just a regular record
                         // Attempt to load the master and add to the results
                         var master = entity.LoadCollection<EntityRelationship>(nameof(Entity.Relationships)).FirstOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship);
                         if (master == null) // load from DB
                             master = EntitySource.Current.Provider.Query<EntityRelationship>(o => o.SourceEntityKey == entity.Key && o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship).FirstOrDefault();
 
-                        var masterType = typeof(EntityMaster<>).MakeGenericType(itm.ResourceType);
+                        var masterType = typeof(EntityMaster<>).MakeGenericType(res.GetType());
 
                         if (master != null)
                             return (Activator.CreateInstance(masterType, master.LoadProperty<Entity>(nameof(EntityRelationship.TargetEntity))) as IMdmMaster).GetMaster(authPrincipal);
@@ -171,20 +186,24 @@ namespace SanteDB.Persistence.MDM.Services
                             return entity;
                         }
                     }
-                    else if (res is Act act && act.ClassConceptKey != MdmConstants.MasterRecordClassification)
+                    else // is a master
                     {
-                        // Attempt to load the master and add to the results
-                        var master = act.LoadCollection<ActRelationship>(nameof(Act.Relationships)).FirstOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship);
-                        if (master == null) // load from DB
-                            master = EntitySource.Current.Provider.Query<ActRelationship>(o => o.SourceEntityKey == act.Key && o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship).FirstOrDefault();
-                        var masterType = typeof(EntityMaster<>).MakeGenericType(itm.ResourceType);
-                        return (Activator.CreateInstance(masterType, master.LoadProperty<Act>(nameof(ActRelationship.TargetAct))) as IMdmMaster).GetMaster(authPrincipal);
+                        var masterType = typeof(EntityMaster<>).MakeGenericType(MapUtil.GetModelTypeFromClassKey(entity.ClassConceptKey.Value));
+                        return (Activator.CreateInstance(masterType, entity) as IMdmMaster).GetMaster(authPrincipal);
                     }
-                    else
-                        throw new InvalidOperationException($"Result of type {res.GetType().Name} is not supported in MDM contexts");
-                }).OfType<IdentifiedData>().ToArray();
-                return;
-            }
+                }
+                else if (res is Act act && act.ClassConceptKey != MdmConstants.MasterRecordClassification)
+                {
+                    // Attempt to load the master and add to the results
+                    var master = act.LoadCollection<ActRelationship>(nameof(Act.Relationships)).FirstOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship);
+                    if (master == null) // load from DB
+                        master = EntitySource.Current.Provider.Query<ActRelationship>(o => o.SourceEntityKey == act.Key && o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship).FirstOrDefault();
+                    var masterType = typeof(EntityMaster<>).MakeGenericType(res.GetType());
+                    return (Activator.CreateInstance(masterType, master.LoadProperty<Act>(nameof(ActRelationship.TargetAct))) as IMdmMaster).GetMaster(authPrincipal);
+                }
+                else
+                    throw new InvalidOperationException($"Result of type {res.GetType().Name} is not supported in MDM contexts");
+            }).OfType<IdentifiedData>().ToArray();
         }
 
         /// <summary>

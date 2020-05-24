@@ -494,7 +494,11 @@ namespace SanteDB.Persistence.MDM.Services
                     bundle.Item.OfType<EntityRelationship>().ToList().ForEach((i) =>
                     {
                         if (i.SourceEntity == null)
-                            i.SourceEntity = bundle.Item.Find(o => o.Key == i.SourceEntityKey) as Entity;
+                        {
+                            var candidate = bundle.Item.Find(o => o.Key == i.SourceEntityKey) as Entity;
+                            if (candidate != null)
+                                i.SourceEntity = candidate;
+                        }
                     });
                     bundle = this.m_bundlePersistence.Update(bundle, TransactionMode.Commit, AuthenticationContext.Current.Principal);
                     bundle = businessRulesService?.AfterUpdate(bundle) ?? bundle;
@@ -511,14 +515,14 @@ namespace SanteDB.Persistence.MDM.Services
         {
             if (data is Entity entityData)
             {
-                return entityData.Tags.Any(o => o.TagKey == "$mdm.type" && o.Value == "T") ||
+                return entityData.Tags.Any(o => o.TagKey == "$mdm.type" && o.Value == "T") == true||
                     entityData.DeterminerConceptKey == MdmConstants.RecordOfTruthDeterminer ||
                     ApplicationServiceContext.Current.GetService<IDataPersistenceService<EntityRelationship>>().Count(o => o.TargetEntityKey == data.Key && o.RelationshipTypeKey == MdmConstants.MasterRecordOfTruthRelationship && o.ObsoleteVersionSequenceId == null, AuthenticationContext.SystemPrincipal) > 0;
             }
             else if (data is Act actData)
             {
                 this.m_traceSource.TraceUntestedWarning();
-                return actData.Tags.Any(o => o.TagKey == "$mdm.type" && o.Value == "T") ||
+                return actData.Tags.Any(o => o.TagKey == "$mdm.type" && o.Value == "T") == true ||
                     ApplicationServiceContext.Current.GetService<IDataPersistenceService<ActRelationship>>().Count(o => o.TargetActKey == data.Key && o.RelationshipTypeKey == MdmConstants.MasterRecordOfTruthRelationship && o.ObsoleteVersionSequenceId == null, AuthenticationContext.SystemPrincipal) > 0;
             }
             else
@@ -542,29 +546,59 @@ namespace SanteDB.Persistence.MDM.Services
 
             if (!e.Data.Key.HasValue)
                 e.Data.Key = Guid.NewGuid(); // Assign a key if one is not set
-
-            // Gather tags to determine whether the object has been linked to a master
-            var taggable = e.Data as ITaggable;
-            var mdmTag = taggable?.Tags.FirstOrDefault(o => o.TagKey == "$mdm.type");
-            if (mdmTag == null || (mdmTag.Value != "M" && mdmTag.Value != "T")) // Record is a master - MASTER duplication on input is rare
+                                             // Is this object a ROT or MASTER, if it is then we do not perform any changes to re-binding
+            if (this.IsRecordOfTruth(e.Data))
             {
-                if (e.Data is Entity)
+                // Record of truth, ensure we update the appropirate
+                if (e.Data is Entity entityData)
                 {
-                    var et = new EntityTag("$mdm.type", "L");
-                    (e.Data as Entity).Tags.Add(et);
-                    mdmTag = et;
+                    // Get the MDM relationship as this record will point > MDM
+                    var masterRelationship = entityData.Relationships.First(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship);
+
+                    // Establish a master
+                    var bundle = sender as Bundle ?? new Bundle();
+                    if (!bundle.Item.Contains(e.Data))
+                        bundle.Add(e.Data);
+
+                    // Is there already a master of truth relationship for a different record for the master we're pointing at?
+                    var existingRotRel = ApplicationServiceContext.Current.GetService<IDataPersistenceService<EntityRelationship>>().Query(o => o.SourceEntityKey == masterRelationship.TargetEntityKey && o.RelationshipTypeKey == MdmConstants.MasterRecordOfTruthRelationship && o.ObsoleteVersionSequenceId == null, 0, 1, out int tr, AuthenticationContext.SystemPrincipal).FirstOrDefault();
+                    if (existingRotRel != null)
+                    {
+                        // is it pointing at a different record?
+                        if (existingRotRel.TargetEntityKey != entityData.Key)
+                        {
+                            this.m_traceSource.TraceUntestedWarning();
+                            // Remove the old
+                            existingRotRel.ObsoleteVersionSequenceId = Int32.MaxValue;
+                            bundle.Add(existingRotRel);
+                            // Add the new
+                            bundle.Add(new EntityRelationship(MdmConstants.MasterRecordOfTruthRelationship, entityData.Key) { SourceEntityKey = masterRelationship.TargetEntityKey });
+                        }
+                    }
+                    else
+                        bundle.Add(new EntityRelationship(MdmConstants.MasterRecordOfTruthRelationship, entityData.Key) { SourceEntityKey = masterRelationship.TargetEntityKey });
+
+                    // Is there already a master of truth relationship for this object which is a different master than the one specified?
+                    if (ApplicationServiceContext.Current.GetService<IDataPersistenceService<EntityRelationship>>().Count(o => o.TargetEntityKey == e.Data.Key && o.RelationshipTypeKey == MdmConstants.MasterRecordOfTruthRelationship && o.SourceEntityKey != masterRelationship.TargetEntityKey && o.ObsoleteVersionSequenceId == null, AuthenticationContext.SystemPrincipal) > 0)
+                    {
+                        throw new InvalidOperationException("You're trying to set this record as the record of truth for two different masters. This is not allowed");
+                    }
+
+                    // Sender is not bundle so this isn't a chained process
+                    if (!(sender is Bundle))
+                    {
+                        bundle = this.m_bundlePersistence.Insert(bundle, TransactionMode.Commit, AuthenticationContext.Current.Principal);
+                    }
                 }
-                else if (e.Data is Act)
+                else if (e.Data is Act actData)
                 {
-                    var at = new ActTag("$mdm.type", "L");
-                    (e.Data as Act).Tags.Add(at);
-                    mdmTag = at;
+                    throw new NotImplementedException("Acts on MDM ROT not implemented");
                 }
+                e.Cancel = true;
             }
-
-            // Find records for which this record could be match // async
-            if (mdmTag?.Value == "L")
+            else if (e.Data is IClassifiable classifiable && classifiable.ClassConceptKey != MdmConstants.MasterRecordClassification) // record is a local and may need to be re-matched
             {
+
                 e.Cancel = true;
                 var bundle = this.PerformMdmMatch(e.Data);
 
@@ -582,7 +616,11 @@ namespace SanteDB.Persistence.MDM.Services
                     bundle.Item.OfType<EntityRelationship>().ToList().ForEach((i) =>
                     {
                         if (i.SourceEntity == null)
-                            i.SourceEntity = bundle.Item.Find(o => o.Key == i.SourceEntityKey) as Entity;
+                        {
+                            var candidate = bundle.Item.Find(o => o.Key == i.SourceEntityKey) as Entity;
+                            if (candidate != null)
+                                i.SourceEntity = candidate;
+                        }
                     });
                     bundle = this.m_bundlePersistence.Insert(bundle, TransactionMode.Commit, AuthenticationContext.Current.Principal);
                     bundle = businessRulesService?.AfterInsert(bundle) ?? bundle;

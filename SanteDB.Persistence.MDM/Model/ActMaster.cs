@@ -57,7 +57,6 @@ namespace SanteDB.Persistence.MDM.Model
         public ActMaster() : base()
         {
             this.ClassConceptKey = MdmConstants.MasterRecordClassification;
-            this.MoodConceptKey = MdmConstants.MasterRecordDeterminer;
             if (!typeof(Act).IsAssignableFrom(typeof(T)))
                 throw new ArgumentOutOfRangeException("T must be Entity or subtype of Entity");
         }

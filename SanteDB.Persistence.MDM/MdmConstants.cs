@@ -52,11 +52,6 @@ namespace SanteDB.Persistence.MDM
         /// <summary>
         /// Determiner codes
         /// </summary>
-        public static readonly Guid MasterRecordDeterminer = Guid.Parse("92837281-7e30-4dcd-94cd-fd532d111578");
-
-        /// <summary>
-        /// Determiner codes
-        /// </summary>
         public static readonly Guid RecordOfTruthDeterminer = Guid.Parse("6B1D6764-12BE-42DC-A5DC-52FC275C4935");
 
         /// <summary>

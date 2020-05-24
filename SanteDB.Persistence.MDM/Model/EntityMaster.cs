@@ -66,7 +66,6 @@ namespace SanteDB.Persistence.MDM.Model
         public EntityMaster() : base()
         {
             this.ClassConceptKey = MdmConstants.MasterRecordClassification;
-            this.DeterminerConceptKey = MdmConstants.MasterRecordDeterminer;
 
             if (!typeof(Entity).IsAssignableFrom(typeof(T)))
                 throw new ArgumentOutOfRangeException("T must be Entity or subtype of Entity");
@@ -117,7 +116,6 @@ namespace SanteDB.Persistence.MDM.Model
                 master.SemanticCopyNullFields(locals);
             }
 
-            entityMaster.DeterminerConceptKey = MdmConstants.MasterRecordDeterminer;
             entityMaster.Policies = this.LocalRecords.SelectMany(o => (o as Entity).Policies).Select(o => new SecurityPolicyInstance(o.Policy, (PolicyGrantType)(int)pdp.GetPolicyOutcome(principal, o.Policy.Oid))).Where(o => o.GrantType == PolicyGrantType.Grant || o.Policy.CanOverride).ToList();
             entityMaster.Tags.RemoveAll(o => o.TagKey == "$mdm.type");
             entityMaster.Tags.Add(new EntityTag("$mdm.type", "M")); // This is a master
@@ -144,7 +142,7 @@ namespace SanteDB.Persistence.MDM.Model
             {
                 if (this.m_localRecords == null)
                 {
-                    this.m_localRecords = EntitySource.Current.Provider.Query<EntityRelationship>(o => o.TargetEntityKey == this.Key && o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship).Select(o => o.LoadProperty<T>("SourceEntity")).OfType<T>().ToList();
+                    this.m_localRecords = EntitySource.Current.Provider.Query<EntityRelationship>(o => o.TargetEntityKey == this.Key && o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship).Select(o => o.LoadProperty<Entity>("SourceEntity")).OfType<T>().ToList();
                     this.m_localRecords.OfType<Entity>().ToList().ForEach(o =>
                     {
                         o.LoadCollection<EntityRelationship>(nameof(Entity.Relationships));
@@ -156,13 +154,7 @@ namespace SanteDB.Persistence.MDM.Model
                         o.LoadCollection<EntityNote>(nameof(Entity.Notes));
                         o.LoadCollection<SecurityPolicyInstance>(nameof(Entity.Policies));
                         o.LoadCollection<EntityExtension>(nameof(Entity.Extensions));
-
-                        if (o is Person)
-                        {
-                            (o as Person).LoadCollection<PersonLanguageCommunication>(nameof(Person.LanguageCommunication));
-                            var family = EntitySource.Current.Provider.Query<EntityRelationship>(r => r.TargetEntityKey == o.Key && o.TypeConcept.ConceptSets.Where(cs => cs.Mnemonic == "FamilyMember").Any()).ToList();
-                            o.Relationships.AddRange(family);
-                        }
+                   
                         if (o is Place)
                             (o as Place).LoadCollection<PlaceService>(nameof(Place.Services));
 

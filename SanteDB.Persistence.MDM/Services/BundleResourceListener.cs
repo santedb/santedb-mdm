@@ -162,7 +162,11 @@ namespace SanteDB.Persistence.MDM.Services
                 bundle.Item.OfType<EntityRelationship>().ToList().ForEach((i) =>
                 {
                     if (i.SourceEntity == null)
-                        i.SourceEntity = bundle.Item.Find(o => o.Key == i.SourceEntityKey) as Entity;
+                    {
+                        var candidate = bundle.Item.Find(o => o.Key == i.SourceEntityKey) as Entity;
+                        if (candidate != null)
+                            i.SourceEntity = candidate;
+                    }
                 });
                 bundle = ApplicationServiceContext.Current.GetService<IDataPersistenceService<Bundle>>().Insert(bundle, TransactionMode.Commit, AuthenticationContext.Current.Principal);
                 bundle = businessRulesSerice?.AfterInsert(bundle) ?? bundle;
