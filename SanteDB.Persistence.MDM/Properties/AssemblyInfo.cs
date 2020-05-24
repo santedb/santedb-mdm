@@ -1,6 +1,6 @@
 ﻿/*
- * Copyright 2015-2019 Mohawk College of Applied Arts and Technology
- *
+ * Portions Copyright 2015-2019 Mohawk College of Applied Arts and Technology
+ * Portions Copyright (C) 2019 - 2020, Fyfe Software Inc. and the SanteSuite Contributors (See NOTICE.md)
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
  * may not use this file except in compliance with the License. You may 
@@ -14,8 +14,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: JustinFyfe
- * Date: 2019-1-22
+ * User: fyfej
+ * Date: 2020-2-2
  */
 using SanteDB.Core.Attributes;
 using SanteDB.Core.Configuration;
@@ -53,9 +53,9 @@ using System.Runtime.InteropServices;
 // You can specify all the values or you can default the Build and Revision Numbers
 // by using the '*' as shown below:
 // [assembly: AssemblyVersion("1.28.*")]
-[assembly: AssemblyVersion("2.0.11.0")]
-[assembly: AssemblyFileVersion("2.0.11.0")]
+[assembly: AssemblyVersion("2.0.12.0")]
+[assembly: AssemblyFileVersion("2.0.12.0")]
 
 [assembly: Plugin(Group = FeatureGroup.Persistence, Environment = PluginEnvironment.Server, EnableByDefault = false)]
-[assembly: PluginDependency("SanteDB.Core, 2.0.11.0")]
+[assembly: PluginDependency("SanteDB.Core, 2.0.12.0")]
 [assembly: PluginTraceSource(MdmConstants.TraceSourceName)]

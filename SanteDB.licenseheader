@@ -2,7 +2,7 @@
 extensions: .cs .cpp .h .js
 /*
  * Portions Copyright 2015-2019 Mohawk College of Applied Arts and Technology
- * Portions Copyright 2019-%CurrentYear% SanteSuite Contributors (See NOTICE)
+ * Portions Copyright (C) 2019 - %CurrentYear%, Fyfe Software Inc. and the SanteSuite Contributors (See NOTICE.md)
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
  * may not use this file except in compliance with the License. You may 
@@ -23,7 +23,7 @@ extensions: .aspx .ascx
 extensions:  .xml .config .xsd .xslt
 <!--
  - Portions Copyright 2015-2019 Mohawk College of Applied Arts and Technology
- - Portions Copyright 2019-%CurrentYear% SanteSuite Contributors (See NOTICE)
+ - Portions Copyright (C) 2019 - %CurrentYear%, Fyfe Software Inc. and the SanteSuite Contributors (See NOTICE.md)
  - 
  - 
  - Licensed under the Apache License, Version 2.0 (the "License"); you 
