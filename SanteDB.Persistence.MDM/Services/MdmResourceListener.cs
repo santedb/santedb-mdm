@@ -788,6 +788,11 @@ namespace SanteDB.Persistence.MDM.Services
                 {
                     this.m_traceSource.TraceVerbose("{0}: Entity has no existing master record. Creating one.", entity);
                     var master = this.CreateMasterRecord();
+                    if (master is Entity masterEntity && entity is Entity localEntity)
+                        masterEntity.DeterminerConceptKey = localEntity.DeterminerConceptKey;
+                    else if (master is Act masterAct && entity is Act localAct)
+                        masterAct.MoodConceptKey = localAct.MoodConceptKey;
+
                     insertData.Add(master as IdentifiedData);
                     insertData.Add(this.CreateRelationship(relationshipType, MdmConstants.MasterRecordRelationship, entity, master.Key));
                 }
@@ -805,6 +810,11 @@ namespace SanteDB.Persistence.MDM.Services
                     if (tr > 0) // Old master has other records, we want to obsolete our current reference to it and then establish a new master
                     {
                         var master = this.CreateMasterRecord();
+                        if (master is Entity masterEntity && entity is Entity localEntity)
+                            masterEntity.DeterminerConceptKey = localEntity.DeterminerConceptKey;
+                        else if (master is Act masterAct && entity is Act localAct)
+                            masterAct.MoodConceptKey = localAct.MoodConceptKey;
+
                         insertData.Add(master as IdentifiedData);
                         insertData.Add(this.CreateRelationship(relationshipType, MdmConstants.MasterRecordRelationship, entity, master.Key));
                         if (oldMasterRel is EntityRelationship)
