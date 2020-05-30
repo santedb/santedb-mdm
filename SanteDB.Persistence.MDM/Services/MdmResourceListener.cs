@@ -799,37 +799,40 @@ namespace SanteDB.Persistence.MDM.Services
                 else if(!matchGroups[RecordMatchClassification.Match].All(o=>o == existingMasterKey)) // No match with the existing master => Redirect the master
                 {
                     // Is this the only record in the current master relationship?
-                    var oldMasterRel = rels.OfType<IdentifiedData>().SingleOrDefault().Clone();
-                    var oldMasterId = (Guid)oldMasterRel.GetType().GetQueryProperty("target").GetValue(oldMasterRel);
-                    ApplicationServiceContext.Current.GetService<IDataCachingService>()?.Remove(oldMasterRel.Key.Value);
-
-                    // Query for other masters
-                    query = typeof(QueryExpressionParser).GetGenericMethod(nameof(QueryExpressionParser.BuildLinqExpression), new Type[] { relationshipType }, new Type[] { typeof(NameValueCollection) })
-                        .Invoke(null, new object[] { NameValueCollection.ParseQueryString($"target={oldMasterId}&source=!{entity.Key}&relationshipType={MdmConstants.MasterRecordRelationship}") }) as Expression;
-                    relationshipService.Query(query, 0, 0, out tr);
-                    if (tr > 0) // Old master has other records, we want to obsolete our current reference to it and then establish a new master
+                    var oldMasterRel = rels.OfType<IdentifiedData>().SingleOrDefault()?.Clone();
+                    if (oldMasterRel != null) // IS the master rel even in the db?
                     {
-                        var master = this.CreateMasterRecord();
-                        if (master is Entity masterEntity && entity is Entity localEntity)
-                            masterEntity.DeterminerConceptKey = localEntity.DeterminerConceptKey;
-                        else if (master is Act masterAct && entity is Act localAct)
-                            masterAct.MoodConceptKey = localAct.MoodConceptKey;
+                        var oldMasterId = (Guid)oldMasterRel.GetType().GetQueryProperty("target").GetValue(oldMasterRel);
+                        ApplicationServiceContext.Current.GetService<IDataCachingService>()?.Remove(oldMasterRel.Key.Value);
 
-                        insertData.Add(master as IdentifiedData);
-                        insertData.Add(this.CreateRelationship(relationshipType, MdmConstants.MasterRecordRelationship, entity, master.Key));
-                        if (oldMasterRel is EntityRelationship)
-                            (oldMasterRel as EntityRelationship).ObsoleteVersionSequenceId = Int32.MaxValue;
+                        // Query for other masters
+                        query = typeof(QueryExpressionParser).GetGenericMethod(nameof(QueryExpressionParser.BuildLinqExpression), new Type[] { relationshipType }, new Type[] { typeof(NameValueCollection) })
+                            .Invoke(null, new object[] { NameValueCollection.ParseQueryString($"target={oldMasterId}&source=!{entity.Key}&relationshipType={MdmConstants.MasterRecordRelationship}") }) as Expression;
+                        relationshipService.Query(query, 0, 0, out tr);
+                        if (tr > 0) // Old master has other records, we want to obsolete our current reference to it and then establish a new master
+                        {
+                            var master = this.CreateMasterRecord();
+                            if (master is Entity masterEntity && entity is Entity localEntity)
+                                masterEntity.DeterminerConceptKey = localEntity.DeterminerConceptKey;
+                            else if (master is Act masterAct && entity is Act localAct)
+                                masterAct.MoodConceptKey = localAct.MoodConceptKey;
+
+                            insertData.Add(master as IdentifiedData);
+                            insertData.Add(this.CreateRelationship(relationshipType, MdmConstants.MasterRecordRelationship, entity, master.Key));
+                            if (oldMasterRel is EntityRelationship)
+                                (oldMasterRel as EntityRelationship).ObsoleteVersionSequenceId = Int32.MaxValue;
+                            else
+                                (oldMasterRel as ActRelationship).ObsoleteVersionSequenceId = Int32.MaxValue;
+                            insertData.Insert(0, oldMasterRel);
+                            insertData.Add(this.CreateRelationship(relationshipType, MdmConstants.OriginalMasterRelationship, entity, oldMasterId));
+                            this.m_traceSource.TraceVerbose("{0}: Old master record still hase other locals, creating new master {1} and detaching old relationship {2}", entity, master, oldMasterRel);
+                        }
+                        // If not we want to keep our link to the current master
                         else
-                            (oldMasterRel as ActRelationship).ObsoleteVersionSequenceId = Int32.MaxValue;
-                        insertData.Insert(0, oldMasterRel);
-                        insertData.Add(this.CreateRelationship(relationshipType, MdmConstants.OriginalMasterRelationship, entity, oldMasterId));
-                        this.m_traceSource.TraceVerbose("{0}: Old master record still hase other locals, creating new master {1} and detaching old relationship {2}", entity, master, oldMasterRel);
-                    }
-                    // If not we want to keep our link to the current master
-                    else
-                    {
-                        insertData.Add(oldMasterRel);
-                        this.m_traceSource.TraceVerbose("{0}: Entity was identified as not matching its current MASTER however the old master only has one local so we'll keep it", entity);
+                        {
+                            insertData.Add(oldMasterRel);
+                            this.m_traceSource.TraceVerbose("{0}: Entity was identified as not matching its current MASTER however the old master only has one local so we'll keep it", entity);
+                        }
                     }
                 }
                 else if(rels.Any()) // no change in master so just reuse rels from DB
