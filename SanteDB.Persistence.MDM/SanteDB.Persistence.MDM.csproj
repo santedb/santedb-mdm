@@ -41,6 +41,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Exceptions\MdmException.cs" />
     <Compile Include="MdmConstants.cs" />
     <Compile Include="MdmPermissionPolicyIdentifiers.cs" />
     <Compile Include="Model\ActMaster.cs" />
@@ -87,7 +88,6 @@
       </ItemGroup>
     </Otherwise>
   </Choose>
- 
   <ItemGroup>
     <PackageReference Include="Newtonsoft.Json">
       <Version>11.0.2</Version>

@@ -83,7 +83,7 @@ namespace SanteDB.Persistence.MDM.Services
         /// <summary>
         /// Merging a bundle? Impossible
         /// </summary>
-        public override Bundle Merge(Bundle master, IEnumerable<Bundle> linkedDuplicates)
+        public override Bundle Merge(Guid master, IEnumerable<Guid> linkedDuplicates)
         {
             throw new NotSupportedException("Cannot merge bundles");
         }
@@ -91,7 +91,7 @@ namespace SanteDB.Persistence.MDM.Services
         /// <summary>
         /// Un-merge a bundle? Even more impossible than merging
         /// </summary>
-        public override Bundle Unmerge(Bundle master, Bundle unmergeDuplicate)
+        public override Bundle Unmerge(Guid master, Guid unmergeDuplicate)
         {
             throw new NotSupportedException("Cannot unmerge bundles");
         }
