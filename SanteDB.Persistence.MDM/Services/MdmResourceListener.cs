@@ -115,10 +115,16 @@ namespace SanteDB.Persistence.MDM.Services
                 throw new InvalidOperationException($"Could not find persistence service for Bundle");
             this.m_dataPersistenceService = ApplicationServiceContext.Current.GetService<IDataPersistenceService<T>>();
 
-            if(typeof(Act).IsAssignableFrom(typeof(T)))
+            if (typeof(Act).IsAssignableFrom(typeof(T)))
+            {
+                ModelSerializationBinder.RegisterModelType(typeof(ActMaster<T>));
                 this.m_rawMasterPersistenceService = ApplicationServiceContext.Current.GetService<IDataPersistenceService<Act>>() as IDataPersistenceService;
+            }
             else
+            {
+                ModelSerializationBinder.RegisterModelType(typeof(EntityMaster<T>));
                 this.m_rawMasterPersistenceService = ApplicationServiceContext.Current.GetService<IDataPersistenceService<Entity>>() as IDataPersistenceService;
+            }
 
             this.m_repository = ApplicationServiceContext.Current.GetService<IRepositoryService<T>>() as INotifyRepositoryService<T>;
             if (this.m_repository == null)
@@ -134,6 +140,8 @@ namespace SanteDB.Persistence.MDM.Services
             this.m_repository.Retrieving += this.OnRetrieving;
             this.m_repository.Queried += this.OnQueried;
             this.m_repository.Querying += this.OnQuerying;
+
+
         }
 
         /// <summary>
