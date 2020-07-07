@@ -42,6 +42,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Exceptions\MdmException.cs" />
+    <Compile Include="Jobs\MdmMatchJob.cs" />
     <Compile Include="MdmConstants.cs" />
     <Compile Include="MdmPermissionPolicyIdentifiers.cs" />
     <Compile Include="Model\ActMaster.cs" />
