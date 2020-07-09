@@ -342,17 +342,18 @@ namespace SanteDB.Persistence.MDM.Services
                             existingLocal = (idp as IDataPersistenceService<Entity>).Query(o => o.ClassConceptKey == dataEntity.ClassConceptKey && o.Relationships.Where(g => g.RelationshipType.Mnemonic == "MDM-Master").Any(g => g.TargetEntityKey == existing.Key) && o.CreatedBy.Application.Name == applicationIdentity.Name, 0, 1, out int tr, AuthenticationContext.SystemPrincipal).FirstOrDefault();
 
                         // We're updating the existing local identity 
+                        dataEntity.Relationships.RemoveAll(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship || o.RelationshipTypeKey == MdmConstants.MasterRecordOfTruthRelationship);
                         if (existingLocal != null)
                         {
                             dataEntity.VersionKey = null;
                             dataEntity.Key = existingLocal.Key;
+                            dataEntity.Tags.RemoveAll(o => o.TagKey == "$mdm.type" || o.TagKey.StartsWith("$"));
                             existingLocal.CopyObjectData(dataEntity, true, true);
                             existingLocal.CopyObjectData(dataEntity, true, true); // HACK: Run again to clear out any delayed load properties
                             identified = e.Data = (T)(object)existingLocal;
                         }
                         else // We're creating a new local entity for this system
                         {
-                            dataEntity.Relationships.RemoveAll(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship || o.RelationshipTypeKey == MdmConstants.MasterRecordOfTruthRelationship);
                             e.Data.Key = identified.Key = Guid.NewGuid(); // New key
                             dataEntity.VersionKey = Guid.NewGuid();
                             dataEntity.VersionSequence = null;
@@ -592,14 +593,14 @@ namespace SanteDB.Persistence.MDM.Services
         {
             if (data is Entity entityData)
             {
-                return entityData.Tags.Any(o => o.TagKey == "$mdm.type" && o.Value == "T") == true||
+                return entityData.Tags?.Any(o => o.TagKey == "$mdm.type" && o.Value == "T") == true||
                     entityData.DeterminerConceptKey == MdmConstants.RecordOfTruthDeterminer ||
                     ApplicationServiceContext.Current.GetService<IDataPersistenceService<EntityRelationship>>().Count(o => o.TargetEntityKey == data.Key && o.RelationshipTypeKey == MdmConstants.MasterRecordOfTruthRelationship && o.ObsoleteVersionSequenceId == null, AuthenticationContext.SystemPrincipal) > 0;
             }
             else if (data is Act actData)
             {
                 this.m_traceSource.TraceUntestedWarning();
-                return actData.Tags.Any(o => o.TagKey == "$mdm.type" && o.Value == "T") == true ||
+                return actData.Tags?.Any(o => o.TagKey == "$mdm.type" && o.Value == "T") == true ||
                     ApplicationServiceContext.Current.GetService<IDataPersistenceService<ActRelationship>>().Count(o => o.TargetActKey == data.Key && o.RelationshipTypeKey == MdmConstants.MasterRecordOfTruthRelationship && o.ObsoleteVersionSequenceId == null, AuthenticationContext.SystemPrincipal) > 0;
             }
             else
@@ -857,8 +858,7 @@ namespace SanteDB.Persistence.MDM.Services
             {
                 // We want to create a new master for this record?
                 var rels = this.GetRelationshipTargets(entity, MdmConstants.MasterRecordRelationship);
-
-
+                
                 if (!existingMasterKey.HasValue) // There is no master
                 {
                     this.m_traceSource.TraceVerbose("{0}: Entity has no existing master record. Creating one.", entity);
