@@ -1263,7 +1263,11 @@ namespace SanteDB.Persistence.MDM.Services
             try
             {
                 // Relationship type
-                var linqQuery = QueryExpressionParser.BuildLinqExpression<T>(NameValueCollection.ParseQueryString($"relationship[MDM-Duplicate].target={masterKey}"));
+                Expression<Func<T, bool>> linqQuery = null; 
+                if(masterKey == Guid.Empty)
+                    linqQuery = QueryExpressionParser.BuildLinqExpression<T>(NameValueCollection.ParseQueryString($"relationship[MDM-Duplicate]=!null"));
+                else
+                    linqQuery = QueryExpressionParser.BuildLinqExpression<T>(NameValueCollection.ParseQueryString($"relationship[MDM-Duplicate].target={masterKey}"));
                 return this.m_dataPersistenceService.Query(linqQuery, AuthenticationContext.Current.Principal);
             }
             catch(Exception e)
