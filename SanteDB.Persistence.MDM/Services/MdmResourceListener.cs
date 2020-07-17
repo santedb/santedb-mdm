@@ -135,7 +135,7 @@ namespace SanteDB.Persistence.MDM.Services
             }
 
             this.m_backgroundMatch = new MdmMatchJob<T>();
-            ApplicationServiceContext.Current.GetService<IJobManagerService>().AddJob(this.m_backgroundMatch, TimeSpan.MaxValue, JobStartType.Never);
+            ApplicationServiceContext.Current.GetService<IJobManagerService>()?.AddJob(this.m_backgroundMatch, TimeSpan.MaxValue, JobStartType.Never);
 
             this.m_repository = ApplicationServiceContext.Current.GetService<IRepositoryService<T>>() as INotifyRepositoryService<T>;
             if (this.m_repository == null)
@@ -871,7 +871,7 @@ namespace SanteDB.Persistence.MDM.Services
                     insertData.Add(master as IdentifiedData);
                     insertData.Add(this.CreateRelationship(relationshipType, MdmConstants.MasterRecordRelationship, entity.Key, master.Key));
                 }
-                else if(!matchGroups[RecordMatchClassification.Match].All(o=>o == existingMasterKey)) // No match with the existing master => Redirect the master
+                else if(!matchGroups[RecordMatchClassification.Match].Any() || !matchGroups[RecordMatchClassification.Match].All(o=>o == existingMasterKey)) // No match with the existing master => Redirect the master
                 {
                     // Is this the only record in the current master relationship?
                     var oldMasterRel = rels.OfType<IdentifiedData>().SingleOrDefault()?.Clone();
