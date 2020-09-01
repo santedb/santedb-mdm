@@ -75,7 +75,7 @@ namespace SanteDB.Persistence.MDM.Model
         /// </summary>
         public EntityMaster(Entity master) : this()
         {
-            this.CopyObjectData(master);
+            this.CopyObjectData(master, false, true);
             this.m_masterRecord = master;
         }
 

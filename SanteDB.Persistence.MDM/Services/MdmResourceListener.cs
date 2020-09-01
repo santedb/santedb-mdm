@@ -75,7 +75,7 @@ namespace SanteDB.Persistence.MDM.Services
         /// <summary>
         /// Gets the service name
         /// </summary>
-        public string ServiceName => $"MIDM Data Handler Listener for {typeof(T).FullName}";
+        public string ServiceName => $"MDM Data Handler Listener for {typeof(T).FullName}";
 
         // Configuration
         private ResourceMergeConfiguration m_resourceConfiguration;
@@ -140,6 +140,7 @@ namespace SanteDB.Persistence.MDM.Services
             this.m_repository = ApplicationServiceContext.Current.GetService<IRepositoryService<T>>() as INotifyRepositoryService<T>;
             if (this.m_repository == null)
                 throw new InvalidOperationException($"Could not find repository service for {typeof(T)}");
+
             // Subscribe
             this.m_repository.Inserting += this.OnPrePersistenceValidate;
             this.m_repository.Saving += this.OnPrePersistenceValidate;
@@ -205,7 +206,7 @@ namespace SanteDB.Persistence.MDM.Services
         /// <param name="principal">The user executing the query</param>
         /// <param name="queryId">The unique query identifier</param>
         ///<param name="totalResults">The number of matching results</param>
-        private IEnumerable<T> MasterQuery<TMasterType>(NameValueCollection masterQuery, NameValueCollection localQuery, Guid queryId, int offset, int? count, IPrincipal principal, out int totalResults)
+        internal IEnumerable<T> MasterQuery<TMasterType>(NameValueCollection masterQuery, NameValueCollection localQuery, Guid queryId, int offset, int? count, IPrincipal principal, out int totalResults)
             where TMasterType : IdentifiedData
         {
             var qpi = ApplicationServiceContext.Current.GetService<IStoredQueryDataPersistenceService<TMasterType>>();
