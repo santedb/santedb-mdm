@@ -363,11 +363,13 @@ namespace SanteDB.Persistence.MDM.Services
                             if (mdmTag?.Value == "T") // They want this record to be a record of truth 
                             {
                                 dataEntity.DeterminerConceptKey = MdmConstants.RecordOfTruthDeterminer;
-                                dataEntity.Relationships.Add(new EntityRelationship(MdmConstants.MasterRecordRelationship, existing as Entity));
+                                dataEntity.Relationships.Add(new EntityRelationship(MdmConstants.MasterRecordRelationship, existing as Entity) { Quantity = 1 });
                                 dataEntity.Tags.Add(new EntityTag("$mdm.type", "T"));
                             }
-                            else // it is just another record
-                                dataEntity.Relationships.Add(new EntityRelationship(MdmConstants.MasterRecordRelationship, existing as Entity));
+                            else // it is just another record 
+                            {
+                                dataEntity.Relationships.Add(new EntityRelationship(MdmConstants.MasterRecordRelationship, existing as Entity) { Quantity = 1 });
+                            }
                         }
 
                         dataEntity.StripAssociatedItemSources();
@@ -633,7 +635,8 @@ namespace SanteDB.Persistence.MDM.Services
                     if (e.Data is Entity entityData)
                     {
                         // Get the MDM relationship as this record will point > MDM
-                        var masterRelationship = entityData.Relationships.First(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship);
+                        var masterRelationship = this.GetRelationshipTargets(e.Data, MdmConstants.MasterRecordRelationship).OfType<EntityRelationship>().FirstOrDefault();
+                        //var masterRelationship = entityData.Relationships.First(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship);
 
                         // Establish a master
                         var bundle = sender as Bundle ?? new Bundle();
@@ -780,7 +783,7 @@ namespace SanteDB.Persistence.MDM.Services
             //END FOR
             List<IdentifiedData> insertData = new List<IdentifiedData>() { entity };
             var ignoreRelationships = this.GetRelationshipTargets(entity, MdmConstants.IgnoreCandidateRelationship).Distinct();
-            var ignoreList = ignoreRelationships.OfType<EntityRelationship>().Select(o => o.TargetEntityKey).Concat(ignoreRelationships.OfType<ActRelationship>().Select(o => o.TargetActKey));
+            var ignoreList = ignoreRelationships.OfType<EntityRelationship>().Select(o => o.TargetEntityKey).Concat(ignoreRelationships.OfType<ActRelationship>().Select(o => o.TargetActKey)).ToList();
 
             // Existing probable links
             var existingProbableLinks = this.GetRelationshipTargets(entity, MdmConstants.CandidateLocalRelationship);
@@ -872,11 +875,14 @@ namespace SanteDB.Persistence.MDM.Services
                     insertData.Add(master as IdentifiedData);
                     insertData.Add(this.CreateRelationship(relationshipType, MdmConstants.MasterRecordRelationship, entity.Key, master.Key));
                 }
-                else if(!matchGroups[RecordMatchClassification.Match].Any() || !matchGroups[RecordMatchClassification.Match].All(o=>o == existingMasterKey)) // No match with the existing master => Redirect the master
+                else if(!matchGroups[RecordMatchClassification.Match].Any() || !matchGroups[RecordMatchClassification.Match].Any(o=>o == existingMasterKey)) // No match with the existing master => Redirect the master
                 {
                     // Is this the only record in the current master relationship?
                     var oldMasterRel = rels.OfType<IdentifiedData>().SingleOrDefault()?.Clone();
-                    if (oldMasterRel != null) // IS the master rel even in the db?
+
+                    if (oldMasterRel != null && // Master in DB
+                        (oldMasterRel is EntityRelationship erMaster && erMaster.Quantity == 0) // Master rel is not "sicky"
+                    )
                     {
                         var oldMasterId = (Guid)oldMasterRel.GetType().GetQueryProperty("target").GetValue(oldMasterRel);
                         ApplicationServiceContext.Current.GetService<IDataCachingService>()?.Remove(oldMasterRel.Key.Value);
@@ -909,6 +915,12 @@ namespace SanteDB.Persistence.MDM.Services
                             insertData.Add(oldMasterRel);
                             this.m_traceSource.TraceVerbose("{0}: Entity was identified as not matching its current MASTER however the old master only has one local so we'll keep it", entity);
                         }
+                    }
+                    else  // Remove any candidate to the existing master
+                    {
+                        if(rels.Any()) // Reuse master rels
+                            insertData.Add(rels.OfType<IdentifiedData>().SingleOrDefault());
+                        ignoreList.Add(existingMasterKey);
                     }
                 }
                 else if(rels.Any()) // no change in master so just reuse rels from DB
