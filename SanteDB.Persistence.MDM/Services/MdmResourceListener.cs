@@ -636,7 +636,8 @@ namespace SanteDB.Persistence.MDM.Services
                     {
                         // Get the MDM relationship as this record will point > MDM
                         var masterRelationship = this.GetRelationshipTargets(e.Data, MdmConstants.MasterRecordRelationship).OfType<EntityRelationship>().FirstOrDefault();
-                        //var masterRelationship = entityData.Relationships.First(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship);
+                        if(masterRelationship == null) // Attempt to load by specified links
+                            masterRelationship = entityData.Relationships.First(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship);
 
                         // Establish a master
                         var bundle = sender as Bundle ?? new Bundle();
