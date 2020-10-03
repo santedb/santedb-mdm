@@ -42,6 +42,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Exceptions\MdmException.cs" />
+    <Compile Include="Jobs\MdmMatchJob.cs" />
     <Compile Include="MdmConstants.cs" />
     <Compile Include="MdmPermissionPolicyIdentifiers.cs" />
     <Compile Include="Model\ActMaster.cs" />
@@ -51,6 +52,7 @@
     <Compile Include="Services\BundleResourceListener.cs" />
     <Compile Include="Services\MasterMatch.cs" />
     <Compile Include="Services\MdmDataManagementService.cs" />
+    <Compile Include="Services\MdmFreetextSearchService.cs" />
     <Compile Include="Services\MdmResourceListener.cs" />
   </ItemGroup>
   <ItemGroup>
@@ -83,8 +85,8 @@
     </When>
     <Otherwise>
       <ItemGroup>
-        <PackageReference Include="SanteDB.Core.Api" Version="2.0.19.0" />
-        <PackageReference Include="SanteDB.Core.Model" Version="2.0.19.0" />
+        <PackageReference Include="SanteDB.Core.Api" Version="2.0.40.0" />
+        <PackageReference Include="SanteDB.Core.Model" Version="2.0.40.0" />
       </ItemGroup>
     </Otherwise>
   </Choose>

@@ -53,7 +53,7 @@ namespace SanteDB.Persistence.MDM.Services
         /// </summary>
         protected override void OnPrePersistenceValidate(object sender, DataPersistingEventArgs<Bundle> e)
         {
-            this.ChainInvoke(sender, e, e.Data, nameof(OnPrePersistenceValidate), typeof(DataPersistingEventArgs<>));
+            e.Data = this.ChainInvoke(sender, e, e.Data, nameof(OnPrePersistenceValidate), typeof(DataPersistingEventArgs<>));
         }
 
         /// <summary>
@@ -61,7 +61,7 @@ namespace SanteDB.Persistence.MDM.Services
         /// </summary>
         protected override void OnInserting(object sender, DataPersistingEventArgs<Bundle> e)
         {
-            this.ChainInvoke(sender, e, e.Data, nameof(OnInserting), typeof(DataPersistingEventArgs<>));
+            e.Data = this.ChainInvoke(sender, e, e.Data, nameof(OnInserting), typeof(DataPersistingEventArgs<>));
         }
 
         /// <summary>
@@ -69,7 +69,7 @@ namespace SanteDB.Persistence.MDM.Services
         /// </summary>
         protected override void OnSaving(object sender, DataPersistingEventArgs<Bundle> e)
         {
-            this.ChainInvoke(sender, e, e.Data, nameof(OnSaving), typeof(DataPersistedEventArgs<>));
+            e.Data = this.ChainInvoke(sender, e, e.Data, nameof(OnSaving), typeof(DataPersistedEventArgs<>));
         }
 
         /// <summary>
@@ -77,7 +77,7 @@ namespace SanteDB.Persistence.MDM.Services
         /// </summary>
         protected override void OnObsoleting(object sender, DataPersistingEventArgs<Bundle> e)
         {
-            this.ChainInvoke(sender, e, e.Data, nameof(OnObsoleting), typeof(DataPersistingEventArgs<>));
+            e.Data = this.ChainInvoke(sender, e, e.Data, nameof(OnObsoleting), typeof(DataPersistingEventArgs<>));
         }
 
         /// <summary>
@@ -130,7 +130,7 @@ namespace SanteDB.Persistence.MDM.Services
         /// <summary>
         /// Performs a chain invokation on the bundle's contents
         /// </summary>
-        private void ChainInvoke(object sender, object eventArgs, Bundle bundle, string methodName, Type argType)
+        private Bundle ChainInvoke(object sender, object eventArgs, Bundle bundle, string methodName, Type argType)
         {
             for (int i = 0; i < bundle.Item.Count; i++)
             {
@@ -173,6 +173,7 @@ namespace SanteDB.Persistence.MDM.Services
 
             }
 
+            return bundle;
         }
     }
 }

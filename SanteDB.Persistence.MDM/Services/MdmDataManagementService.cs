@@ -40,6 +40,8 @@ using SanteDB.Core.Data;
 using SanteDB.Core.Model.Constants;
 using SanteDB.Core.Model.Roles;
 using SanteDB.Core.Model.Map;
+using SanteDB.Core.Interfaces;
+using SanteDB.Core.Model.Query;
 
 namespace SanteDB.Persistence.MDM.Services
 {
@@ -112,6 +114,7 @@ namespace SanteDB.Persistence.MDM.Services
                 else if (typeof(Act).IsAssignableFrom(rt))
                     rt = typeof(ActMaster<>).MakeGenericType(rt);
                 ModelSerializationBinder.RegisterModelType(typeName, rt);
+
             }
 
             // Wait until application context is started
@@ -126,7 +129,9 @@ namespace SanteDB.Persistence.MDM.Services
                 {
                     this.m_traceSource.TraceInfo("Adding MDM listener for {0}...", itm.ResourceType.Name);
                     var idt = typeof(MdmResourceListener<>).MakeGenericType(itm.ResourceType);
-                    this.m_listeners.Add(Activator.CreateInstance(idt, itm) as MdmResourceListener);
+                    var ids = Activator.CreateInstance(idt, itm) as MdmResourceListener;
+                    this.m_listeners.Add(ids);
+                    ApplicationServiceContext.Current.GetService<IServiceManager>().AddServiceProvider(ids);
                 }
 
                 // Add an MDM listener for subscriptions
@@ -137,6 +142,10 @@ namespace SanteDB.Persistence.MDM.Services
                     subscService.Executed += MdmSubscriptionExecuted;
                 }
                 this.m_listeners.Add(new BundleResourceListener(this.m_listeners));
+
+                // FTS?
+                if (ApplicationServiceContext.Current.GetService<IFreetextSearchService>() == null)
+                    ApplicationServiceContext.Current.GetService<IServiceManager>().AddServiceProvider(new MdmFreetextSearchService());
             };
 
             this.Started?.Invoke(this, EventArgs.Empty);
@@ -222,5 +231,7 @@ namespace SanteDB.Persistence.MDM.Services
             this.Stopped?.Invoke(this, EventArgs.Empty);
             return true;
         }
+
+
     }
 }
