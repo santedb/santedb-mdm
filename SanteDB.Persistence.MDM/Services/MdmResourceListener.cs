@@ -525,7 +525,7 @@ namespace SanteDB.Persistence.MDM.Services
                                     throw new MdmException(e.Data, $"Unable to determine master record for {e.Data}");
                                 else
                                 {
-                                    masterRelationship = new EntityRelationship(MdmConstants.MasterRecordRelationship, e.Data.Key) { TargetEntityKey = rotRelationship.SourceEntityKey };
+                                    masterRelationship = new EntityRelationship(MdmConstants.MasterRecordRelationship, rotRelationship.SourceEntityKey) { SourceEntityKey = rotRelationship.TargetEntityKey };
                                     bundle.Add(masterRelationship);
                                 }
                             }
@@ -663,7 +663,7 @@ namespace SanteDB.Persistence.MDM.Services
                         var masterRelationship = this.GetRelationshipTargets(e.Data, MdmConstants.MasterRecordRelationship).OfType<EntityRelationship>().FirstOrDefault();
                         if (masterRelationship == null) // Attempt to load from DB
                         {
-                            masterRelationship = entityData.Relationships.First(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship);
+                            masterRelationship = entityData.Relationships.FirstOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship);
                             if (masterRelationship == null) // Oddly this ROT doesn't have a master, we should restore it
                             {
                                 this.m_traceSource.TraceWarning("ROT does not belong to a master, adding link based on ROT relationship");
@@ -672,7 +672,7 @@ namespace SanteDB.Persistence.MDM.Services
                                     throw new MdmException(e.Data, $"Unable to determine master record for {e.Data}");
                                 else
                                 {
-                                    masterRelationship = new EntityRelationship(MdmConstants.MasterRecordRelationship, e.Data.Key) { TargetEntityKey = rotRelationship.SourceEntityKey };
+                                    masterRelationship = new EntityRelationship(MdmConstants.MasterRecordRelationship, rotRelationship.SourceEntityKey) { SourceEntityKey = rotRelationship.TargetEntityKey };
                                     bundle.Add(masterRelationship);
                                 }
                             }
