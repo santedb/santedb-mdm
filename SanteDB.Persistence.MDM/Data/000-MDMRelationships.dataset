@@ -125,7 +125,7 @@ INSERT INTO ent_rel_vrfy_cdtbl (rel_typ_cd_id, src_cls_cd_id, trg_cls_cd_id, err
 SELECT REG_PATCH('MDM-RELATIONSHIP-2');
       ]]>
     </exec>
-    <exec invariant="fbsql">
+    <exec invariant="FirebirdSQL">
       <![CDATA[
 -- FOR MASTER RELATIONSHIP TYPE
 INSERT INTO ent_rel_vrfy_cdtbl (rel_typ_cd_id, src_cls_cd_id, trg_cls_cd_id, err_desc) 
