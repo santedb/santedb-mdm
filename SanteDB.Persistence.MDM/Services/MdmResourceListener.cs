@@ -424,11 +424,11 @@ namespace SanteDB.Persistence.MDM.Services
                 var idp = ApplicationServiceContext.Current.GetService<IDataPersistenceService<Entity>>();
 
                 if (dataEntity.Tags.FirstOrDefault(o => o.TagKey == "$mdm.type")?.Value == "T" || dataEntity.DeterminerConceptKey == MdmConstants.RecordOfTruthDeterminer) // Record of truth we must look for
-                    return idp.Query(o => o.ClassConceptKey == dataEntity.ClassConceptKey && o.Relationships.Where(g => g.RelationshipType.Mnemonic == "MDM-RecordOfTruth").Any(g => g.SourceEntityKey == dataEntity.Key), 0, 1, out int tr, AuthenticationContext.SystemPrincipal).FirstOrDefault();
+                    return idp.Query(o =>  o.Relationships.Where(g => g.RelationshipType.Mnemonic == "MDM-RecordOfTruth").Any(g => g.SourceEntityKey == dataEntity.Key), 0, 1, out int tr, AuthenticationContext.SystemPrincipal).FirstOrDefault();
                 else if (identity is IDeviceIdentity deviceIdentity)
-                    return idp.Query(o => o.ClassConceptKey == dataEntity.ClassConceptKey && o.Relationships.Where(g => g.RelationshipType.Mnemonic == "MDM-Master").Any(g => g.TargetEntityKey == dataEntity.Key) && o.CreatedBy.Device.Name == deviceIdentity.Name, 0, 1, out int tr, AuthenticationContext.SystemPrincipal).FirstOrDefault();
+                    return idp.Query(o => o.Relationships.Where(g => g.RelationshipType.Mnemonic == "MDM-Master").Any(g => g.TargetEntityKey == dataEntity.Key) && o.CreatedBy.Device.Name == deviceIdentity.Name, 0, 1, out int tr, AuthenticationContext.SystemPrincipal).FirstOrDefault();
                 else if (identity is IApplicationIdentity applicationIdentity)
-                    return idp.Query(o => o.ClassConceptKey == dataEntity.ClassConceptKey && o.Relationships.Where(g => g.RelationshipType.Mnemonic == "MDM-Master").Any(g => g.TargetEntityKey == dataEntity.Key) && o.CreatedBy.Application.Name == applicationIdentity.Name, 0, 1, out int tr, AuthenticationContext.SystemPrincipal).FirstOrDefault();
+                    return idp.Query(o =>  o.Relationships.Where(g => g.RelationshipType.Mnemonic == "MDM-Master").Any(g => g.TargetEntityKey == dataEntity.Key) && o.CreatedBy.Application.Name == applicationIdentity.Name, 0, 1, out int tr, AuthenticationContext.SystemPrincipal).FirstOrDefault();
                 else
                     return null;
             }
@@ -524,7 +524,7 @@ namespace SanteDB.Persistence.MDM.Services
                         var bundle = sender as Bundle ?? new Bundle();
                         if (!bundle.Item.Contains(e.Data))
                             bundle.Add(e.Data);
-                        bundle.Item.InsertRange(0, this.RefactorMdmTargetsToLocals(e.Data));
+                        bundle.Item.InsertRange(0, this.RefactorMdmTargetsToLocals(e.Data, bundle));
 
                         // Get the MDM relationship as this record will point > MDM
                         var masterRelationship = entityData.Relationships.FirstOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship);
@@ -587,14 +587,14 @@ namespace SanteDB.Persistence.MDM.Services
 
                     // Perform matching
                     var bundle = this.PerformMdmMatch(e.Data);
-                    bundle.Item.InsertRange(0, this.RefactorMdmTargetsToLocals(e.Data));
+                    bundle.Item.InsertRange(0, this.RefactorMdmTargetsToLocals(e.Data, bundle));
                     e.Cancel = true;
 
                     // Is the caller the bundle MDM? if so just add 
-                    if (sender is Bundle)
+                    if (sender is Bundle bundleS)
                     {
-                        (sender as Bundle).Item.Remove(e.Data);
-                        (sender as Bundle).Item.AddRange(bundle.Item);
+                        bundleS.Item.InsertRange(bundleS.Item.FindIndex(o => o.Key == e.Data.Key), bundle.Item.Where(o => o != e.Data));
+
                     }
                     else
                     {
@@ -660,6 +660,15 @@ namespace SanteDB.Persistence.MDM.Services
                     ApplicationServiceContext.Current.HostType == SanteDBHostType.Gateway)
                     return;
 
+                // Already processed
+                if (e.Data is ITaggable taggable)
+                {
+                    if (taggable.Tags.Any(o => o.TagKey == "$mdm.processed"))
+                        return;
+                    else
+                        taggable.AddTag("$mdm.processed", "true");
+                }
+
                 if (!e.Data.Key.HasValue)
                     e.Data.Key = Guid.NewGuid(); // Assign a key if one is not set
                                                  // Is this object a ROT or MASTER, if it is then we do not perform any changes to re-binding
@@ -673,7 +682,7 @@ namespace SanteDB.Persistence.MDM.Services
                         if (!bundle.Item.Contains(e.Data))
                             bundle.Add(e.Data);
 
-                        bundle.Item.InsertRange(0, this.RefactorMdmTargetsToLocals(e.Data));
+                        bundle.Item.InsertRange(0, this.RefactorMdmTargetsToLocals(e.Data, bundle));
 
                         // Get the MDM relationship as this record will point > MDM
                         var masterRelationship = this.GetRelationshipTargets(e.Data, MdmConstants.MasterRecordRelationship).OfType<EntityRelationship>().FirstOrDefault();
@@ -735,13 +744,13 @@ namespace SanteDB.Persistence.MDM.Services
 
                     e.Cancel = true;
                     var bundle = this.PerformMdmMatch(e.Data);
-                    bundle.Item.InsertRange(0, this.RefactorMdmTargetsToLocals(e.Data));
+                    bundle.Item.InsertRange(0, this.RefactorMdmTargetsToLocals(e.Data, bundle));
 
                     // Is the caller the bundle MDM? if so just add 
-                    if (sender is Bundle)
+                    if (sender is Bundle bundleS)
                     {
                         //(sender as Bundle).Item.Remove(e.Data);
-                        (sender as Bundle).Item.AddRange(bundle.Item.Where(o => o != e.Data));
+                        bundleS.Item.InsertRange(bundleS.Item.FindIndex(o=>o.Key == e.Data.Key), bundle.Item.Where(o => o != e.Data));
                     }
                     else
                     {
@@ -780,7 +789,7 @@ namespace SanteDB.Persistence.MDM.Services
         /// This is not permitted and will fail validation. This method will, instead, check if the target of any relationships
         /// are masters, and if so, will locate or create a local for the target as well as a placeholder.
         /// </remarks>
-        private IEnumerable<IdentifiedData> RefactorMdmTargetsToLocals(IIdentifiedEntity data)
+        private IEnumerable<IdentifiedData> RefactorMdmTargetsToLocals(IIdentifiedEntity data, Bundle sourceBundle)
         {
             var retVal = new List<IdentifiedData>();
 
@@ -790,19 +799,34 @@ namespace SanteDB.Persistence.MDM.Services
                 var mdmTargetRels = entity.GetRelationships().Where((rel) =>
                 {
                     var target = rel.GetTargetAs<Entity>();
-                    return target.ClassConceptKey == MdmConstants.MasterRecordClassification;
+                    return target != null && 
+                        target.ClassConceptKey == MdmConstants.MasterRecordClassification &&
+                        rel.RelationshipTypeKey != MdmConstants.CandidateLocalRelationship &&
+                        rel.RelationshipTypeKey != MdmConstants.MasterRecordRelationship &&
+                        rel.RelationshipTypeKey != MdmConstants.OriginalMasterRelationship &&
+                        rel.RelationshipTypeKey != MdmConstants.MasterRecordOfTruthRelationship;
                 });
 
                 // Now, we want to point these rels at the existing local , or we want to create a local 
                 foreach (var rel in mdmTargetRels)
                 {
                     var local = this.GetLocalFor(rel.GetTargetAs<Entity>(), AuthenticationContext.Current.Principal as IClaimsPrincipal) as Entity;
+
+                    // Search in the bundle
+                    if(local == null && sourceBundle != null)
+                        local = sourceBundle.Item.OfType<Entity>().FirstOrDefault(o => o.Relationships.Any(r => r.RelationshipTypeKey == MdmConstants.MasterRecordRelationship && r.TargetEntityKey == rel.TargetEntityKey));
+
                     if (local == null) // There is no local :/ so we have to create one
                     {
+                        // Synthesize a master or ROT 
+                        var master = new EntityMaster<T>(rel.TargetEntity);
                         local = new T() as Entity;
                         local.Key = Guid.NewGuid(); // New key
                         local.VersionKey = Guid.NewGuid();
                         local.VersionSequence = null;
+                        local.SemanticCopy((Entity)(object)master.GetMaster(AuthenticationContext.SystemPrincipal));
+                        local.StripAssociatedItemSources();
+                        local.Relationships.Clear();
                         local.Relationships.Add(new EntityRelationship(MdmConstants.MasterRecordRelationship, rel.TargetEntity) { Quantity = 1 });
                         retVal.Add(local);
                     }

@@ -58,7 +58,6 @@ namespace SanteDB.Persistence.MDM.Model
 
         // Local records
         private List<T> m_localRecords;
-
      
         /// <summary>
         /// Create entity master
@@ -168,6 +167,12 @@ namespace SanteDB.Persistence.MDM.Model
                                 r.SourceEntityKey = this.m_masterRecord.Key;
                             else if (r.TargetEntityKey == o.Key)
                                 r.TargetEntityKey = this.m_masterRecord.Key;
+
+                            // Does the target point at a local which has a master? If so, we want to synthesize the 
+                            var targetMaster = r.GetTargetAs<Entity>().GetRelationships().FirstOrDefault(mr => mr.RelationshipTypeKey == MdmConstants.MasterRecordRelationship);
+                            if (targetMaster != null)
+                                r.TargetEntityKey = targetMaster.TargetEntityKey;
+
                         });
                     });
                 }

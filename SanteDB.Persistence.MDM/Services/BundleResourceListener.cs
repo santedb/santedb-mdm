@@ -145,7 +145,9 @@ namespace SanteDB.Persistence.MDM.Services
                     exeMethod.Invoke(hdlr, new Object[] { bundle, evtArgs });
 
                     // Cancel?
-                    bundle.Item[i] = evtArgType.GetRuntimeProperty("Data").GetValue(evtArgs) as IdentifiedData;
+                    var subData = evtArgType.GetRuntimeProperty("Data").GetValue(evtArgs) as IdentifiedData;
+                    if (bundle.Item[i].Key == subData.Key)
+                        bundle.Item[i] = subData;
 
                     if(eventArgs is DataPersistingEventArgs<Bundle>)
                         (eventArgs as DataPersistingEventArgs<Bundle>).Cancel |= (bool)evtArgType.GetRuntimeProperty("Cancel").GetValue(evtArgs);
