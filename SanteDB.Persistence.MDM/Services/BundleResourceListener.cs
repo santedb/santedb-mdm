@@ -69,7 +69,7 @@ namespace SanteDB.Persistence.MDM.Services
         /// </summary>
         protected override void OnSaving(object sender, DataPersistingEventArgs<Bundle> e)
         {
-            e.Data = this.ChainInvoke(sender, e, e.Data, nameof(OnSaving), typeof(DataPersistedEventArgs<>));
+            e.Data = this.ChainInvoke(sender, e, e.Data, nameof(OnSaving), typeof(DataPersistingEventArgs<>));
         }
 
         /// <summary>
