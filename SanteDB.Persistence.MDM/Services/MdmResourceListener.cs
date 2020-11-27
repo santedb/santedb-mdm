@@ -1,5 +1,4 @@
 ﻿/*
- * Portions Copyright 2015-2019 Mohawk College of Applied Arts and Technology
  * Portions Copyright (C) 2019 - 2020, Fyfe Software Inc. and the SanteSuite Contributors (See NOTICE.md)
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -512,6 +511,14 @@ namespace SanteDB.Persistence.MDM.Services
                 ApplicationServiceContext.Current.HostType == SanteDBHostType.Gateway)
                 return;
 
+            // Already processed
+            if (e.Data is ITaggable taggable)
+            {
+                if (taggable.Tags.Any(o => o.TagKey == "$mdm.processed"))
+                    return;
+                else
+                    taggable.AddTag("$mdm.processed", "true");
+            }
             try
             {
                 // Is this object a ROT or MASTER, if it is then we do not perform any changes to re-binding
