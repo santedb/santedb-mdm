@@ -87,6 +87,11 @@ namespace SanteDB.Persistence.MDM.Jobs
         public float Progress { get; private set; }
 
         /// <summary>
+        /// Gets or sets the status text
+        /// </summary>
+        public string StatusText { get; private set; }
+
+        /// <summary>
         /// Cancel the job
         /// </summary>
         public void Cancel()
