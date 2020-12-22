@@ -21,7 +21,6 @@
 <SanteDBConfiguration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="1.10.0.23074" xmlns="http://santedb.org/configuration">
   <sections>
     <add type="SanteDB.Core.Configuration.ApplicationServiceContextConfigurationSection, SanteDB.Core.Api, Version=2.0.0.0, Culture=neutral, PublicKeyToken=null" />
-
     <add type="SanteDB.Core.Configuration.DiagnosticsConfigurationSection, SanteDB.Core.Api, Version=2.0.0.0, Culture=neutral, PublicKeyToken=null" />
     <add type="SanteDB.Authentication.OAuth2.Configuration.OAuthConfigurationSection, SanteDB.Authentication.OAuth2, Version=2.0.0.0, Culture=neutral, PublicKeyToken=null" />
     <add type="SanteDB.Caching.Memory.Configuration.MemoryCacheConfigurationSection, SanteDB.Caching.Memory, Version=2.0.0.0, Culture=neutral, PublicKeyToken=null" />
