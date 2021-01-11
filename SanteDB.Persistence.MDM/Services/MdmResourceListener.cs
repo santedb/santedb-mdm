@@ -676,7 +676,7 @@ namespace SanteDB.Persistence.MDM.Services
                         taggable.AddTag("$mdm.processed", "true");
                 }
 
-                if (!e.Data.Key.HasValue)
+                if (e.Data.Key.GetValueOrDefault() == Guid.Empty)
                     e.Data.Key = Guid.NewGuid(); // Assign a key if one is not set
                                                  // Is this object a ROT or MASTER, if it is then we do not perform any changes to re-binding
                 if (this.IsRecordOfTruth(e.Data))

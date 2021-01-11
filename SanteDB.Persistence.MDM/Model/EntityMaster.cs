@@ -120,7 +120,7 @@ namespace SanteDB.Persistence.MDM.Model
             entityMaster.Tags.Add(new EntityTag("$generated", "true")); // This object was generated
             entityMaster.Tags.Add(new EntityTag("$alt.keys", String.Join(";", this.m_localRecords.Select(o => o.Key.ToString()))));
             entityMaster.CreationTime = this.ModifiedOn;
-
+            
             return master;
         }
 
