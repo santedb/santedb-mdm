@@ -108,6 +108,16 @@ namespace SanteDB.Persistence.MDM.Services
         public event EventHandler<DataMergeEventArgs<T>> Merged;
 
         /// <summary>
+        /// Fired when data is un-merging
+        /// </summary>
+        public event EventHandler<DataMergingEventArgs<T>> UnMerging;
+
+        /// <summary>
+        /// Fired when data has been un-merged
+        /// </summary>
+        public event EventHandler<DataMergeEventArgs<T>> UnMerged;
+
+        /// <summary>
         /// Resource listener
         /// </summary>
         public MdmResourceListener(ResourceMergeConfiguration configuration)
@@ -1343,7 +1353,7 @@ namespace SanteDB.Persistence.MDM.Services
         /// </summary>
         public virtual T Unmerge(Guid master, Guid unmergeDuplicate)
         {
-            throw new NotImplementedException();
+            throw new NotImplementedException("Unmerge not yet implemented");
         }
 
         /// <summary>
