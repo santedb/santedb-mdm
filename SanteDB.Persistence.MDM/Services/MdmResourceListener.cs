@@ -54,6 +54,7 @@ namespace SanteDB.Persistence.MDM.Services
     /// <summary>
     /// Abstract wrapper for MDM resource listeners
     /// </summary>
+    /// 
     public abstract class MdmResourceListener : IDisposable
     {
         /// <summary>
@@ -250,7 +251,6 @@ namespace SanteDB.Persistence.MDM.Services
         /// in the MASTER record</remarks>
         protected virtual void OnQueried(object sender, QueryResultEventArgs<T> e)
         {
-            // TODO: Filter master record data based on taboo child records.
 
         }
 
@@ -387,7 +387,7 @@ namespace SanteDB.Persistence.MDM.Services
                 if (eRelationship != null)
                 {
                     // Get existing er if available
-                    var dbRelationship = ApplicationServiceContext.Current.GetService<IDataPersistenceService<EntityRelationship>>().Query(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship || o.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship && o.SourceEntityKey == identified.Key, 0, 1, out int tr, e.Principal);
+                    var dbRelationship = ApplicationServiceContext.Current.GetService<IDataPersistenceService<EntityRelationship>>().Query(o => o.RelationshipTypeKey == eRelationship.RelationshipTypeKey && o.SourceEntityKey == identified.Key, 0, 1, out int tr, e.Principal);
                     if (tr == 0 || dbRelationship.First().TargetEntityKey == eRelationship.TargetEntityKey)
                         return;
                     else if (!e.Principal.IsInRole("SYSTEM")) // The target entity is being re-associated make sure the principal is allowed to do this

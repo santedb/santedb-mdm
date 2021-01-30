@@ -62,16 +62,18 @@ namespace SanteDB.Persistence.MDM.Services
                 var idps = ApplicationServiceContext.Current.GetService<IUnionQueryDataPersistenceService<Entity>>();
                 if (idps == null)
                     throw new InvalidOperationException("Cannot find a UNION query repository service");
+                var principal = AuthenticationContext.Current.Principal;
 
                 var searchFilters = new List<Expression<Func<Entity, bool>>>(term.Length);
                 searchFilters.Add(QueryExpressionParser.BuildLinqExpression<Entity>(new NameValueCollection() { { "classConcept", MdmConstants.MasterRecordClassification.ToString() }, { "identifier.value", term } }));
                 searchFilters.Add(QueryExpressionParser.BuildLinqExpression<Entity>(new NameValueCollection() { { "classConcept", MdmConstants.MasterRecordClassification.ToString() }, { $"relationship[MDM-Master].source.name.component.value", term.Select(o => $":(approx|\"{o}\")") } }));
                 searchFilters.Add(QueryExpressionParser.BuildLinqExpression<Entity>(new NameValueCollection() { { "classConcept", MdmConstants.MasterRecordClassification.ToString() }, { $"relationship[MDM-Master].source.identifier.value", term } }));
-                var results = idps.Union(searchFilters.ToArray(), queryId, offset, count, out totalResults, AuthenticationContext.Current.Principal);
-                return results.AsParallel().AsOrdered().Select(o => o is Entity ? new EntityMaster<TEntity>((Entity)(object)o).GetMaster(AuthenticationContext.Current.Principal) : new ActMaster<TEntity>((Act)(Object)o).GetMaster(AuthenticationContext.Current.Principal)).OfType<TEntity>().ToList();
+                var results = idps.Union(searchFilters.ToArray(), queryId, offset, count, out totalResults, principal);
+                return results.AsParallel().AsOrdered().Select(o => o is Entity ? new EntityMaster<TEntity>((Entity)(object)o).GetMaster(principal) : new ActMaster<TEntity>((Act)(Object)o).GetMaster(principal)).OfType<TEntity>().ToList();
             }
             else
             {
+                // TODO: Add an event so that observers can handle any events before disclosure
                 var idps = ApplicationServiceContext.Current.GetService<IUnionQueryDataPersistenceService<TEntity>>();
                 if (idps == null)
                     throw new InvalidOperationException("Cannot find a UNION query repository service");

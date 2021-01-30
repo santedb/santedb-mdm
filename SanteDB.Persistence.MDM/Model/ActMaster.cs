@@ -24,6 +24,7 @@ using SanteDB.Core.Model.DataTypes;
 using SanteDB.Core.Model.EntityLoader;
 using SanteDB.Core.Model.Interfaces;
 using SanteDB.Core.Model.Security;
+using SanteDB.Core.Security;
 using SanteDB.Core.Security.Audit;
 using SanteDB.Core.Security.Services;
 using System;
@@ -79,16 +80,8 @@ namespace SanteDB.Persistence.MDM.Model
 
             // Is there a relationship which is the record of truth
             var rot = this.LoadCollection<ActRelationship>("Relationships").FirstOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordOfTruthRelationship);
-            var pdp = ApplicationServiceContext.Current.GetService<IPolicyDecisionService>();
-            var locals = this.LocalRecords.Where(o => {
-                if (pdp.GetPolicyDecision(principal, o).Outcome == PolicyGrantType.Grant)
-                    return true;
-                else
-                {
-                    AuditUtil.AuditMasking(o, true);
-                    return false;
-                }
-            }).ToArray();
+            var pep = ApplicationServiceContext.Current.GetService<IPrivacyEnforcementService>();
+            var locals = this.LocalRecords.Select(o => pep != null ? pep.Apply(o, principal) : o).OfType<T>().ToArray();
             
             if (locals.Length == 0) // Not a single local can be viewed
                 return null;
