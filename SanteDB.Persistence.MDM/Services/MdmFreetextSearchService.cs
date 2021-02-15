@@ -66,8 +66,8 @@ namespace SanteDB.Persistence.MDM.Services
 
                 var searchFilters = new List<Expression<Func<Entity, bool>>>(term.Length);
                 searchFilters.Add(QueryExpressionParser.BuildLinqExpression<Entity>(new NameValueCollection() { { "classConcept", MdmConstants.MasterRecordClassification.ToString() }, { "identifier.value", term } }));
-                searchFilters.Add(QueryExpressionParser.BuildLinqExpression<Entity>(new NameValueCollection() { { "classConcept", MdmConstants.MasterRecordClassification.ToString() }, { $"relationship[MDM-Master].source.name.component.value", term.Select(o => $":(approx|\"{o}\")") } }));
-                searchFilters.Add(QueryExpressionParser.BuildLinqExpression<Entity>(new NameValueCollection() { { "classConcept", MdmConstants.MasterRecordClassification.ToString() }, { $"relationship[MDM-Master].source.identifier.value", term } }));
+                searchFilters.Add(QueryExpressionParser.BuildLinqExpression<Entity>(new NameValueCollection() { { "classConcept", MdmConstants.MasterRecordClassification.ToString() }, { $"relationship[{MdmConstants.MasterRecordRelationship}].source.name.component.value", term.Select(o => $":(approx|\"{o}\")") } }));
+                searchFilters.Add(QueryExpressionParser.BuildLinqExpression<Entity>(new NameValueCollection() { { "classConcept", MdmConstants.MasterRecordClassification.ToString() }, { $"relationship[{MdmConstants.MasterRecordRelationship}].source.identifier.value", term } }));
                 var results = idps.Union(searchFilters.ToArray(), queryId, offset, count, out totalResults, principal);
                 return results.AsParallel().AsOrdered().Select(o => o is Entity ? new EntityMaster<TEntity>((Entity)(object)o).GetMaster(principal) : new ActMaster<TEntity>((Act)(Object)o).GetMaster(principal)).OfType<TEntity>().ToList();
             }
