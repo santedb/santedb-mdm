@@ -189,8 +189,8 @@ namespace SanteDB.Persistence.MDM.Services
                 else // We want to modify the query to only include masters and rewrite the query
                 {
                     var localQuery = new NameValueCollection(query.ToDictionary(o => $"relationship[MDM-Master].source@{typeof(T).Name}.{o.Key}", o => o.Value));
-                    localQuery.Add("classConcept", MdmConstants.MasterRecordClassification.ToString());
-                    query.Add("classConcept", MdmConstants.MasterRecordClassification.ToString());
+                    //localQuery.Add("classConcept", MdmConstants.MasterRecordClassification.ToString());
+                    //cquery.Add("classConcept", MdmConstants.MasterRecordClassification.ToString());
                     e.Cancel = true; // We want to cancel the other's query
 
                     // We are wrapping an entity, so we query entity masters
@@ -239,7 +239,7 @@ namespace SanteDB.Persistence.MDM.Services
                 var masterLinq = QueryExpressionParser.BuildLinqExpression<TMasterType>(localQuery, null, false);
                 results = qpi.Query(masterLinq, queryId, offset, count, out totalResults, principal);
             }
-            return results.AsParallel().AsOrdered().Select(o => o is Entity ? new EntityMaster<T>((Entity)(object)o).GetMaster(principal) : new ActMaster<T>((Act)(Object)o).GetMaster(principal)).OfType<T>().ToList();
+            return results.Select(o => o is Entity ? new EntityMaster<T>((Entity)(object)o).GetMaster(principal) : new ActMaster<T>((Act)(Object)o).GetMaster(principal)).OfType<T>();
         }
 
         /// <summary>
@@ -1226,6 +1226,8 @@ namespace SanteDB.Persistence.MDM.Services
             try
             {
 
+                this.m_traceSource.TraceUntestedWarning();
+
                 DataMergingEventArgs<T> preEventArgs = new DataMergingEventArgs<T>(masterKey, linkedDuplicates);
                 this.Merging?.Invoke(this, preEventArgs);
                 if (preEventArgs.Cancel)
@@ -1363,6 +1365,7 @@ namespace SanteDB.Persistence.MDM.Services
         {
             try
             {
+                this.m_traceSource.TraceUntestedWarning();
                 Bundle obsoleteBundle = new Bundle();
                 foreach (var key in falsePositives)
                 {
@@ -1413,6 +1416,8 @@ namespace SanteDB.Persistence.MDM.Services
         {
             try
             {
+                this.m_traceSource.TraceUntestedWarning();
+
                 // Relationship type
                 Expression<Func<T, bool>> linqQuery = null;
                 if (masterKey == Guid.Empty)
@@ -1438,6 +1443,8 @@ namespace SanteDB.Persistence.MDM.Services
         {
             try
             {
+                this.m_traceSource.TraceUntestedWarning();
+
                 var patchService = ApplicationServiceContext.Current.GetService<IPatchService>();
                 if (patchService == null)
                     throw new InvalidOperationException("Cannot find patch service");
@@ -1473,6 +1480,8 @@ namespace SanteDB.Persistence.MDM.Services
         {
             try
             {
+                this.m_traceSource.TraceUntestedWarning();
+
                 // Relationship type
                 var linqQuery = QueryExpressionParser.BuildLinqExpression<T>(NameValueCollection.ParseQueryString($"relationship[MDM-IgnoreCandidateLocalRecord].target={masterKey}"));
                 return this.m_dataPersistenceService.Query(linqQuery, AuthenticationContext.Current.Principal);
@@ -1495,6 +1504,8 @@ namespace SanteDB.Persistence.MDM.Services
         {
             try
             {
+                this.m_traceSource.TraceUntestedWarning();
+
                 Bundle obsoleteBundle = new Bundle();
                 foreach (var key in ignoredKeys)
                 {
@@ -1545,6 +1556,8 @@ namespace SanteDB.Persistence.MDM.Services
         {
             try
             {
+                this.m_traceSource.TraceUntestedWarning();
+
                 ApplicationServiceContext.Current.GetService<IJobManagerService>().StartJob(this.m_backgroundMatch, new object[] { configurationName ?? this.m_resourceConfiguration.MatchConfiguration });
             }
             catch (Exception e)
@@ -1563,6 +1576,8 @@ namespace SanteDB.Persistence.MDM.Services
         {
             try
             {
+                this.m_traceSource.TraceUntestedWarning();
+
                 AuthenticationContext.Current = new AuthenticationContext(AuthenticationContext.SystemPrincipal);
 
                 var localRecord = this.m_dataPersistenceService.Get(key, null, true, AuthenticationContext.SystemPrincipal);
