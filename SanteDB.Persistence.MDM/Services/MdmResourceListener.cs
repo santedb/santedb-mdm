@@ -188,9 +188,9 @@ namespace SanteDB.Persistence.MDM.Services
                     ApplicationServiceContext.Current.GetService<IPolicyEnforcementService>().Demand(MdmPermissionPolicyIdentifiers.ReadMdmLocals);
                 else // We want to modify the query to only include masters and rewrite the query
                 {
-                    var localQuery = new NameValueCollection(query.ToDictionary(o => $"relationship[MDM-Master].source@{typeof(T).Name}.{o.Key}", o => o.Value));
-                    //localQuery.Add("classConcept", MdmConstants.MasterRecordClassification.ToString());
-                    //cquery.Add("classConcept", MdmConstants.MasterRecordClassification.ToString());
+                    var localQuery = new NameValueCollection(query.ToDictionary(o => $"relationship[{MdmConstants.MasterRecordRelationship}].source@{typeof(T).Name}.{o.Key}", o => o.Value));
+                    localQuery.Add("classConcept", MdmConstants.MasterRecordClassification.ToString());
+                    query.Add("classConcept", MdmConstants.MasterRecordClassification.ToString());
                     e.Cancel = true; // We want to cancel the other's query
 
                     // We are wrapping an entity, so we query entity masters
@@ -224,9 +224,19 @@ namespace SanteDB.Persistence.MDM.Services
                 // Try to do a linked query (unless the query is on a special local filter value)
                 try
                 {
-                    var masterLinq = QueryExpressionParser.BuildLinqExpression<TMasterType>(masterQuery, null, false);
                     var localLinq = QueryExpressionParser.BuildLinqExpression<TMasterType>(localQuery, null, false);
-                    results = iqps.Union(new Expression<Func<TMasterType, bool>>[] { masterLinq, localLinq }, queryId, offset, count, out totalResults, principal);
+
+                    // Only identifiers can be appended to the master query
+                    // TODO: Make this separable so that we can control master properties
+                    if (masterQuery.Keys.Any(o => o.StartsWith("identifier")))
+                    {
+                        var masterLinq = QueryExpressionParser.BuildLinqExpression<TMasterType>(masterQuery, null, false);
+                        results = iqps.Union(new Expression<Func<TMasterType, bool>>[] { localLinq, masterLinq }, queryId, offset, count, out totalResults, principal);
+                    }
+                    else
+                    {
+                        results = qpi.Query(localLinq, queryId, offset, count, out totalResults, principal);
+                    }
                 }
                 catch
                 {
@@ -1421,9 +1431,9 @@ namespace SanteDB.Persistence.MDM.Services
                 // Relationship type
                 Expression<Func<T, bool>> linqQuery = null;
                 if (masterKey == Guid.Empty)
-                    linqQuery = QueryExpressionParser.BuildLinqExpression<T>(NameValueCollection.ParseQueryString($"relationship[MDM-Duplicate]=!null"));
+                    linqQuery = QueryExpressionParser.BuildLinqExpression<T>(NameValueCollection.ParseQueryString($"relationship[{MdmConstants.CandidateLocalRelationship}]=!null"));
                 else
-                    linqQuery = QueryExpressionParser.BuildLinqExpression<T>(NameValueCollection.ParseQueryString($"relationship[MDM-Duplicate].target={masterKey}"));
+                    linqQuery = QueryExpressionParser.BuildLinqExpression<T>(NameValueCollection.ParseQueryString($"relationship[{MdmConstants.CandidateLocalRelationship}].target={masterKey}"));
                 return this.m_dataPersistenceService.Query(linqQuery, AuthenticationContext.Current.Principal);
             }
             catch (Exception e)
@@ -1483,7 +1493,7 @@ namespace SanteDB.Persistence.MDM.Services
                 this.m_traceSource.TraceUntestedWarning();
 
                 // Relationship type
-                var linqQuery = QueryExpressionParser.BuildLinqExpression<T>(NameValueCollection.ParseQueryString($"relationship[MDM-IgnoreCandidateLocalRecord].target={masterKey}"));
+                var linqQuery = QueryExpressionParser.BuildLinqExpression<T>(NameValueCollection.ParseQueryString($"relationship[{MdmConstants.IgnoreCandidateRelationship}].target={masterKey}"));
                 return this.m_dataPersistenceService.Query(linqQuery, AuthenticationContext.Current.Principal);
             }
             catch (Exception e)
