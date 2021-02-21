@@ -54,6 +54,7 @@
     <Compile Include="Services\MasterMatch.cs" />
     <Compile Include="Services\MdmDataManagementService.cs" />
     <Compile Include="Services\MdmFreetextSearchService.cs" />
+    <Compile Include="Services\MdmIdentityMatchResult.cs" />
     <Compile Include="Services\MdmResourceListener.cs" />
   </ItemGroup>
   <ItemGroup>

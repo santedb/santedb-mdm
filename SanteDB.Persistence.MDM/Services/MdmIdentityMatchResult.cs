@@ -16,56 +16,51 @@
  * User: fyfej
  * Date: 2020-2-2
  */
+using SanteDB.Core.Model;
 using SanteDB.Core.Services;
-using System;
-using System.Collections.Generic;
 
 namespace SanteDB.Persistence.MDM.Services
 {
     /// <summary>
-    /// Represents a master match 
+    /// Represents an internal MDM match result based on a unique ID
     /// </summary>
-    public class MasterMatch
+    internal class MdmIdentityMatchResult<T> : IRecordMatchResult<T> where T : IdentifiedData
     {
-        /// <summary>
-        /// Gets the master UUID
-        /// </summary>
-        public Guid Master { get; set; }
 
         /// <summary>
-        /// Gets the match result
+        /// Gets the record that was matched
         /// </summary>
-        public IRecordMatchResult MatchResult { get; set; }
-        
-        /// <summary>
-        /// Creates a new master match
-        /// </summary>
-        public MasterMatch(Guid master, IRecordMatchResult match)
-        {
-            this.MatchResult = match;
-            this.Master = master;
-        }
-    }
-
-    /// <summary>
-    /// Equality comparer
-    /// </summary>
-    internal class MasterMatchEqualityComparer : IEqualityComparer<MasterMatch>
-    {
-        /// <summary>
-        /// Determine if x equals y
-        /// </summary>
-        public bool Equals(MasterMatch x, MasterMatch y)
-        {
-            return x.Master == y.Master;
-        }
+        public T Record { get; }
 
         /// <summary>
-        /// Get hash code
+        /// Gets the score of the record
         /// </summary>
-        public int GetHashCode(MasterMatch obj)
+        public double Score { get; }
+
+        /// <summary>
+        /// Gets the classification 
+        /// </summary>
+        public RecordMatchClassification Classification { get; }
+
+        /// <summary>
+        /// Gets the method of match
+        /// </summary>
+        public RecordMatchMethod Method { get; }
+
+        /// <summary>
+        /// Gets the record that was matched
+        /// </summary>
+        IdentifiedData IRecordMatchResult.Record => this.Record;
+
+        /// <summary>
+        /// Create a new identity match result
+        /// </summary>
+        public MdmIdentityMatchResult(T record)
         {
-            return obj.Master.GetHashCode();
+            this.Record = record;
+            this.Method = RecordMatchMethod.Identifier;
+            this.Score = 1.0f;
+            this.Classification = RecordMatchClassification.Match;
         }
     }
 }
