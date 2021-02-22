@@ -42,7 +42,7 @@ namespace SanteDB.Persistence.MDM.Services
         /// <summary>
         /// Bundle resource listener
         /// </summary>
-        public BundleResourceListener(IEnumerable<MdmResourceListener> listeners) : base(new ResourceMergeConfiguration(typeof(Bundle), "default", false))
+        public BundleResourceListener(IEnumerable<MdmResourceListener> listeners) : base(new ResourceMergeConfiguration(typeof(Bundle), false))
         {
             this.m_listeners = listeners;
         }

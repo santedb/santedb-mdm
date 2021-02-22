@@ -36,7 +36,7 @@ namespace SanteDB.Persistence.MDM.Services
         /// Gets the match result
         /// </summary>
         public IRecordMatchResult MatchResult { get; set; }
-
+        
         /// <summary>
         /// Creates a new master match
         /// </summary>

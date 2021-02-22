@@ -75,9 +75,9 @@
           <Project>{ad73db46-cbb3-4746-b406-40fc435ab3db}</Project>
           <Name>SanteDB.Core.TestFramework</Name>
         </ProjectReference>
-        <ProjectReference Include="..\..\SanteDB.Core\SanteDB.Core.csproj">
+        <ProjectReference Include="..\..\SanteDB.Core\SanteDB.Server.Core.csproj">
           <Project>{DB9BC05E-45F1-4F96-A161-F36BDECAF566}</Project>
-          <Name>SanteDB.Core</Name>
+          <Name>SanteDB.Server.Core</Name>
         </ProjectReference>
         <ProjectReference Include="..\..\SanteDB.Persistence.Data.ADO.Test\SanteDB.Persistence.Data.ADO.Test.csproj">
           <Project>{11407adb-e336-4c0c-af8e-ea6b601ba69e}</Project>

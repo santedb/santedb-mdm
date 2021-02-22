@@ -88,18 +88,8 @@ namespace SanteDB.Persistence.MDM.Model
 
             // Is there a relationship which is the record of truth
             var rot = this.LoadCollection<EntityRelationship>("Relationships").FirstOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordOfTruthRelationship);
-            var pdp = ApplicationServiceContext.Current.GetService<IPolicyDecisionService>();
-            var locals = this.LocalRecords.Where(o => {
-                if (pdp.GetPolicyDecision(principal, o).Outcome == PolicyGrantType.Grant)
-                {
-                    return true;
-                }
-                else
-                {
-                    AuditUtil.AuditMasking(o, true);
-                    return false;
-                }
-            }).ToArray();
+            var pep = ApplicationServiceContext.Current.GetService<IPrivacyEnforcementService>();
+            var locals = this.LocalRecords.Select(o => pep != null ? pep.Apply(o, principal) : o).OfType<T>().ToArray();
 
             if (locals.Length == 0) // Not a single local can be viewed
                 return null;
@@ -113,14 +103,14 @@ namespace SanteDB.Persistence.MDM.Model
                 master.SemanticCopyNullFields(locals);
             }
 
-            entityMaster.Policies = this.LocalRecords.SelectMany(o => (o as Entity).Policies).Select(o => new SecurityPolicyInstance(o.Policy, (PolicyGrantType)(int)pdp.GetPolicyOutcome(principal, o.Policy.Oid))).Where(o => o.GrantType == PolicyGrantType.Grant || o.Policy.CanOverride).ToList();
+            entityMaster.Policies = this.LocalRecords.SelectMany(o => (o as Entity).Policies).ToList();
             entityMaster.Tags.RemoveAll(o => o.TagKey == "$mdm.type");
             entityMaster.Tags.Add(new EntityTag("$mdm.type", "M")); // This is a master
             entityMaster.Tags.Add(new EntityTag("$mdm.resource", typeof(T).Name)); // The original resource of the master
             entityMaster.Tags.Add(new EntityTag("$generated", "true")); // This object was generated
             entityMaster.Tags.Add(new EntityTag("$alt.keys", String.Join(";", this.m_localRecords.Select(o => o.Key.ToString()))));
             entityMaster.CreationTime = this.ModifiedOn;
-
+            
             return master;
         }
 
@@ -139,7 +129,7 @@ namespace SanteDB.Persistence.MDM.Model
             {
                 if (this.m_localRecords == null)
                 {
-                    this.m_localRecords = EntitySource.Current.Provider.Query<EntityRelationship>(o => o.TargetEntityKey == this.Key && o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship).AsParallel().Select(o => o.LoadProperty<Entity>("SourceEntity")).OfType<T>().ToList();
+                    this.m_localRecords = EntitySource.Current.Provider.Query<EntityRelationship>(o => o.TargetEntityKey == this.Key && o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship).Select(o => o.LoadProperty<Entity>("SourceEntity")).OfType<T>().ToList();
                     this.m_localRecords.OfType<Entity>().ToList().ForEach(o =>
                     {
                         o.LoadCollection<EntityRelationship>(nameof(Entity.Relationships));

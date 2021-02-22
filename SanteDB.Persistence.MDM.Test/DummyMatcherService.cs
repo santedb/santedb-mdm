@@ -112,6 +112,11 @@ namespace SanteDB.Persistence.MDM.Test
         IdentifiedData IRecordMatchResult.Record => this.m_record;
 
         /// <summary>
+        /// Gets the method
+        /// </summary>
+        public RecordMatchMethod Method => RecordMatchMethod.Weighted;
+
+        /// <summary>
         /// Create a dummy match
         /// </summary>
         public DummyMatchResult(T input, T record)
