@@ -17,7 +17,6 @@
  * Date: 2020-2-2
  */
 using SanteDB.Core.Security.Services;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
 using SanteDB.Core;
 using SanteDB.Core.Model;
 using SanteDB.Core.Model.Collection;
@@ -27,7 +26,6 @@ using SanteDB.Core.Model.Entities;
 using SanteDB.Core.Model.Roles;
 using SanteDB.Core.Model.Security;
 using SanteDB.Core.Security;
-using SanteDB.Core.Security.Services;
 using SanteDB.Core.Services;
 using SanteDB.Persistence.MDM.Services;
 using System;
@@ -39,26 +37,27 @@ using SanteDB.Caching.Memory.Configuration;
 using SanteDB.Core.TestFramework;
 using SanteDB.Core.Security.Claims;
 using SanteDB.Core.Services.Impl;
+using NUnit.Framework;
 
 namespace SanteDB.Persistence.MDM.Test
 {
     /// <summary>
     /// Tests the MDM daemon service for testing capabilities
     /// </summary>
-    [TestClass]
+    [TestFixture(Category = "Master Data Management")]
     public class MdmAssociationTest : DataTest
     {
 
         /// <summary>
         /// Setup the test class
         /// </summary>
-        [ClassInitialize]
-        public static void ClassInitialize(TestContext context)
+        [SetUp]
+        public void ClassInitialize()
         {
             typeof(MemoryCacheConfigurationSection).Equals((null)); // Force load
             typeof(MdmDataManagementService).Equals(null); // Trick - Force test context to load
             TestApplicationContext.TestAssembly = typeof(MdmAssociationTest).Assembly;
-            TestApplicationContext.Initialize(context.DeploymentDirectory);
+            TestApplicationContext.Initialize(TestContext.CurrentContext.TestDirectory);
             ApplicationServiceContext.Current.AddBusinessRule(typeof(BundleBusinessRule));
             ApplicationServiceContext.Current.AddBusinessRule(typeof(NationalHealthIdRule));
         }
@@ -66,7 +65,7 @@ namespace SanteDB.Persistence.MDM.Test
         /// <summary>
         /// Test - When there is no MASTER a new one is created and an identifier is assigned to it
         /// </summary>
-        [TestMethod]
+        [Test]
         public void TestShouldAllowLookupByElevatedProperty()
         {
             var patientUnderTest = new Patient()
@@ -111,7 +110,7 @@ namespace SanteDB.Persistence.MDM.Test
         /// <summary>
         /// Test - When there is a record created for a subscribed type, the system should create a MASTER reference
         /// </summary>
-        [TestMethod]
+        [Test]
         public void TestShouldCreateMasterRecord()
         {
             var patientUnderTest = new Patient()
@@ -162,7 +161,7 @@ namespace SanteDB.Persistence.MDM.Test
         /// <summary>
         /// Tests that when a duplicate record exactly matches an existing record the master is linked properly
         /// </summary>
-        [TestMethod]
+        [Test]
         public void ShouldMatchExistingMaster()
         {
             var pservice = ApplicationServiceContext.Current.GetService<IRepositoryService<Patient>>();
@@ -228,7 +227,7 @@ namespace SanteDB.Persistence.MDM.Test
         /// <summary>
         /// When updating a local record with one master there should not be a new master created
         /// </summary>
-        [TestMethod]
+        [Test]
         public void UpdateShouldNotCreateNewMaster()
         {
             var pservice = ApplicationServiceContext.Current.GetService<IRepositoryService<Patient>>();
@@ -274,7 +273,7 @@ namespace SanteDB.Persistence.MDM.Test
         /// <summary>
         /// Test that a match with more than one master results in a new master and two probable matches
         /// </summary>
-        [TestMethod]
+        [Test]
         public void TestProbableMatch()
         {
             var pservice = ApplicationServiceContext.Current.GetService<IRepositoryService<Patient>>();
@@ -347,7 +346,7 @@ namespace SanteDB.Persistence.MDM.Test
         /// <summary>
         /// Tests that a non-matching local is updated to meet matching criteria. The MDM should mark the new master because it is automerge
         /// </summary>
-        [TestMethod]
+        [Test]
         public void TestNonMatchUpdatedToMatch()
         {
             var pservice = ApplicationServiceContext.Current.GetService<IRepositoryService<Patient>>();
@@ -400,7 +399,7 @@ namespace SanteDB.Persistence.MDM.Test
         /// <summary>
         /// Test that when a matching record is updated to be a non-match that the non-matching local record is detached from the master
         /// </summary>
-        [TestMethod]
+        [Test]
         public void TestMatchUpdatedToNonMatch()
         {
             var pservice = ApplicationServiceContext.Current.GetService<IRepositoryService<Patient>>();
@@ -452,7 +451,7 @@ namespace SanteDB.Persistence.MDM.Test
         /// Tests that when two local records are matched to a single master and a local is updated, 
         /// that the master remains the only master and the information is reflected
         /// </summary>
-        [TestMethod]
+        [Test]
         public void UpdateToMatchShouldReflectWithNoNewMaster()
         {
             var pservice = ApplicationServiceContext.Current.GetService<IRepositoryService<Patient>>();
@@ -510,7 +509,7 @@ namespace SanteDB.Persistence.MDM.Test
         /// <summary>
         /// Tests that when a master record contains taboo information, it is not disclosed on query.
         /// </summary>
-        [TestMethod]
+        [Test]
         public void TestTabooInformationNotDisclosedInMaster()
         {
             AuthenticationContext.Current = new AuthenticationContext(AuthenticationContext.SystemPrincipal);
@@ -559,7 +558,7 @@ namespace SanteDB.Persistence.MDM.Test
         /// <summary>
         /// Tests that a master record with Taboo information properly almagamates information from the locals when the current user principal is elevated properly
         /// </summary>
-        [TestMethod]
+        [Test]
         public void TestShouldShowTabooInformationForAppropriateUser()
         {
             AuthenticationContext.Current = new AuthenticationContext(AuthenticationContext.SystemPrincipal);
@@ -633,7 +632,7 @@ namespace SanteDB.Persistence.MDM.Test
         /// <summary>
         /// Test - When submitting patients in a bundle each of the individual MDM rules should run
         /// </summary>
-        [TestMethod]
+        [Test]
         public void TestShouldProcessBundle()
         {
             var patientUnderTest = new Patient()
@@ -690,7 +689,7 @@ namespace SanteDB.Persistence.MDM.Test
         /// and that the local record is subjected to matching (i.e. the local record does not have the data associated 
         /// with the master record). 
         /// </remarks>
-        [TestMethod]
+        [Test]
         public void TestShouldCreateLocalRecordWhenAttemptingToCreateMaster()
         {
 

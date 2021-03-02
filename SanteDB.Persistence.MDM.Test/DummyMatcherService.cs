@@ -16,7 +16,7 @@
  * User: fyfej
  * Date: 2020-2-2
  */
-using Microsoft.VisualStudio.TestTools.UnitTesting;
+using NUnit.Framework;
 using SanteDB.Core;
 using SanteDB.Core.Model;
 using SanteDB.Core.Model.Roles;
