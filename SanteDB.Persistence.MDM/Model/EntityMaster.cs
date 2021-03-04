@@ -106,6 +106,8 @@ namespace SanteDB.Persistence.MDM.Model
             entityMaster.Policies = this.LocalRecords.SelectMany(o => (o as Entity).Policies).ToList();
             entityMaster.Tags.RemoveAll(o => o.TagKey == "$mdm.type");
             entityMaster.Tags.Add(new EntityTag("$mdm.type", "M")); // This is a master
+            if (rot != null)
+                entityMaster.Tags.Add(new EntityTag("$mdm.rot", "true"));
             entityMaster.Tags.Add(new EntityTag("$mdm.resource", typeof(T).Name)); // The original resource of the master
             entityMaster.Tags.Add(new EntityTag("$generated", "true")); // This object was generated
             entityMaster.Tags.Add(new EntityTag("$alt.keys", String.Join(";", this.m_localRecords.Select(o => o.Key.ToString()))));
