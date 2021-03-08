@@ -38,6 +38,11 @@ namespace SanteDB.Persistence.MDM.Services
         public double Score { get; }
 
         /// <summary>
+        /// Gets the strength of the match
+        /// </summary>
+        public double Strength { get; }
+
+        /// <summary>
         /// Gets the classification 
         /// </summary>
         public RecordMatchClassification Classification { get; }
@@ -59,7 +64,7 @@ namespace SanteDB.Persistence.MDM.Services
         {
             this.Record = record;
             this.Method = RecordMatchMethod.Identifier;
-            this.Score = 1.0f;
+            this.Score = this.Strength = 1.0f;
             this.Classification = RecordMatchClassification.Match;
         }
     }

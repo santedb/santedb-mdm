@@ -16,7 +16,7 @@
  * User: fyfej
  * Date: 2020-2-2
  */
-using Microsoft.VisualStudio.TestTools.UnitTesting;
+using NUnit.Framework;
 using SanteDB.Core;
 using SanteDB.Core.Model;
 using SanteDB.Core.Model.Roles;
@@ -69,6 +69,14 @@ namespace SanteDB.Persistence.MDM.Test
         }
 
         /// <summary>
+        /// Match
+        /// </summary>
+        public IEnumerable<IRecordMatchResult> Match(IdentifiedData input, string configurationName)
+        {
+            throw new NotImplementedException();
+        }
+
+        /// <summary>
         /// Perform a score
         /// </summary>
         public IRecordMatchResult<T> Score<T>(T input, Expression<Func<T, bool>> query, string configurationName) where T : IdentifiedData
@@ -95,6 +103,11 @@ namespace SanteDB.Persistence.MDM.Test
         /// Get the score
         /// </summary>
         public double Score => 1.0;
+
+        /// <summary>
+        /// Strength of the match
+        /// </summary>
+        public double Strength => 1.0;
 
         /// <summary>
         /// Gets the matching record

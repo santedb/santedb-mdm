@@ -286,7 +286,8 @@ namespace SanteDB.Persistence.MDM.Services
         /// case.</remarks>
         protected virtual void OnRetrieving(object sender, DataRetrievingEventArgs<T> e)
         {
-            // There aren't actually any data in the database which is of this type
+            // There aren't actually any data in the database which is of this type 
+            // This is to prevent the MDM layer from hijacking a history request for a particular version of the object
             ApplicationServiceContext.Current.GetService<IDataPersistenceService<T>>().Query(o => o.Key == e.Id, 0, 0, out int records, AuthenticationContext.SystemPrincipal);
             if (records == 0) //
             {
@@ -913,13 +914,8 @@ namespace SanteDB.Persistence.MDM.Services
             if (matchService == null)
                 throw new InvalidOperationException("Cannot operate MDM mode without matching service"); // Cannot make determination of matching
 
-            // Create generic method for call with proper arguments
-            var matchMethod = typeof(IRecordMatchingService).GetGenericMethod(nameof(IRecordMatchingService.Match), new Type[] { entity.GetType() }, new Type[] { entity.GetType(), typeof(String) });
-            if (matchMethod == null)
-                throw new InvalidOperationException("State is invalid - Could not find matching service method - Does it implement IRecordMatchingService properly?");
-
-            var rawMatches = matchMethod.Invoke(matchService, new object[] { entity, configurationName }) as IEnumerable;
-            return rawMatches.OfType<IRecordMatchResult<T>>();
+            var rawMatches = matchService.Match(entity, configurationName);
+            return rawMatches.ToArray() ; // ToArray is to prevent multiple calls to the matching engine
 
         }
 
