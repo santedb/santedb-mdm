@@ -66,10 +66,6 @@
           <Project>{F1A82A4F-4A57-47D7-AE76-444C8A4FF54A}</Project>
           <Name>SanteDB.Core.Model</Name>
         </ProjectReference>
-        <ProjectReference Include="..\..\SanteDB.Caching.Memory\SanteDB.Caching.Memory.csproj">
-          <Project>{8553abc7-abfa-4a21-b0e8-68b7de76129d}</Project>
-          <Name>SanteDB.Caching.Memory</Name>
-        </ProjectReference>
         <ProjectReference Include="..\..\SanteDB.Core\SanteDB.Server.Core.csproj">
           <Project>{DB9BC05E-45F1-4F96-A161-F36BDECAF566}</Project>
           <Name>SanteDB.Server.Core</Name>
@@ -91,6 +87,10 @@
     </Otherwise>
   </Choose>
   <ItemGroup>
+    <ProjectReference Include="..\..\santedb-cache-memory\SanteDB.Caching.Memory\SanteDB.Caching.Memory.csproj">
+      <Project>{8553abc7-abfa-4a21-b0e8-68b7de76129d}</Project>
+      <Name>SanteDB.Caching.Memory</Name>
+    </ProjectReference>
     <ProjectReference Include="..\..\SanteDB.Core.TestFramework\SanteDB.Core.TestFramework.csproj">
       <Project>{ad73db46-cbb3-4746-b406-40fc435ab3db}</Project>
       <Name>SanteDB.Core.TestFramework</Name>
