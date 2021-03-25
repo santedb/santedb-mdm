@@ -32,7 +32,6 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using System.Runtime.Caching.Configuration;
 using SanteDB.Caching.Memory.Configuration;
 using SanteDB.Core.TestFramework;
 using SanteDB.Core.Security.Claims;

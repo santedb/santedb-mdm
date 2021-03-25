@@ -200,8 +200,8 @@ namespace SanteDB.Persistence.MDM.Services
                 else // We want to modify the query to only include masters and rewrite the query
                 {
                     var localQuery = new NameValueCollection(query.ToDictionary(o => $"relationship[{MdmConstants.MasterRecordRelationship}].source@{typeof(T).Name}.{o.Key}", o => o.Value));
-                    localQuery.Add("classConcept", MdmConstants.MasterRecordClassification.ToString());
                     query.Add("classConcept", MdmConstants.MasterRecordClassification.ToString());
+                    //localQuery.Add("classConcept", MdmConstants.MasterRecordClassification.ToString());
                     e.Cancel = true; // We want to cancel the other's query
 
                     // We are wrapping an entity, so we query entity masters
@@ -260,7 +260,7 @@ namespace SanteDB.Persistence.MDM.Services
                 var masterLinq = QueryExpressionParser.BuildLinqExpression<TMasterType>(localQuery, null, false);
                 results = qpi.Query(masterLinq, queryId, offset, count, out totalResults, principal);
             }
-            return results.Select(o => o is Entity ? new EntityMaster<T>((Entity)(object)o).GetMaster(principal) : new ActMaster<T>((Act)(Object)o).GetMaster(principal)).OfType<T>();
+            return results.AsParallel().AsOrdered().Select(o => o is Entity ? new EntityMaster<T>((Entity)(object)o).GetMaster(principal) : new ActMaster<T>((Act)(Object)o).GetMaster(principal)).OfType<T>().ToList();
         }
 
         /// <summary>

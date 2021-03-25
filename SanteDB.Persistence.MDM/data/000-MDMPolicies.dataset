@@ -2,7 +2,7 @@
 <dataset xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://santedb.org/data" id="MDM Policies">
   <update insertIfNotExists="true">
     <SecurityPolicy xmlns="http://santedb.org/model">
-      <key>361f50c8-616c-11ea-8a2f-00155d640b09</key>
+      <id>361f50c8-616c-11ea-8a2f-00155d640b09</id>
       <name>Unrestricted MDM</name>
       <oid>1.3.6.1.4.1.33349.3.1.5.9.2.6</oid>
       <isPublic>true</isPublic>
@@ -11,7 +11,7 @@
   </update>
   <update insertIfNotExists="true">
     <SecurityPolicy xmlns="http://santedb.org/model">
-      <key>361f50c9-616c-11ea-8a2f-00155d640b09</key>
+      <id>361f50c9-616c-11ea-8a2f-00155d640b09</id>
       <name>Write MDM Master</name>
       <oid>1.3.6.1.4.1.33349.3.1.5.9.2.6.1</oid>
       <isPublic>true</isPublic>
@@ -20,7 +20,7 @@
   </update>
   <update insertIfNotExists="true">
     <SecurityPolicy xmlns="http://santedb.org/model">
-      <key>361f50ca-616c-11ea-8a2f-00155d640b09</key>
+      <id>361f50ca-616c-11ea-8a2f-00155d640b09</id>
       <name>Read MDM Locals</name>
       <oid>1.3.6.1.4.1.33349.3.1.5.9.2.6.2</oid>
       <isPublic>true</isPublic>
@@ -29,7 +29,7 @@
   </update>
   <update insertIfNotExists="true">
     <SecurityPolicy xmlns="http://santedb.org/model">
-      <key>361f50cb-616c-11ea-8a2f-00155d640b09</key>
+      <id>361f50cb-616c-11ea-8a2f-00155d640b09</id>
       <name>Merge MDM Master</name>
       <oid>1.3.6.1.4.1.33349.3.1.5.9.2.6.3</oid>
       <isPublic>true</isPublic>
