@@ -886,21 +886,26 @@ namespace SanteDB.Persistence.MDM.Services
                     .Query(o => o.IsUnique, AuthenticationContext.SystemPrincipal);
 
             // Identifiers in which entity has the unique authority
-            var uqIdentifiers = (typeof(T).GetProperty(nameof(Entity.Identifiers)).GetValue(entity) as IEnumerable).OfType<IExternalIdentifier>();
+            var uqIdentifiers = (typeof(T).GetProperty(nameof(Entity.Identifiers)).GetValue(entity) as IEnumerable)?.OfType<IExternalIdentifier>();
 
-            if (uqIdentifiers.Any(i => i.Authority == null))
+            if (uqIdentifiers?.Any(i => i.Authority == null) == true)
                 throw new InvalidOperationException("Some identifiers are missing authorities, cannot perform identity match");
 
             // TODO: Build this using Expression trees rather than relying on the parsing methods
-            NameValueCollection nvc = new NameValueCollection();
-            foreach (var itm in uqIdentifiers.Where(o => this.m_uniqueAuthorities.Any(u => o.Authority?.Key == u.Key || o.Authority?.DomainName == u.DomainName)))
-                nvc.Add($"identifier[{itm.Authority?.Key?.ToString() ?? itm.Authority?.DomainName}].value", itm.Value);
-            var filterExpression = QueryExpressionParser.BuildLinqExpression<T>(nvc);
-
-            // Now we want to filter returning the masters
-            using (AuthenticationContext.EnterSystemContext())
+            if (uqIdentifiers?.Any() != true)
+                return new List<IRecordMatchResult<T>>();
+            else
             {
-                return this.m_repository.Find(filterExpression).Select(o=>new MdmIdentityMatchResult<T>(o));
+                NameValueCollection nvc = new NameValueCollection();
+                foreach (var itm in uqIdentifiers.Where(o => this.m_uniqueAuthorities.Any(u => o.Authority?.Key == u.Key || o.Authority?.DomainName == u.DomainName)))
+                    nvc.Add($"identifier[{itm.Authority?.Key?.ToString() ?? itm.Authority?.DomainName}].value", itm.Value);
+                var filterExpression = QueryExpressionParser.BuildLinqExpression<T>(nvc);
+
+                // Now we want to filter returning the masters
+                using (AuthenticationContext.EnterSystemContext())
+                {
+                    return this.m_repository.Find(filterExpression).Select(o => new MdmIdentityMatchResult<T>(o));
+                }
             }
         }
 
@@ -1282,21 +1287,21 @@ namespace SanteDB.Persistence.MDM.Services
         /// <param name="master"></param>
         /// <param name="linkedDuplicates"></param>
         /// <returns></returns>
-        public virtual T Merge(Guid masterKey, IEnumerable<Guid> linkedDuplicates)
+        public virtual T Merge(Guid suvivorKey, IEnumerable<Guid> linkedDuplicates)
         {
             try
             {
 
                 this.m_traceSource.TraceUntestedWarning();
 
-                DataMergingEventArgs<T> preEventArgs = new DataMergingEventArgs<T>(masterKey, linkedDuplicates);
+                DataMergingEventArgs<T> preEventArgs = new DataMergingEventArgs<T>(suvivorKey, linkedDuplicates);
                 this.Merging?.Invoke(this, preEventArgs);
                 if (preEventArgs.Cancel)
                 {
-                    this.m_traceSource.TraceInfo("Pre-event handler has indicated a cancel of merge on {0}", masterKey);
+                    this.m_traceSource.TraceInfo("Pre-event handler has indicated a cancel of merge on {0}", suvivorKey);
                     return null;
                 }
-                masterKey = preEventArgs.MasterKey; // Allow resource to update these fields
+                suvivorKey = preEventArgs.SurvivorKey; // Allow resource to update these fields
                 linkedDuplicates = preEventArgs.LinkedKeys;
 
                 // Relationship type
@@ -1304,14 +1309,14 @@ namespace SanteDB.Persistence.MDM.Services
                 var relationshipService = ApplicationServiceContext.Current.GetService(typeof(IDataPersistenceService<>).MakeGenericType(relationshipType)) as IDataPersistenceService;
 
                 // Ensure that MASTER is in fact a master
-                var masterData = this.m_rawMasterPersistenceService.Get(masterKey) as IClassifiable;
+                var masterData = this.m_rawMasterPersistenceService.Get(suvivorKey) as IClassifiable;
                 if (masterData.ClassConceptKey == MdmConstants.MasterRecordClassification && !AuthenticationContext.Current.Principal.IsInRole("SYSTEM"))
                     ApplicationServiceContext.Current.GetService<IPolicyEnforcementService>().Demand(MdmPermissionPolicyIdentifiers.WriteMdmMaster);
                 else
                 {
                     this.EnsureProvenance(masterData as BaseEntityData, AuthenticationContext.Current.Principal);
                     var existingMasterQry = typeof(QueryExpressionParser).GetGenericMethod(nameof(QueryExpressionParser.BuildLinqExpression), new Type[] { relationshipType }, new Type[] { typeof(NameValueCollection) })
-                               .Invoke(null, new object[] { NameValueCollection.ParseQueryString($"source={masterKey}&relationshipType={MdmConstants.MasterRecordRelationship}") }) as Expression;
+                               .Invoke(null, new object[] { NameValueCollection.ParseQueryString($"source={suvivorKey}&relationshipType={MdmConstants.MasterRecordRelationship}") }) as Expression;
                     int tr = 0;
                     var masterRel = relationshipService.Query(existingMasterQry, 0, 2, out tr).OfType<ISimpleAssociation>().SingleOrDefault();
                     masterData = this.m_rawMasterPersistenceService.Get((Guid)masterRel.GetType().GetQueryProperty("target").GetValue(masterRel)) as IClassifiable;
@@ -1350,7 +1355,7 @@ namespace SanteDB.Persistence.MDM.Services
                     {
                         // First, get the relationship of CANDIDATE between the master and the linked duplicate
                         var relationshipQry = typeof(QueryExpressionParser).GetGenericMethod(nameof(QueryExpressionParser.BuildLinqExpression), new Type[] { relationshipType }, new Type[] { typeof(NameValueCollection) })
-                            .Invoke(null, new object[] { NameValueCollection.ParseQueryString($"source={ldpl}&relationshipType={MdmConstants.CandidateLocalRelationship}&target={masterKey}") }) as Expression;
+                            .Invoke(null, new object[] { NameValueCollection.ParseQueryString($"source={ldpl}&relationshipType={MdmConstants.CandidateLocalRelationship}&target={suvivorKey}") }) as Expression;
                         int tr = 0;
                         var candidateRelationship = relationshipService.Query(relationshipQry, 0, 2, out tr).OfType<IVersionedAssociation>().SingleOrDefault();
                         if (candidateRelationship != null)
@@ -1360,7 +1365,7 @@ namespace SanteDB.Persistence.MDM.Services
                         }
 
                         // Next We want to add a new master record relationship between duplicate and the master
-                        mergeTransaction.Add(this.CreateRelationship(relationshipType, MdmConstants.MasterRecordRelationship, ldpl, masterKey));
+                        mergeTransaction.Add(this.CreateRelationship(relationshipType, MdmConstants.MasterRecordRelationship, ldpl, suvivorKey));
 
                         var existingMasterKey = this.GetMaster(linkedClass as IdentifiedData);
 
@@ -1382,16 +1387,16 @@ namespace SanteDB.Persistence.MDM.Services
 
                 this.m_bundlePersistence.Insert(mergeTransaction, TransactionMode.Commit, AuthenticationContext.Current.Principal);
 
-                this.Merged?.Invoke(this, new DataMergeEventArgs<T>(masterKey, linkedDuplicates));
+                this.Merged?.Invoke(this, new DataMergeEventArgs<T>(suvivorKey, linkedDuplicates));
                 if (typeof(Entity).IsAssignableFrom(typeof(T)))
-                    return new EntityMaster<T>(this.m_rawMasterPersistenceService.Get(masterKey) as Entity).GetMaster(AuthenticationContext.Current.Principal);
+                    return new EntityMaster<T>(this.m_rawMasterPersistenceService.Get(suvivorKey) as Entity).GetMaster(AuthenticationContext.Current.Principal);
                 else
-                    return new ActMaster<T>(this.m_rawMasterPersistenceService.Get(masterKey) as Act).GetMaster(AuthenticationContext.Current.Principal);
+                    return new ActMaster<T>(this.m_rawMasterPersistenceService.Get(suvivorKey) as Act).GetMaster(AuthenticationContext.Current.Principal);
 
             }
             catch (Exception e)
             {
-                throw new MdmException(new T() { Key = masterKey }, $"Error merging records {String.Join(",", linkedDuplicates)} into {masterKey}", e);
+                throw new MdmException(new T() { Key = suvivorKey }, $"Error merging records {String.Join(",", linkedDuplicates)} into {suvivorKey}", e);
             }
         }
 
