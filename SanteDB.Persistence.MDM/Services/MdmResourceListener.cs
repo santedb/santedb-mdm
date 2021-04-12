@@ -1296,7 +1296,7 @@ namespace SanteDB.Persistence.MDM.Services
                     this.m_traceSource.TraceInfo("Pre-event handler has indicated a cancel of merge on {0}", masterKey);
                     return null;
                 }
-                masterKey = preEventArgs.MasterKey; // Allow resource to update these fields
+                masterKey = preEventArgs.SurvivorKey; // Allow resource to update these fields
                 linkedDuplicates = preEventArgs.LinkedKeys;
 
                 // Relationship type
