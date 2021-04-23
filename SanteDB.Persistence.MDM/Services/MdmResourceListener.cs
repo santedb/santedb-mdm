@@ -20,6 +20,7 @@ using SanteDB.Core;
 using SanteDB.Core.Configuration;
 using SanteDB.Core.Diagnostics;
 using SanteDB.Core.Event;
+using SanteDB.Core.Exceptions;
 using SanteDB.Core.Jobs;
 using SanteDB.Core.Model;
 using SanteDB.Core.Model.Acts;
@@ -69,6 +70,16 @@ namespace SanteDB.Persistence.MDM.Services
     public class MdmResourceListener<T> : MdmResourceListener, IRecordMergingService<T>
         where T : IdentifiedData, new()
     {
+        /// <summary>
+        ///  Status which be merged
+        /// </summary>
+        private readonly Guid[] m_mergeStates = new Guid[]
+        {
+            StatusKeys.Active,
+            StatusKeys.Cancelled,
+            StatusKeys.Completed,
+            StatusKeys.New
+        };
 
         // Match comparison
         private static MasterMatchEqualityComparer s_matchComparer = new MasterMatchEqualityComparer();
@@ -1173,17 +1184,23 @@ namespace SanteDB.Persistence.MDM.Services
         /// <summary>
         /// Get relationships for the entity of specified type
         /// </summary>
-        private IEnumerable<IdentifiedData> GetRelationshipTargets(T sourceEntity, Guid relationshipType)
+        private IEnumerable<IdentifiedData> GetRelationshipTargets(T sourceEntity, Guid relationshipType, bool inverse = false)
         {
             if (sourceEntity is Entity entity)
             {
                 var erService = ApplicationServiceContext.Current.GetService<IDataPersistenceService<EntityRelationship>>();
-                return erService.Query(o => o.SourceEntityKey == sourceEntity.Key && o.RelationshipTypeKey == relationshipType, AuthenticationContext.SystemPrincipal).OfType<IdentifiedData>();
+                if (inverse)
+                    return erService.Query(o => o.TargetEntityKey == sourceEntity.Key && o.RelationshipTypeKey == relationshipType, AuthenticationContext.SystemPrincipal).OfType<IdentifiedData>();
+                else
+                    return erService.Query(o => o.SourceEntityKey == sourceEntity.Key && o.RelationshipTypeKey == relationshipType, AuthenticationContext.SystemPrincipal).OfType<IdentifiedData>();
             }
             else if (sourceEntity is Act act)
             {
                 var erService = ApplicationServiceContext.Current.GetService<IDataPersistenceService<ActRelationship>>();
-                return erService.Query(o => o.SourceEntityKey == sourceEntity.Key && o.RelationshipTypeKey == relationshipType, AuthenticationContext.SystemPrincipal).OfType<IdentifiedData>();
+                if (inverse)
+                    return erService.Query(o => o.TargetActKey == sourceEntity.Key && o.RelationshipTypeKey == relationshipType, AuthenticationContext.SystemPrincipal).OfType<IdentifiedData>();
+                else
+                    return erService.Query(o => o.SourceEntityKey == sourceEntity.Key && o.RelationshipTypeKey == relationshipType, AuthenticationContext.SystemPrincipal).OfType<IdentifiedData>();
             }
             else
                 throw new InvalidOperationException("Cannot fetch associations for the specified type of source entity");
@@ -1301,6 +1318,7 @@ namespace SanteDB.Persistence.MDM.Services
                     this.m_traceSource.TraceInfo("Pre-event handler has indicated a cancel of merge on {0}", suvivorKey);
                     return null;
                 }
+
                 suvivorKey = preEventArgs.SurvivorKey; // Allow resource to update these fields
                 linkedDuplicates = preEventArgs.LinkedKeys;
 
@@ -1309,49 +1327,166 @@ namespace SanteDB.Persistence.MDM.Services
                 var relationshipService = ApplicationServiceContext.Current.GetService(typeof(IDataPersistenceService<>).MakeGenericType(relationshipType)) as IDataPersistenceService;
 
                 // Ensure that MASTER is in fact a master
-                var masterData = this.m_rawMasterPersistenceService.Get(suvivorKey) as IClassifiable;
-                if (masterData.ClassConceptKey == MdmConstants.MasterRecordClassification && !AuthenticationContext.Current.Principal.IsInRole("SYSTEM"))
-                    ApplicationServiceContext.Current.GetService<IPolicyEnforcementService>().Demand(MdmPermissionPolicyIdentifiers.WriteMdmMaster);
-                else
+                var survivorData = this.m_rawMasterPersistenceService.Get(suvivorKey) as IdentifiedData;
+                if (survivorData is IClassifiable classifiable && classifiable.ClassConceptKey == MdmConstants.MasterRecordClassification && !AuthenticationContext.Current.Principal.IsInRole("SYSTEM"))
                 {
-                    this.EnsureProvenance(masterData as BaseEntityData, AuthenticationContext.Current.Principal);
-                    var existingMasterQry = typeof(QueryExpressionParser).GetGenericMethod(nameof(QueryExpressionParser.BuildLinqExpression), new Type[] { relationshipType }, new Type[] { typeof(NameValueCollection) })
-                               .Invoke(null, new object[] { NameValueCollection.ParseQueryString($"source={suvivorKey}&relationshipType={MdmConstants.MasterRecordRelationship}") }) as Expression;
-                    int tr = 0;
-                    var masterRel = relationshipService.Query(existingMasterQry, 0, 2, out tr).OfType<ISimpleAssociation>().SingleOrDefault();
-                    masterData = this.m_rawMasterPersistenceService.Get((Guid)masterRel.GetType().GetQueryProperty("target").GetValue(masterRel)) as IClassifiable;
+                    try
+                    {
+                        ApplicationServiceContext.Current.GetService<IPolicyEnforcementService>().Demand(MdmPermissionPolicyIdentifiers.WriteMdmMaster);
+                    }
+                    catch (PolicyViolationException e) when (e.PolicyId == MdmPermissionPolicyIdentifiers.WriteMdmMaster)
+                    {
+                        survivorData = this.GetLocalFor(survivorData, AuthenticationContext.Current.Principal as IClaimsPrincipal) as IdentifiedData;
+                        if (survivorData == null) // Exception: The entity is attempting to merge without MASTER permission and without a LOCAL
+                                                  //             This means that we cannot find a permissible survivor into which the data can be merged
+                        {
+                            throw;
+                        }
+                    }
+                }
+                else // The caller explicitly called this functoin with a LOCAL UUID
+                {
+                    this.EnsureProvenance(survivorData as BaseEntityData, AuthenticationContext.Current.Principal);
                 }
 
+                // Validate survivor is in a known state
+                if (!(survivorData is IHasState survivorState) || !this.m_mergeStates.Contains(survivorState.StatusConceptKey.GetValueOrDefault()))
+                {
+                    throw new InvalidOperationException($"Record {survivorData.Key} cannot be merged in its current state");
+                } 
+
                 Bundle mergeTransaction = new Bundle();
+
+                var survivorClassified = survivorData as IClassifiable;
 
                 // For each of the linked duplicates we want to get the master relationships 
                 foreach (var ldpl in linkedDuplicates)
                 {
                     // Is the linked duplicate a master record?
-                    var linkedClass = this.m_rawMasterPersistenceService.Get(ldpl) as IClassifiable;
-                    if (linkedClass.ClassConceptKey == MdmConstants.MasterRecordClassification && !AuthenticationContext.Current.Principal.IsInRole("SYSTEM"))
-                        ApplicationServiceContext.Current.GetService<IPolicyEnforcementService>().Demand(MdmPermissionPolicyIdentifiers.MergeMdmMaster);
+                    var linkedData = this.m_rawMasterPersistenceService.Get(ldpl) as IdentifiedData;
+                    if (linkedData is IClassifiable classifiableLocal && classifiableLocal.ClassConceptKey == MdmConstants.MasterRecordClassification && !AuthenticationContext.Current.Principal.IsInRole("SYSTEM"))
+                    {
+                        try
+                        {
+                            ApplicationServiceContext.Current.GetService<IPolicyEnforcementService>().Demand(MdmPermissionPolicyIdentifiers.MergeMdmMaster);
+                        }
+                        catch (PolicyViolationException e) when (e.PolicyId == MdmPermissionPolicyIdentifiers.MergeMdmMaster)
+                        {
+                            linkedData = this.GetLocalFor(linkedData as IIdentifiedEntity, AuthenticationContext.Current.Principal as IClaimsPrincipal) as IdentifiedData;
+                            if (linkedData == null) // Exception: The entity is attempting to merge without MASTER permission and without a LOCAL
+                                                    //             This means that we cannot find a permissible survivor into which the data can be merged
+                            {
+                                throw;
+                            }
+                        }
+                    }
                     else
-                        this.EnsureProvenance(linkedClass as BaseEntityData, AuthenticationContext.Current.Principal);
+                    {
+                        this.EnsureProvenance(linkedData as BaseEntityData, AuthenticationContext.Current.Principal);
+                    }
+
+                    var linkedClassified = linkedData as IClassifiable;
+
+                    // Validate linked is in a valid state
+                    if (!(linkedData is IHasState linkedState) || !this.m_mergeStates.Contains(linkedState.StatusConceptKey.GetValueOrDefault()))
+                    {
+                        throw new InvalidOperationException($"Record {linkedData.Key} cannot be merged in its current state");
+                    }
 
                     // Allowed merges
                     // LOCAL > MASTER - A local record is being merged into a MASTER
                     // MASTER > MASTER - Two MASTER records are being merged (administrative merge)
                     // LOCAL > LOCAL - Two LOCAL records are being merged
-                    if (linkedClass.ClassConceptKey == masterData.ClassConceptKey)
+
+                    // Alternate Use Cases to be Detected;
+                    //  - Survivor is OBSOLETE (needs to be re-activated)
+                    //  - Linked marked as replacing survivor (previous reverse merge performed)
+                    if (linkedClassified.ClassConceptKey == survivorClassified.ClassConceptKey)
                     {
-                        if (linkedClass.ClassConceptKey == MdmConstants.MasterRecordClassification) // MASTER <> MASTER
+                        if (linkedClassified.ClassConceptKey == MdmConstants.MasterRecordClassification) // MASTER <> MASTER
                         {
                             throw new NotSupportedException("Currently MASTER > MASTER merging is not supported");
                         }
                         else // LOCAL > LOCAL (we're rewriting the master relationship)
                         {
-                            throw new NotSupportedException("Currently LOCAL > LOCAL merging is not supported");
+                            // First, is there a replaces relationship between the two? 
+                            if (survivorData is Entity survivorEntity &&
+                                linkedData is Entity linkedEntity)
+                            {
+                                // The linked object must be obsoleted
+                                linkedState.StatusConceptKey = StatusKeys.Obsolete;
+                                // The master relationship for the linked state is removed (i.e. detached)
+                                var linkedMasterRelationship = linkedEntity.LoadCollection(o => o.Relationships).FirstOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship);
+
+                                mergeTransaction.Add(new EntityRelationship(MdmConstants.OriginalMasterRelationship, linkedMasterRelationship.TargetEntityKey)
+                                {
+                                    SourceEntityKey = linkedEntity.Key,
+                                    ClassificationKey = RelationshipClassKeys.PrivateLink
+                                });
+                                linkedMasterRelationship.ObsoleteVersionSequenceId = Int32.MaxValue;
+
+                                // TODO: Verify we want to do this
+                                // Rewrite the master to the survivor's master (helps with synthesis)
+                                var survivorMasterRelationship = survivorEntity.LoadCollection(o => o.Relationships).FirstOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship);
+                                mergeTransaction.Add(new EntityRelationship(MdmConstants.MasterRecordRelationship, survivorMasterRelationship.TargetEntityKey)
+                                {
+                                    SourceEntityKey = linkedEntity.Key,
+                                    ClassificationKey = RelationshipClassKeys.PrivateLink,
+                                    RelationshipRoleKey = EntityRelationshipTypeKeys.Duplicate // TODO: Should this be its own code? Like MERGE TARGET?
+                                });
+                                mergeTransaction.Add(new EntityRelationship(EntityRelationshipTypeKeys.Replaces, linkedEntity.Key)
+                                {
+                                    SourceEntityKey = survivorEntity.Key,
+                                    RelationshipRoleKey = EntityRelationshipTypeKeys.Duplicate
+                                });
+
+                                // Copy the identifiers over
+                                survivorEntity.Identifiers.AddRange(linkedEntity.Identifiers.Where(lid => !survivorEntity.Identifiers.Any(sid => sid.SemanticEquals(lid)))
+                                    .Select(o=>new EntityIdentifier(o.Authority, o.Value)
+                                    {
+                                        IssueDate = o.IssueDate,
+                                        ExpiryDate = o.ExpiryDate
+                                    }));
+                                
+                                mergeTransaction.Add(survivorEntity);
+                                mergeTransaction.Add(linkedEntity);
+
+                                // Clean up the old linked entity master
+                                if(this.GetRelationshipTargets(new T() { Key = linkedMasterRelationship.TargetEntityKey.Value }, linkedMasterRelationship.RelationshipTypeKey.Value, true).Count(o => o.Key != linkedMasterRelationship.Key) == 0)
+                                {
+                                    var existingMaster = this.m_rawMasterPersistenceService.Get(linkedMasterRelationship.TargetEntityKey.Value) as Entity;
+                                    existingMaster.StatusConceptKey = StatusKeys.Obsolete;
+                                    mergeTransaction.Add(existingMaster);
+
+                                    // TODO: Do we want this behavior?
+                                    // Migrate master identifiers over and mark as replaced, and set their expiration date to now
+                                    mergeTransaction.Item.AddRange(existingMaster.Identifiers.Where(lid => !survivorEntity.Identifiers.Any(sid => sid.SemanticEquals(lid)))
+                                        .Select(o => new EntityIdentifier(o.Authority, o.Value)
+                                        {
+                                            SourceEntityKey = survivorMasterRelationship.TargetEntityKey,
+                                            IssueDate = o.IssueDate,
+                                            ExpiryDate = DateTime.Now
+                                        }));
+
+                                    // Mark replaced by 
+                                    mergeTransaction.Add(new EntityRelationship(EntityRelationshipTypeKeys.Replaces, survivorMasterRelationship.TargetEntityKey)
+                                    {
+                                        SourceEntityKey = existingMaster.Key,
+                                        RelationshipRoleKey = EntityRelationshipTypeKeys.Duplicate
+                                    });
+
+                                }
+                            }
+                            else
+                            {
+                                // TODO: ^^ Refactor above to handle ACTS
+                                throw new InvalidOperationException("Merging non entities is not supported yet");
+                            }
                         }
                     }
-                    // LOCAL > MASTER
-                    else if (masterData.ClassConceptKey == MdmConstants.MasterRecordClassification &&
-                        linkedClass.ClassConceptKey != MdmConstants.MasterRecordClassification)
+                    // LOCAL > MASTER (re-link)
+                    else if (survivorClassified.ClassConceptKey == MdmConstants.MasterRecordClassification &&
+                        linkedClassified.ClassConceptKey != MdmConstants.MasterRecordClassification)
                     {
                         // First, get the relationship of CANDIDATE between the master and the linked duplicate
                         var relationshipQry = typeof(QueryExpressionParser).GetGenericMethod(nameof(QueryExpressionParser.BuildLinqExpression), new Type[] { relationshipType }, new Type[] { typeof(NameValueCollection) })
@@ -1367,7 +1502,7 @@ namespace SanteDB.Persistence.MDM.Services
                         // Next We want to add a new master record relationship between duplicate and the master
                         mergeTransaction.Add(this.CreateRelationship(relationshipType, MdmConstants.MasterRecordRelationship, ldpl, suvivorKey));
 
-                        var existingMasterKey = this.GetMaster(linkedClass as IdentifiedData);
+                        var existingMasterKey = this.GetMaster(linkedClassified as IdentifiedData);
 
                         // Next , if the old master has no more locals, we want to obsolete it
                         relationshipQry = typeof(QueryExpressionParser).GetGenericMethod(nameof(QueryExpressionParser.BuildLinqExpression), new Type[] { relationshipType }, new Type[] { typeof(NameValueCollection) })
