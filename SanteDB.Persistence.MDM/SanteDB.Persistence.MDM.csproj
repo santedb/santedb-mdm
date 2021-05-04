@@ -1,10 +1,30 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup Condition="'$(VersionNumber)' == ''">
     <VersionNumber>2.1.0-debug</VersionNumber>
   </PropertyGroup>
-  <ItemGroup><PackageReference Include="MSBuildTasks" Version="1.5.0.235"><PrivateAssets>all</PrivateAssets><IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets></PackageReference></ItemGroup>
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.0</TargetFrameworks>
+  </PropertyGroup>
+  <PropertyGroup>
+    <PackageId>SanteDB.Persistence.MDM</PackageId>
+    <Title>SanteDB MDM Persistence</Title>
+    <Version>$(VersionNumber)</Version>
+    <Description>Allows SanteDB iCDR to process MDM requests.</Description>
+    <Authors>SanteSuite Contributors</Authors>
+    <PackageTags>SanteDB</PackageTags>
+    <RepositoryUrl>https://github.com/santedb/santedb-mdm</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <IncludeSymbols>true</IncludeSymbols>
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+	    <Product>SanteDB</Product>
+    <Copyright>Copyright (C) 2015-2021 SanteSuite Contributors (See: NOTICES)</Copyright>
+    <Company>SanteSuite Contributors</Company>
+    <PackageIconUrl>http://santesuite.org/assets/img/logo.png</PackageIconUrl>
+    <PackageProjectUrl>http://santesuite.org</PackageProjectUrl>
+  </PropertyGroup>   
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
@@ -34,7 +54,7 @@
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
-  <ItemGroup>
+  <!--<ItemGroup>
     <Reference Include="System" />
     <Reference Include="System.Configuration" />
     <Reference Include="System.Core" />
@@ -61,7 +81,7 @@
     <Compile Include="Services\MdmFreetextSearchService.cs" />
     <Compile Include="Services\MdmIdentityMatchResult.cs" />
     <Compile Include="Services\MdmResourceListener.cs" />
-  </ItemGroup>
+  </ItemGroup>-->
   <ItemGroup>
     <None Include="..\SanteDB.licenseheader">
       <Link>SanteDB.licenseheader</Link>
@@ -107,12 +127,15 @@
       <Version>12.0.3</Version>
     </PackageReference>
   </ItemGroup>
-  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <ItemGroup>
+    <Folder Include="Properties\" />
+  </ItemGroup>
+  <!--<Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <Target Name="BeforeBuild" Condition="!$(VersionNumber.EndsWith('-debug'))">
     <AssemblyInfo CodeLanguage="CS" OutputFile="$(MSBuildProjectDirectory)\Properties\Version.cs" AssemblyVersion="$(VersionNumber)" AssemblyFileVersion="$(VersionNumber)" />
   </Target>
   <ItemGroup>
     <Compile Include="Properties\Version.cs" />
   </ItemGroup>
-
+-->
 </Project>
