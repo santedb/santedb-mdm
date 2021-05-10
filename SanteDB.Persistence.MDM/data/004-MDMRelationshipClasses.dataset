@@ -1,0 +1,28 @@
+﻿<dataset xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://santedb.org/data" id="MDM Relationship Classes">
+  <update insertIfNotExists="true">
+    <Concept xmlns="http://santedb.org/model">
+      <id>3B9365BA-C229-44C4-95AE-6489809A33F0</id>
+      <mnemonic>MDM-Verified</mnemonic>
+      <statusConcept>c8064cbd-fa06-4530-b430-1a52f1530c27</statusConcept>
+      <conceptClass>92cdea39-b9a3-4a5b-bc88-a6646c74240d</conceptClass>
+      <name>
+        <language>en</language>
+        <value>Verified Data</value>
+      </name>
+      <conceptSet>F4045AF6-5295-482F-BAB3-C5F2C3738703</conceptSet>
+    </Concept>
+  </update>
+  <update insertIfNotExists="true">
+    <Concept xmlns="http://santedb.org/model">
+      <id>4311E243-FCDF-43D0-9905-41FD231B1B51</id>
+      <mnemonic>MDM-AutomagicLink</mnemonic>
+      <statusConcept>c8064cbd-fa06-4530-b430-1a52f1530c27</statusConcept>
+      <conceptClass>92cdea39-b9a3-4a5b-bc88-a6646c74240d</conceptClass>
+      <name>
+        <language>en</language>
+        <value>Automatically Linked</value>
+      </name>
+      <conceptSet>F4045AF6-5295-482F-BAB3-C5F2C3738703</conceptSet>
+    </Concept>
+  </update>
+</dataset>
