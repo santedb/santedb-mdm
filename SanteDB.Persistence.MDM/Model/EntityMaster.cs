@@ -38,6 +38,51 @@ using SanteDB.Core.Model.Attributes;
 
 namespace SanteDB.Persistence.MDM.Model
 {
+
+    /// <summary>
+    /// Represents a relationship 
+    /// </summary>
+    [XmlType(Namespace = "http://santedb.org/model")]
+    public class EntityRelationshipMaster : EntityRelationship
+    {
+        /// <summary>
+        /// Construct an ER master
+        /// </summary>
+        public EntityRelationshipMaster(Entity master, Entity local, EntityRelationship relationship)
+        {
+
+            this.Original = relationship;
+            this.RelationshipRoleKey = relationship.RelationshipRoleKey;
+            this.RelationshipTypeKey = relationship.RelationshipTypeKey;
+            this.ClassificationKey = relationship.ClassificationKey;
+
+            if (relationship.SourceEntityKey == local.Key)
+                relationship.SourceEntityKey = master.Key;
+            else if(relationship.TargetEntityKey == local.Key)
+                relationship.TargetEntityKey = master.Key;
+
+            // Does the target point at a local which has a master? If so, we want to synthesize the 
+            var targetMaster = relationship.GetTargetAs<Entity>().GetRelationships().FirstOrDefault(mr => mr.RelationshipTypeKey == MdmConstants.MasterRecordRelationship);
+            if (targetMaster != null)
+                relationship.TargetEntityKey = targetMaster.TargetEntityKey;
+           
+        }
+
+        /// <summary>
+        /// Get the type name
+        /// </summary>
+        [DataIgnore, XmlIgnore, JsonProperty("$type")]
+        public override string Type { get => $"EntityRelationshipMaster"; set { } }
+
+        /// <summary>
+        /// Gets the original relationship
+        /// </summary>
+        [DataIgnore, XmlElement("original"), JsonProperty("original")]
+        public EntityRelationship Original { get; set; }
+
+
+    }
+
     /// <summary>
     /// Represents a master record of an entity
     /// </summary>
@@ -101,13 +146,18 @@ namespace SanteDB.Persistence.MDM.Model
             {
                 master.SemanticCopy(rot.LoadProperty<T>("TargetEntity"));
                 master.SemanticCopyNullFields(locals);
+                entityMaster.Tags.Add(new EntityTag("$mdm.rot", "true"));
             }
 
-            entityMaster.Policies = this.LocalRecords.SelectMany(o => (o as Entity).Policies).ToList();
+            // Copy targets for relationships
+            entityMaster.Relationships = this.LocalRecords.OfType<Entity>().SelectMany(o => 
+                o.Relationships.Where(r => r.TargetEntityKey != master.Key && r.SourceEntityKey != master.Key)
+                .Select(r => new EntityRelationshipMaster(entityMaster, o, r))
+                ).OfType<EntityRelationship>().ToList();
+
+            entityMaster.Policies = this.LocalRecords.SelectMany(o => (o as Entity).Policies).Distinct().ToList();
             entityMaster.Tags.RemoveAll(o => o.TagKey == "$mdm.type");
             entityMaster.Tags.Add(new EntityTag("$mdm.type", "M")); // This is a master
-            if (rot != null)
-                entityMaster.Tags.Add(new EntityTag("$mdm.rot", "true"));
             entityMaster.Tags.Add(new EntityTag("$mdm.resource", typeof(T).Name)); // The original resource of the master
             entityMaster.Tags.Add(new EntityTag("$generated", "true")); // This object was generated
             entityMaster.Tags.Add(new EntityTag("$alt.keys", String.Join(";", this.m_localRecords.Select(o => o.Key.ToString()))));
@@ -147,27 +197,11 @@ namespace SanteDB.Persistence.MDM.Model
                         o.LoadCollection<SecurityPolicyInstance>(nameof(Entity.Policies));
                         o.LoadCollection<EntityExtension>(nameof(Entity.Extensions));
                    
-                        if (o is Place)
-                            (o as Place).LoadCollection<PlaceService>(nameof(Place.Services));
+                        if (o is Place place)
+                            place.LoadCollection<PlaceService>(nameof(Place.Services));
+                        if (o is Person person)
+                            person.LoadCollection<PersonLanguageCommunication>(nameof(Person.LanguageCommunication));
 
-                        // Correct to master
-                        o.Relationships.ForEach(r =>
-                        {
-                            if (r.RelationshipTypeKey == MdmConstants.MasterRecordRelationship ||
-                                r.RelationshipTypeKey == MdmConstants.MasterRecordOfTruthRelationship ||
-                                r.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship)
-                                return;
-                            else if (r.SourceEntityKey == o.Key)
-                                r.SourceEntityKey = this.m_masterRecord.Key;
-                            else if (r.TargetEntityKey == o.Key)
-                                r.TargetEntityKey = this.m_masterRecord.Key;
-
-                            // Does the target point at a local which has a master? If so, we want to synthesize the 
-                            var targetMaster = r.GetTargetAs<Entity>().GetRelationships().FirstOrDefault(mr => mr.RelationshipTypeKey == MdmConstants.MasterRecordRelationship);
-                            if (targetMaster != null)
-                                r.TargetEntityKey = targetMaster.TargetEntityKey;
-
-                        });
                     });
                 }
                 return this.m_localRecords;

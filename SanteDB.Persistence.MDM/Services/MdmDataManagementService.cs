@@ -41,6 +41,7 @@ using SanteDB.Core.Model.Roles;
 using SanteDB.Core.Model.Map;
 using SanteDB.Core.Interfaces;
 using SanteDB.Core.Model.Query;
+using SanteDB.Core.Exceptions;
 
 namespace SanteDB.Persistence.MDM.Services
 {
@@ -120,9 +121,11 @@ namespace SanteDB.Persistence.MDM.Services
             ApplicationServiceContext.Current.Started += (o, e) =>
             {
                 if (ApplicationServiceContext.Current.GetService<IRecordMatchingService>() == null)
-                    throw new InvalidOperationException("MDM requires a matching service to be configured");
-                else if (ApplicationServiceContext.Current.GetService<SimDataManagementService>() != null)
-                    throw new System.Configuration.ConfigurationException("Cannot use MDM and SIM merging strategies at the same time. Please disable one or the other");
+                    this.m_traceSource.TraceWarning("The MDM Service should be using a record matching service");
+                if (ApplicationServiceContext.Current.GetService<SimDataManagementService>() != null)
+                {
+                    throw new ConfigurationException("Cannot use MDM and SIM merging strategies at the same time. Please disable one or the other", null);
+                }
 
                 foreach (var itm in this.m_configuration.ResourceTypes)
                 {
