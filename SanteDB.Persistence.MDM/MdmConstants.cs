@@ -74,6 +74,15 @@ namespace SanteDB.Persistence.MDM
         /// </summary>
         public static readonly Guid OriginalMasterRelationship = Guid.Parse("a2837281-7e30-4dcd-94cd-fd532d111578");
 
+        /// <summary>
+        /// Automatic linked data
+        /// </summary>
+        public static readonly Guid AutomagicClassification = Guid.Parse("4311E243-FCDF-43D0-9905-41FD231B1B51");
+
+        /// <summary>
+        /// Verified classification 
+        /// </summary>
+        public static readonly Guid VerifiedClassification = Guid.Parse("3B9365BA-C229-44C4-95AE-6489809A33F0");
 
     }
 }

@@ -397,14 +397,31 @@ namespace SanteDB.Persistence.MDM.Services
                                 ApplicationServiceContext.Current.GetService<IPolicyEnforcementService>().Demand(MdmPermissionPolicyIdentifiers.UnrestrictedMdm);
 
                                 dataEntity.DeterminerConceptKey = MdmConstants.RecordOfTruthDeterminer;
-                                dataEntity.Relationships.Add(new EntityRelationship(MdmConstants.MasterRecordRelationship, existing as Entity) { Quantity = 1 });
+                                dataEntity.Relationships.Add(new EntityRelationship(MdmConstants.MasterRecordRelationship, existing as Entity)
+                                {
+                                    ClassificationKey = MdmConstants.VerifiedClassification
+                                });
                                 dataEntity.Tags.Add(new EntityTag("$mdm.type", "T"));
                             }
                             else // it is just another record 
                             {
-                                dataEntity.Relationships.Add(new EntityRelationship(MdmConstants.MasterRecordRelationship, existing as Entity) { Quantity = 1 });
+                                dataEntity.Relationships.Add(new EntityRelationship(MdmConstants.MasterRecordRelationship, existing as Entity)
+                                {
+                                    ClassificationKey = MdmConstants.VerifiedClassification
+                                });
                             }
                         }
+
+                        // Rewrite any relationships ... 
+                        dataEntity.Relationships.ForEach(o => this.RefactorRelationship(o, existing.Key.Value, dataEntity.Key.Value));
+                        if(sender is Bundle bundleS && e.Data.Key != existing.Key)
+                        {
+                            foreach(var er in bundleS.Item.OfType<ITargetedAssociation>().Where(o=>o.SourceEntityKey == existing.Key || o.TargetEntityKey == existing.Key).ToArray())
+                            {
+                                this.RefactorRelationship(er, existing.Key.Value, dataEntity.Key.Value);
+                            }
+                        }
+
                         dataEntity.StripAssociatedItemSources();
                     }
                 }
@@ -451,6 +468,15 @@ namespace SanteDB.Persistence.MDM.Services
 
             }
 
+        }
+
+        /// <summary>
+        /// Refactor the relationship <paramref name="relationship"/> from <paramref name="fromKey"/> to <paramref name="toKey"/>
+        /// </summary>
+        private void RefactorRelationship(ITargetedAssociation relationship, Guid fromKey, Guid toKey)
+        {
+            if (relationship.SourceEntityKey == fromKey) { relationship.SourceEntityKey = toKey; }
+            else if (relationship.TargetEntityKey == fromKey) { relationship.TargetEntityKey = toKey; }
         }
 
         /// <summary>
@@ -589,7 +615,7 @@ namespace SanteDB.Persistence.MDM.Services
                                     throw new MdmException(e.Data, $"Unable to determine master record for {e.Data}");
                                 else
                                 {
-                                    masterRelationship = new EntityRelationship(MdmConstants.MasterRecordRelationship, rotRelationship.SourceEntityKey) { SourceEntityKey = rotRelationship.TargetEntityKey };
+                                    masterRelationship = new EntityRelationship(MdmConstants.MasterRecordRelationship, rotRelationship.SourceEntityKey) { SourceEntityKey = rotRelationship.TargetEntityKey, ClassificationKey = MdmConstants.VerifiedClassification };
                                     bundle.Add(masterRelationship);
                                 }
                             }
@@ -608,11 +634,11 @@ namespace SanteDB.Persistence.MDM.Services
                                 existingRotRel.ObsoleteVersionSequenceId = Int32.MaxValue;
                                 bundle.Add(existingRotRel);
                                 // Add the new
-                                bundle.Add(new EntityRelationship(MdmConstants.MasterRecordOfTruthRelationship, entityData.Key) { SourceEntityKey = masterRelationship.TargetEntityKey });
+                                bundle.Add(new EntityRelationship(MdmConstants.MasterRecordOfTruthRelationship, entityData.Key) { SourceEntityKey = masterRelationship.TargetEntityKey, ClassificationKey = MdmConstants.VerifiedClassification });
                             }
                         }
                         else
-                            bundle.Add(new EntityRelationship(MdmConstants.MasterRecordOfTruthRelationship, entityData.Key) { SourceEntityKey = masterRelationship.TargetEntityKey });
+                            bundle.Add(new EntityRelationship(MdmConstants.MasterRecordOfTruthRelationship, entityData.Key) { SourceEntityKey = masterRelationship.TargetEntityKey, ClassificationKey = MdmConstants.VerifiedClassification });
 
                         // Is there already a master of truth relationship for this object which is a different master than the one specified?
                         if (ApplicationServiceContext.Current.GetService<IDataPersistenceService<EntityRelationship>>().Count(o => o.TargetEntityKey == e.Data.Key && o.RelationshipTypeKey == MdmConstants.MasterRecordOfTruthRelationship && o.SourceEntityKey != masterRelationship.TargetEntityKey && o.ObsoleteVersionSequenceId == null, AuthenticationContext.SystemPrincipal) > 0)
@@ -724,7 +750,7 @@ namespace SanteDB.Persistence.MDM.Services
                                                  // Is this object a ROT or MASTER, if it is then we do not perform any changes to re-binding
                 if (this.IsRecordOfTruth(e.Data))
                 {
-                    // Record of truth, ensure we update the appropirate
+                    // Record of truth, ensure we update the appropriate
                     if (e.Data is Entity entityData)
                     {
                         // Establish a master
@@ -747,7 +773,7 @@ namespace SanteDB.Persistence.MDM.Services
                                     throw new MdmException(e.Data, $"Unable to determine master record for {e.Data}");
                                 else
                                 {
-                                    masterRelationship = new EntityRelationship(MdmConstants.MasterRecordRelationship, rotRelationship.SourceEntityKey) { SourceEntityKey = rotRelationship.TargetEntityKey };
+                                    masterRelationship = new EntityRelationship(MdmConstants.MasterRecordRelationship, rotRelationship.SourceEntityKey) { SourceEntityKey = rotRelationship.TargetEntityKey, ClassificationKey = MdmConstants.VerifiedClassification };
                                     bundle.Add(masterRelationship);
                                 }
                             }
@@ -877,7 +903,10 @@ namespace SanteDB.Persistence.MDM.Services
                         local.SemanticCopy((Entity)(object)master.GetMaster(AuthenticationContext.SystemPrincipal));
                         local.StripAssociatedItemSources();
                         local.Relationships.Clear();
-                        local.Relationships.Add(new EntityRelationship(MdmConstants.MasterRecordRelationship, rel.TargetEntity) { Quantity = 1 });
+                        local.Relationships.Add(new EntityRelationship(MdmConstants.MasterRecordRelationship, rel.TargetEntity)
+                        {
+                            ClassificationKey = MdmConstants.VerifiedClassification // Someone is explicitly setting this
+                        });
                         retVal.Add(local);
                     }
                     rel.TargetEntityKey = local.Key;
@@ -931,7 +960,7 @@ namespace SanteDB.Persistence.MDM.Services
                 throw new InvalidOperationException("Cannot operate MDM mode without matching service"); // Cannot make determination of matching
 
             var rawMatches = matchService.Match(entity, configurationName);
-            return rawMatches.ToArray() ; // ToArray is to prevent multiple calls to the matching engine
+            return rawMatches.ToArray(); // ToArray is to prevent multiple calls to the matching engine
 
         }
 
@@ -1049,7 +1078,7 @@ namespace SanteDB.Persistence.MDM.Services
                         var oldMasterId = (Guid)r.GetType().GetQueryProperty("target").GetValue(r);
 
                         // Keep track of the old master
-                        insertData.Add(this.CreateRelationship(relationshipType, MdmConstants.OriginalMasterRelationship, entity.Key, oldMasterId));
+                        insertData.Add(this.CreateRelationship(relationshipType, MdmConstants.OriginalMasterRelationship, entity.Key, oldMasterId, MdmConstants.VerifiedClassification));
 
                         var query = typeof(QueryExpressionParser).GetGenericMethod(nameof(QueryExpressionParser.BuildLinqExpression), new Type[] { relationshipType }, new Type[] { typeof(NameValueCollection) })
                             .Invoke(null, new object[] { NameValueCollection.ParseQueryString($"target={oldMasterId}&source=!{entity.Key}&relationshipType={MdmConstants.MasterRecordRelationship}") }) as Expression;
@@ -1068,7 +1097,7 @@ namespace SanteDB.Persistence.MDM.Services
 
                     }
 
-                    insertData.Add(this.CreateRelationship(relationshipType, MdmConstants.MasterRecordRelationship, entity.Key, masterMatch.Master));
+                    insertData.Add(this.CreateRelationship(relationshipType, MdmConstants.MasterRecordRelationship, entity.Key, masterMatch.Master, MdmConstants.AutomagicClassification));
                 }
                 // dataService.Update(master);
                 // No change in master
@@ -1088,7 +1117,7 @@ namespace SanteDB.Persistence.MDM.Services
                         masterAct.MoodConceptKey = localAct.MoodConceptKey;
 
                     insertData.Add(master as IdentifiedData);
-                    insertData.Add(this.CreateRelationship(relationshipType, MdmConstants.MasterRecordRelationship, entity.Key, master.Key));
+                    insertData.Add(this.CreateRelationship(relationshipType, MdmConstants.MasterRecordRelationship, entity.Key, master.Key, MdmConstants.AutomagicClassification));
                 }
                 else if (!matchGroups[RecordMatchClassification.Match].Any() || !matchGroups[RecordMatchClassification.Match].Any(o => o.Master == existingMasterKey)) // No match with the existing master => Redirect the master
                 {
@@ -1096,7 +1125,7 @@ namespace SanteDB.Persistence.MDM.Services
                     var oldMasterRel = rels.OfType<IdentifiedData>().SingleOrDefault()?.Clone();
 
                     if (oldMasterRel != null && // Master in DB
-                        (oldMasterRel is EntityRelationship erMaster && erMaster.Quantity == 0) // Master rel is not "sicky"
+                        (oldMasterRel is EntityRelationship erMaster && erMaster.ClassificationKey != MdmConstants.VerifiedClassification) // Master rel is not "sicky"
                     )
                     {
                         var oldMasterId = (Guid)oldMasterRel.GetType().GetQueryProperty("target").GetValue(oldMasterRel);
@@ -1115,13 +1144,13 @@ namespace SanteDB.Persistence.MDM.Services
                                 masterAct.MoodConceptKey = localAct.MoodConceptKey;
 
                             insertData.Add(master as IdentifiedData);
-                            insertData.Add(this.CreateRelationship(relationshipType, MdmConstants.MasterRecordRelationship, entity.Key, master.Key));
+                            insertData.Add(this.CreateRelationship(relationshipType, MdmConstants.MasterRecordRelationship, entity.Key, master.Key, MdmConstants.AutomagicClassification));
                             if (oldMasterRel is EntityRelationship)
                                 (oldMasterRel as EntityRelationship).ObsoleteVersionSequenceId = Int32.MaxValue;
                             else
                                 (oldMasterRel as ActRelationship).ObsoleteVersionSequenceId = Int32.MaxValue;
                             insertData.Insert(0, oldMasterRel);
-                            insertData.Add(this.CreateRelationship(relationshipType, MdmConstants.OriginalMasterRelationship, entity.Key, oldMasterId));
+                            insertData.Add(this.CreateRelationship(relationshipType, MdmConstants.OriginalMasterRelationship, entity.Key, oldMasterId, erMaster.ClassificationKey));
                             this.m_traceSource.TraceVerbose("{0}: Old master record still hase other locals, creating new master {1} and detaching old relationship {2}", entity, master, oldMasterRel);
                         }
                         // If not we want to keep our link to the current master
@@ -1155,7 +1184,7 @@ namespace SanteDB.Persistence.MDM.Services
                     // Add any NEW match data which we didn't know about before
                     insertData.AddRange(nonMasterMatches
                         .Where(m => !ignoreList.Contains(m.Master))
-                        .Select(m => this.CreateRelationship(relationshipType, MdmConstants.CandidateLocalRelationship, entity.Key, m.Master)));
+                        .Select(m => this.CreateRelationship(relationshipType, MdmConstants.CandidateLocalRelationship, entity.Key, m.Master, MdmConstants.AutomagicClassification)));
 
                     // Remove all rels which don't appear in the insert data
                     foreach (var r in rels.OfType<IdentifiedData>())
@@ -1170,7 +1199,7 @@ namespace SanteDB.Persistence.MDM.Services
             if (matchGroups[RecordMatchClassification.Probable] != null)
                 insertData.AddRange(matchGroups[RecordMatchClassification.Probable]
                     .Where(m => !ignoreList.Contains(m.Master)) // ignore list
-                    .Select(m => this.CreateRelationship(relationshipType, MdmConstants.CandidateLocalRelationship, entity.Key, m.Master)));
+                    .Select(m => this.CreateRelationship(relationshipType, MdmConstants.CandidateLocalRelationship, entity.Key, m.Master, MdmConstants.AutomagicClassification)));
 
 
             // Now we want to make sure the relationships on the entity (provided) don't contain any tainted relationship data as we'll be returning this in the bundle
@@ -1252,15 +1281,19 @@ namespace SanteDB.Persistence.MDM.Services
         /// Create a relationship of the specied type
         /// </summary>
         /// <param name="relationshipType"></param>
-        /// <param name="relationshipClassification"></param>
+        /// <param name="relationshipTypeConcept"></param>
         /// <param name="sourceEntity"></param>
         /// <param name="targetEntity"></param>
         /// <returns></returns>
-        private IdentifiedData CreateRelationship(Type relationshipType, Guid relationshipClassification, Guid? sourceEntity, Guid? targetEntity)
+        private IdentifiedData CreateRelationship(Type relationshipType, Guid relationshipTypeConcept, Guid? sourceEntity, Guid? targetEntity, Guid? classification)
         {
-            var relationship = Activator.CreateInstance(relationshipType, relationshipClassification, targetEntity) as IdentifiedData;
+            var relationship = Activator.CreateInstance(relationshipType, relationshipTypeConcept, targetEntity) as IdentifiedData;
             relationship.Key = Guid.NewGuid();
-            (relationship as ISimpleAssociation).SourceEntityKey = sourceEntity;
+            if (relationship is ITargetedAssociation targetAssociation)
+            {
+                targetAssociation.SourceEntityKey = sourceEntity;
+                targetAssociation.ClassificationKey = classification;
+            }
             return relationship;
         }
 
@@ -1353,7 +1386,7 @@ namespace SanteDB.Persistence.MDM.Services
                 if (!(survivorData is IHasState survivorState) || !this.m_mergeStates.Contains(survivorState.StatusConceptKey.GetValueOrDefault()))
                 {
                     throw new InvalidOperationException($"Record {survivorData.Key} cannot be merged in its current state");
-                } 
+                }
 
                 Bundle mergeTransaction = new Bundle();
 
@@ -1421,7 +1454,7 @@ namespace SanteDB.Persistence.MDM.Services
                                 mergeTransaction.Add(new EntityRelationship(MdmConstants.OriginalMasterRelationship, linkedMasterRelationship.TargetEntityKey)
                                 {
                                     SourceEntityKey = linkedEntity.Key,
-                                    ClassificationKey = RelationshipClassKeys.PrivateLink
+                                    ClassificationKey = MdmConstants.VerifiedClassification
                                 });
                                 linkedMasterRelationship.ObsoleteVersionSequenceId = Int32.MaxValue;
 
@@ -1431,7 +1464,7 @@ namespace SanteDB.Persistence.MDM.Services
                                 mergeTransaction.Add(new EntityRelationship(MdmConstants.MasterRecordRelationship, survivorMasterRelationship.TargetEntityKey)
                                 {
                                     SourceEntityKey = linkedEntity.Key,
-                                    ClassificationKey = RelationshipClassKeys.PrivateLink,
+                                    ClassificationKey = MdmConstants.VerifiedClassification,
                                     RelationshipRoleKey = EntityRelationshipTypeKeys.Duplicate // TODO: Should this be its own code? Like MERGE TARGET?
                                 });
                                 mergeTransaction.Add(new EntityRelationship(EntityRelationshipTypeKeys.Replaces, linkedEntity.Key)
@@ -1442,17 +1475,17 @@ namespace SanteDB.Persistence.MDM.Services
 
                                 // Copy the identifiers over
                                 survivorEntity.Identifiers.AddRange(linkedEntity.Identifiers.Where(lid => !survivorEntity.Identifiers.Any(sid => sid.SemanticEquals(lid)))
-                                    .Select(o=>new EntityIdentifier(o.Authority, o.Value)
+                                    .Select(o => new EntityIdentifier(o.Authority, o.Value)
                                     {
                                         IssueDate = o.IssueDate,
                                         ExpiryDate = o.ExpiryDate
                                     }));
-                                
+
                                 mergeTransaction.Add(survivorEntity);
                                 mergeTransaction.Add(linkedEntity);
 
                                 // Clean up the old linked entity master
-                                if(this.GetRelationshipTargets(new T() { Key = linkedMasterRelationship.TargetEntityKey.Value }, linkedMasterRelationship.RelationshipTypeKey.Value, true).Count(o => o.Key != linkedMasterRelationship.Key) == 0)
+                                if (this.GetRelationshipTargets(new T() { Key = linkedMasterRelationship.TargetEntityKey.Value }, linkedMasterRelationship.RelationshipTypeKey.Value, true).Count(o => o.Key != linkedMasterRelationship.Key) == 0)
                                 {
                                     var existingMaster = this.m_rawMasterPersistenceService.Get(linkedMasterRelationship.TargetEntityKey.Value) as Entity;
                                     existingMaster.StatusConceptKey = StatusKeys.Obsolete;
@@ -1500,7 +1533,7 @@ namespace SanteDB.Persistence.MDM.Services
                         }
 
                         // Next We want to add a new master record relationship between duplicate and the master
-                        mergeTransaction.Add(this.CreateRelationship(relationshipType, MdmConstants.MasterRecordRelationship, ldpl, suvivorKey));
+                        mergeTransaction.Add(this.CreateRelationship(relationshipType, MdmConstants.MasterRecordRelationship, ldpl, suvivorKey, MdmConstants.VerifiedClassification));
 
                         var existingMasterKey = this.GetMaster(linkedClassified as IdentifiedData);
 
@@ -1577,7 +1610,7 @@ namespace SanteDB.Persistence.MDM.Services
                         {
                             er.ObsoleteVersionSequenceId = Int32.MaxValue;
                             obsoleteBundle.Add(er); // Obsolete the candidate relationship
-                            obsoleteBundle.Add(this.CreateRelationship(typeof(EntityRelationship), MdmConstants.IgnoreCandidateRelationship, key, masterKey)); // Add an ignore to this LOCAL>MASTER candidate
+                            obsoleteBundle.Add(this.CreateRelationship(typeof(EntityRelationship), MdmConstants.IgnoreCandidateRelationship, key, masterKey, MdmConstants.VerifiedClassification)); // Add an ignore to this LOCAL>MASTER candidate
                         }
                         else
                             throw new KeyNotFoundException($"Could not find relationship between {masterKey} and {key}");
@@ -1589,7 +1622,7 @@ namespace SanteDB.Persistence.MDM.Services
                         {
                             ar.ObsoleteVersionSequenceId = Int32.MaxValue;
                             obsoleteBundle.Add(ar); // Obsolete the candidate relationship
-                            obsoleteBundle.Add(this.CreateRelationship(typeof(ActRelationship), MdmConstants.IgnoreCandidateRelationship, key, masterKey)); // Add an ignore to this LOCAL>MASTER candidate
+                            obsoleteBundle.Add(this.CreateRelationship(typeof(ActRelationship), MdmConstants.IgnoreCandidateRelationship, key, masterKey, MdmConstants.VerifiedClassification)); // Add an ignore to this LOCAL>MASTER candidate
                         }
                         else
                             throw new KeyNotFoundException($"Could not find relationship between {masterKey} and {key}");

@@ -45,6 +45,7 @@ namespace SanteDB.Persistence.MDM.Model
     [XmlType(Namespace = "http://santedb.org/model")]
     public class EntityRelationshipMaster : EntityRelationship
     {
+
         /// <summary>
         /// Construct an ER master
         /// </summary>
@@ -52,19 +53,21 @@ namespace SanteDB.Persistence.MDM.Model
         {
 
             this.Original = relationship;
+            this.Key = relationship.Key; // HACK: This is just for the FHIR layer to track RP
             this.RelationshipRoleKey = relationship.RelationshipRoleKey;
             this.RelationshipTypeKey = relationship.RelationshipTypeKey;
             this.ClassificationKey = relationship.ClassificationKey;
-
-            if (relationship.SourceEntityKey == local.Key)
-                relationship.SourceEntityKey = master.Key;
-            else if(relationship.TargetEntityKey == local.Key)
-                relationship.TargetEntityKey = master.Key;
+            this.SourceEntityKey = relationship.SourceEntityKey;
+            this.TargetEntityKey = relationship.TargetEntityKey;
+            if (this.SourceEntityKey == local.Key)
+                this.SourceEntityKey = master.Key;
+            else if(this.TargetEntityKey == local.Key)
+                this.TargetEntityKey = master.Key;
 
             // Does the target point at a local which has a master? If so, we want to synthesize the 
-            var targetMaster = relationship.GetTargetAs<Entity>().GetRelationships().FirstOrDefault(mr => mr.RelationshipTypeKey == MdmConstants.MasterRecordRelationship);
+            var targetMaster = this.GetTargetAs<Entity>().GetRelationships().FirstOrDefault(mr => mr.RelationshipTypeKey == MdmConstants.MasterRecordRelationship);
             if (targetMaster != null)
-                relationship.TargetEntityKey = targetMaster.TargetEntityKey;
+                this.TargetEntityKey = targetMaster.TargetEntityKey;
            
         }
 
@@ -80,8 +83,54 @@ namespace SanteDB.Persistence.MDM.Model
         [DataIgnore, XmlElement("original"), JsonProperty("original")]
         public EntityRelationship Original { get; set; }
 
-
     }
+    /*
+     * This is an alternate in which MASTER is the sub
+    /// <summary>
+    /// Represents a relationship 
+    /// </summary>
+    [XmlType(Namespace = "http://santedb.org/model")]
+    public class EntityRelationshipMaster : EntityRelationship
+    {
+
+        /// <summary>
+        /// Construct an ER master
+        /// </summary>
+        public EntityRelationshipMaster(Entity master, Entity local, EntityRelationship relationship)
+        {
+
+            this.CopyObjectData(relationship);
+
+            this.MasterRelationship = new EntityRelationship()
+            {
+                RelationshipRoleKey = relationship.RelationshipRoleKey,
+                RelationshipTypeKey = relationship.RelationshipTypeKey,
+                ClassificationKey = relationship.ClassificationKey,
+                SourceEntityKey = relationship.SourceEntityKey == local.Key ? master.Key : relationship.SourceEntityKey,
+                TargetEntityKey = relationship.TargetEntityKey== local.Key ? master.Key : relationship.TargetEntityKey
+            };
+           
+            // Does the target point at a local which has a master? If so, we want to synthesize the 
+            var targetMaster = this.MasterRelationship.GetTargetAs<Entity>().GetRelationships().FirstOrDefault(mr => mr.RelationshipTypeKey == MdmConstants.MasterRecordRelationship);
+            if (targetMaster != null)
+                this.MasterRelationship.TargetEntityKey = targetMaster.TargetEntityKey;
+           
+        }
+
+        /// <summary>
+        /// Get the type name
+        /// </summary>
+        [DataIgnore, XmlIgnore, JsonProperty("$type")]
+        public override string Type { get => $"EntityRelationshipMaster"; set { } }
+
+        /// <summary>
+        /// Gets the master relationship
+        /// </summary>
+        [DataIgnore, XmlElement("master"), JsonProperty("master")]
+        public EntityRelationship MasterRelationship { get; set; }
+
+
+    }*/
 
     /// <summary>
     /// Represents a master record of an entity
@@ -151,8 +200,8 @@ namespace SanteDB.Persistence.MDM.Model
 
             // Copy targets for relationships
             entityMaster.Relationships = this.LocalRecords.OfType<Entity>().SelectMany(o => 
-                o.Relationships.Where(r => r.TargetEntityKey != master.Key && r.SourceEntityKey != master.Key)
-                .Select(r => new EntityRelationshipMaster(entityMaster, o, r))
+                o.Relationships.Where(r => r.TargetEntityKey != this.m_masterRecord.Key && r.SourceEntityKey != this.m_masterRecord.Key)
+                .Select(r => new EntityRelationshipMaster(this.m_masterRecord, o, r))
                 ).OfType<EntityRelationship>().ToList();
 
             entityMaster.Policies = this.LocalRecords.SelectMany(o => (o as Entity).Policies).Distinct().ToList();
