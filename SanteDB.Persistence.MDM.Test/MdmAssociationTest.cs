@@ -47,6 +47,11 @@ namespace SanteDB.Persistence.MDM.Test
     public class MdmAssociationTest : DataTest
     {
 
+        // Test authority
+        private readonly AssigningAuthority m_testAuthority = new AssigningAuthority("TEST-MDM", "TEST-MDM", "1.2.3.4.9999");
+
+        private IRepositoryService<Patient> m_patientRepository;
+
         /// <summary>
         /// Setup the test class
         /// </summary>
@@ -59,168 +64,478 @@ namespace SanteDB.Persistence.MDM.Test
             TestApplicationContext.Initialize(TestContext.CurrentContext.TestDirectory);
             ApplicationServiceContext.Current.AddBusinessRule(typeof(BundleBusinessRule));
             ApplicationServiceContext.Current.AddBusinessRule(typeof(NationalHealthIdRule));
+            this.m_patientRepository = ApplicationServiceContext.Current.GetService<IRepositoryService<Patient>>();
         }
 
         /// <summary>
-        /// Test - When there is no MASTER a new one is created and an identifier is assigned to it
+        /// Authenticate 
         /// </summary>
+        private void AuthenticateAs(String userName, String password)
+        {
+            var userService  = ApplicationServiceContext.Current.GetService<IIdentityProviderService>();
+            var sesPvdService = ApplicationServiceContext.Current.GetService<ISessionProviderService>();
+            var sesIdService = ApplicationServiceContext.Current.GetService<ISessionIdentityProviderService>();
+            //var session = sesPvdService.Establish(userService.Authenticate(userName, password), "http://localhost", false, null, null, null);
+            //AuthenticationContext.Current = new AuthenticationContext(sesIdService.Authenticate(session));
+            AuthenticationContext.Current = new AuthenticationContext(userService.Authenticate(userName, password));
+        }
+
+        /// <summary>
+        /// This test registers a new patient in the database and ensures that the MDM layer established as new master
+        /// </summary>
+        /// <remarks>
+        /// The MDM behavior should be as follows:
+        /// 1. New Patient with no matches
+        /// 2. MDM Master is established
+        /// 3. Local (submitted patient) is linked to Master
+        /// 4. NHID Generator fires
+        /// </remarks>
         [Test]
-        public void TestShouldAllowLookupByElevatedProperty()
+        public void TestMdmShouldCreateNewMaster()
         {
             var patientUnderTest = new Patient()
+            {
+                DateOfBirth = DateTime.Parse("1983-01-10"),
+                Names = new List<EntityName>()
+                {
+                    new EntityName(NameUseKeys.Legal, "MDM", "Test Subject 1")
+                },
+                Identifiers = new List<EntityIdentifier>()
+                {
+                    new EntityIdentifier(this.m_testAuthority, "MDM-01")
+                },
+                GenderConceptKey = Guid.Parse("F4E3A6BB-612E-46B2-9F77-FF844D971198")
+            };
+
+            var savedLocal = this.m_patientRepository.Insert(patientUnderTest);
+
+            // Assert -> A local is returned from the patient repository with a key and version id
+            Assert.IsNotNull(savedLocal.Key);
+            Assert.IsNotNull(savedLocal.VersionKey);
+
+            // Assert -> A query by identifier should result in a master being returned
+            var queriedMaster = this.m_patientRepository.Find(o => o.Identifiers.Any(i => i.Value == "MDM-01")).FirstOrDefault();
+            Assert.AreEqual("M", queriedMaster.GetTag("$mdm.type"));
+            Assert.AreEqual("true", queriedMaster.GetTag("$generated"));
+            Assert.AreEqual(1, queriedMaster.Names.Count);
+            Assert.AreEqual(2, queriedMaster.Identifiers.Count);
+
+            // Assert -> A fetch by ID from master should return master
+            var fetchMaster = this.m_patientRepository.Get(queriedMaster.Key.Value);
+            Assert.AreEqual(queriedMaster.Key, fetchMaster.Key);
+
+            // Assert -> A fetch by ID for local should return local
+            var fetchLocal = this.m_patientRepository.Get(savedLocal.Key.Value);
+            Assert.AreEqual(1, fetchLocal.Names.Count);
+            Assert.AreEqual(1, fetchLocal.Identifiers.Count);
+            Assert.IsNull(fetchLocal.GetTag("$mdm.type"));
+        }
+
+        /// <summary>
+        /// Tests that the MDM should link two SOURCE records which are identical according to the matcher
+        /// </summary>
+        [Test]
+        public void TestMdmShouldAutoLinkCandidate()
+        {
+            var patientUnderTestA = new Patient()
             {
                 DateOfBirth = DateTime.Parse("1983-02-10"),
                 Names = new List<EntityName>()
                 {
-                    new EntityName(NameUseKeys.Legal, "Smith", "Testy")
+                    new EntityName(NameUseKeys.Legal, "MDM", "Test Subject 2")
                 },
                 Identifiers = new List<EntityIdentifier>()
                 {
-                    new EntityIdentifier(new AssigningAuthority("TEST-MDM", "TEST-MDM", "1.2.3.4.9999"), "MDM-12")
+                    new EntityIdentifier(this.m_testAuthority, "MDM-02A")
                 },
-                GenderConceptKey = Guid.Parse("F4E3A6BB-612E-46B2-9F77-FF844D971198")
+                GenderConceptKey = Guid.Parse("F4E3A6BB-612E-46B2-9F77-FF844D971198"),
+                MultipleBirthOrder = 0
             };
 
-            Patient createdPatient = null;
-            try
-            {
-                createdPatient = ApplicationServiceContext.Current.GetService<IRepositoryService<Patient>>().Insert(patientUnderTest);
-            }
-            catch (Exception e)
-            {
-                Debug.WriteLine(e.ToString());
-                Assert.Fail(e.Message);
-            }
-            Assert.IsNotNull(createdPatient);
-            // The creation / matching of a master record may take some time, so we need to wait for the matcher to finish
-            //Thread.Sleep(1000);
+            var savedLocalA = this.m_patientRepository.Insert(patientUnderTestA);
 
-            // Now attempt to query for the record just created, it should be a synthetic MASTER record
-            var nhid = NationalHealthIdRule.LastGeneratedNhid.ToString();
-            var masterPatient = ApplicationServiceContext.Current.GetService<IRepositoryService<Patient>>().Find(o => o.Identifiers.Any(i => i.Value == nhid));
-            Assert.AreEqual(1, masterPatient.Count());
-            Assert.AreEqual("MDM-12", masterPatient.First().Identifiers.Last().Value);
-            Assert.AreEqual(NationalHealthIdRule.LastGeneratedNhid.ToString(), masterPatient.First().Identifiers.First().Value);
-            Assert.AreEqual("M", masterPatient.First().Tags.First(o => o.TagKey == "$mdm.type").Value);
-            Assert.AreEqual("$mdm.processed", masterPatient.First().Tags.First().TagKey);
-            Assert.AreEqual(createdPatient.Key, masterPatient.First().LoadCollection<EntityRelationship>("Relationships").First().SourceEntityKey); // Ensure master is pointed properly
+            // Assert -> A local is returned from the patient repository with a key and version id
+            Assert.IsNotNull(savedLocalA.Key);
+            Assert.IsNotNull(savedLocalA.VersionKey);
+
+            // Assert -> A query by identifier should result in a master being returned
+            var queriedMaster = this.m_patientRepository.Find(o => o.Identifiers.Any(i => i.Value == "MDM-02A")).FirstOrDefault();
+            Assert.AreEqual("M", queriedMaster.GetTag("$mdm.type"));
+            Assert.AreEqual("true", queriedMaster.GetTag("$generated"));
+            Assert.AreEqual(1, queriedMaster.Names.Count);
+            Assert.AreEqual(2, queriedMaster.Identifiers.Count);
+
+            // Assert -> A fetch by ID from master should return master
+            var fetchMaster = this.m_patientRepository.Get(queriedMaster.Key.Value);
+            Assert.AreEqual(queriedMaster.Key, fetchMaster.Key);
+
+            var patientUnderTestB = new Patient()
+            {
+                DateOfBirth = DateTime.Parse("1983-02-10"),
+                Names = new List<EntityName>()
+                {
+                    new EntityName(NameUseKeys.Legal, "MDM", "Test Subject 2")
+                },
+                Identifiers = new List<EntityIdentifier>()
+                {
+                    new EntityIdentifier(this.m_testAuthority, "MDM-02B")
+                },
+                GenderConceptKey = Guid.Parse("F4E3A6BB-612E-46B2-9F77-FF844D971198"),
+                MultipleBirthOrder = 0
+            };
+
+            var savedLocalB = this.m_patientRepository.Insert(patientUnderTestB);
+
+            // Assert -> A local is returned from the patient repository with a key and version id
+            Assert.IsNotNull(savedLocalB.Key);
+            Assert.IsNotNull(savedLocalB.VersionKey);
+
+            // Assert -> A query by identifier should result in a master being returned
+            queriedMaster = this.m_patientRepository.Find(o => o.Identifiers.Any(i => i.Value == "MDM-02B")).FirstOrDefault();
+            Assert.AreEqual("M", queriedMaster.GetTag("$mdm.type"));
+            Assert.AreEqual("true", queriedMaster.GetTag("$generated"));
+            Assert.AreEqual(1, queriedMaster.Names.Count);
+            Assert.AreEqual(3, queriedMaster.Identifiers.Count);
+            Assert.IsTrue(queriedMaster.Identifiers.Any(o => o.Value == "MDM-02A"));
+            Assert.IsTrue(queriedMaster.Identifiers.Any(o => o.Value == "MDM-02B"));
+            Assert.IsTrue(queriedMaster.Relationships.Any(o => o.SourceEntityKey == savedLocalA.Key));
+            Assert.IsTrue(queriedMaster.Relationships.Any(o => o.SourceEntityKey == savedLocalB.Key));
+
         }
 
         /// <summary>
-        /// Test - When there is a record created for a subscribed type, the system should create a MASTER reference
+        /// Test that when a probable match occurs masters and links are created
+        /// </summary>
+        /// <remarks>
+        /// At the end of this test, the database should have:
+        /// 1. A MASTER_A for SOURCE_A with SOURCE_A pointing at MASTER_A
+        /// 2. A MASTER_B for SOURCE_B with SOURCE_B pointing at MASTER_B
+        /// 3. SOURCE_B pointing at MASTER_A with candidate link
+        /// </remarks>
+        [Test]
+        public void TestMdmShouldLinkCandidateRecord()
+        {
+            var patientUnderTestA = new Patient()
+            {
+                DateOfBirth = DateTime.Parse("1983-03-10"),
+                Names = new List<EntityName>()
+                {
+                    new EntityName(NameUseKeys.Legal, "MDM", "Test Subject 3")
+                },
+                Identifiers = new List<EntityIdentifier>()
+                {
+                    new EntityIdentifier(this.m_testAuthority, "MDM-03A")
+                },
+                GenderConceptKey = Guid.Parse("F4E3A6BB-612E-46B2-9F77-FF844D971198"),
+                MultipleBirthOrder = 1
+            };
+
+            var savedLocalA = this.m_patientRepository.Insert(patientUnderTestA);
+
+            // Assert -> A local is returned from the patient repository with a key and version id
+            Assert.IsNotNull(savedLocalA.Key);
+            Assert.IsNotNull(savedLocalA.VersionKey);
+
+            // Assert -> A query by identifier should result in a master being returned
+            var queriedMasterA = this.m_patientRepository.Find(o => o.Identifiers.Any(i => i.Value == "MDM-03A")).FirstOrDefault();
+            Assert.AreEqual("M", queriedMasterA.GetTag("$mdm.type"));
+            Assert.AreEqual("true", queriedMasterA.GetTag("$generated"));
+            Assert.AreEqual(1, queriedMasterA.Names.Count);
+            Assert.AreEqual(2, queriedMasterA.Identifiers.Count);
+            Assert.IsTrue(queriedMasterA.Relationships.Any(o => o.SourceEntityKey == savedLocalA.Key && o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship));
+
+            // Assert -> A fetch by ID from master should return master
+            var fetchMaster = this.m_patientRepository.Get(queriedMasterA.Key.Value);
+            Assert.AreEqual(queriedMasterA.Key, fetchMaster.Key);
+
+            var patientUnderTestB = new Patient()
+            {
+                DateOfBirth = DateTime.Parse("1983-03-10"),
+                Names = new List<EntityName>()
+                {
+                    new EntityName(NameUseKeys.Legal, "MDM", "Test Subject 3")
+                },
+                Identifiers = new List<EntityIdentifier>()
+                {
+                    new EntityIdentifier(this.m_testAuthority, "MDM-03B")
+                },
+                GenderConceptKey = Guid.Parse("F4E3A6BB-612E-46B2-9F77-FF844D971198"),
+                MultipleBirthOrder = 2
+            };
+
+            var savedLocalB = this.m_patientRepository.Insert(patientUnderTestB);
+
+            // Assert -> A local is returned from the patient repository with a key and version id
+            Assert.IsNotNull(savedLocalB.Key);
+            Assert.IsNotNull(savedLocalB.VersionKey);
+
+            // Assert -> A query by identifier should result in a master being returned
+            var queriedMasterB = this.m_patientRepository.Find(o => o.Identifiers.Any(i => i.Value == "MDM-03B")).FirstOrDefault();
+            Assert.AreEqual("M", queriedMasterB.GetTag("$mdm.type"));
+            Assert.AreEqual("true", queriedMasterB.GetTag("$generated"));
+            Assert.AreEqual(1, queriedMasterB.Names.Count);
+            Assert.AreEqual(2, queriedMasterB.Identifiers.Count);
+            Assert.IsTrue(queriedMasterB.Relationships.Any(o => o.SourceEntityKey == savedLocalB.Key && o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship));
+            // A points at B
+            Assert.IsTrue(queriedMasterB.Relationships.Any(o => o.SourceEntityKey == savedLocalB.Key && o.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship && o.TargetEntityKey == queriedMasterA.Key));
+        }
+        
+        /// <summary>
+        /// When updating a record with one there should not be a new master created
         /// </summary>
         [Test]
-        public void TestShouldCreateMasterRecord()
+        public void TestMdmUpdateShouldNotCreateNewMaster()
         {
             var patientUnderTest = new Patient()
             {
-                DateOfBirth = DateTime.Parse("1983-02-04"),
+                DateOfBirth = DateTime.Parse("1983-04-10"),
                 Names = new List<EntityName>()
                 {
-                    new EntityName(NameUseKeys.Legal, "Smith", "Testy")
+                    new EntityName(NameUseKeys.Legal, "MDM", "Test Subject 4")
                 },
                 Identifiers = new List<EntityIdentifier>()
                 {
-                    new EntityIdentifier(new AssigningAuthority("TEST-MDM", "TEST-MDM", "1.2.3.4.9999"), "MDM-1")
+                    new EntityIdentifier(this.m_testAuthority, "MDM-04")
                 },
                 GenderConceptKey = Guid.Parse("F4E3A6BB-612E-46B2-9F77-FF844D971198")
             };
 
-            Patient createdPatient = null;
-            try
-            {
-                createdPatient = ApplicationServiceContext.Current.GetService<IRepositoryService<Patient>>().Insert(patientUnderTest);
-            }
-            catch (Exception e)
-            {
-                Debug.WriteLine(e.ToString());
-                Assert.Fail(e.Message);
-            }
-            Assert.IsNotNull(createdPatient);
-            // The creation / matching of a master record may take some time, so we need to wait for the matcher to finish
-            //Thread.Sleep(1000);
+            var savedLocal = this.m_patientRepository.Insert(patientUnderTest);
 
-            // Now attempt to query for the record just created, it should be a synthetic MASTER record
-            var masterPatient = ApplicationServiceContext.Current.GetService<IRepositoryService<Patient>>().Find(o => o.Identifiers.Any(i => i.Value == "MDM-1"));
-            Assert.AreEqual(1, masterPatient.Count());
-            Assert.AreEqual("MDM-1", masterPatient.First().Identifiers.Last().Value);
-            Assert.AreEqual("M", masterPatient.First().Tags.First(o => o.TagKey == "$mdm.type").Value);
-            Assert.AreEqual("$mdm.processed", masterPatient.First().Tags.First().TagKey);
-            Assert.AreEqual(createdPatient.Key, masterPatient.First().LoadCollection<EntityRelationship>("Relationships").First().SourceEntityKey); // Ensure master is pointed properly
+            // Assert -> A local is returned from the patient repository with a key and version id
+            Assert.IsNotNull(savedLocal.Key);
+            Assert.IsNotNull(savedLocal.VersionKey);
 
-            // Should redirect a retrieve request
-            var masterGet = ApplicationServiceContext.Current.GetService<IRepositoryService<Patient>>().Get(masterPatient.First().Key.Value, Guid.Empty);
-            Assert.AreEqual(masterPatient.First().Key, masterGet.Key);
-            Assert.AreEqual("MDM-1", masterGet.Identifiers.Last().Value);
-            Assert.AreEqual("M", masterGet.Tags.First(o => o.TagKey == "$mdm.type").Value);
-            Assert.AreEqual("$mdm.processed", masterGet.Tags.First().TagKey);
+            // Assert -> A query by identifier should result in a master being returned
+            var queriedMaster = this.m_patientRepository.Find(o => o.Identifiers.Any(i => i.Value == "MDM-04")).FirstOrDefault();
+            Assert.AreEqual("M", queriedMaster.GetTag("$mdm.type"));
+            Assert.AreEqual("true", queriedMaster.GetTag("$generated"));
+            Assert.AreEqual(1, queriedMaster.Names.Count);
+            Assert.AreEqual(2, queriedMaster.Identifiers.Count);
+            Assert.AreEqual(patientUnderTest.DateOfBirth, queriedMaster.DateOfBirth);
+
+            // Update the local and save
+            savedLocal.DateOfBirth = DateTime.Parse("1984-04-11");
+            savedLocal.Tags.Clear();
+            savedLocal = this.m_patientRepository.Save(savedLocal);
+            Assert.AreEqual(queriedMaster.Key, savedLocal.Relationships.FirstOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship)?.TargetEntityKey);
+            var afterUpdateMaster = this.m_patientRepository.Find(o => o.Identifiers.Any(i => i.Value == "MDM-04")).FirstOrDefault();
+            Assert.AreEqual(afterUpdateMaster.Key, queriedMaster.Key);
+            Assert.AreNotEqual(queriedMaster.DateOfBirth, afterUpdateMaster.DateOfBirth);
 
         }
 
         /// <summary>
-        /// Tests that when a duplicate record exactly matches an existing record the master is linked properly
+        /// Test that when a flagged probable match is updated to match the master it is linked
         /// </summary>
+        /// <remarks>
+        /// Midway the test database will have a structure like:
+        /// 1. A MASTER_A for SOURCE_A with SOURCE_A pointing at MASTER_A
+        /// 2. A MASTER_B for SOURCE_B with SOURCE_B pointing at MASTER_B
+        /// 3. SOURCE_B pointing at MASTER_A with candidate link
+        /// 
+        /// The test then updates the multiplebirthorder to match and saves SOURCE_B
+        /// This means that SOURCE_B should indicate a match with MASTER_A and:
+        /// 1. MASTER_B should be marked obsolete
+        /// 2. MASTER_A should be marked as replacing MASTER_B
+        /// 3. SOURCE_B should be marked as MSATER_A source
+        /// 4. SOURCE_B should have an ORIGINAL link to MASTER_B
+        /// </remarks>
         [Test]
-        public void ShouldMatchExistingMaster()
+        public void TestMdmCandidateUpdateToMatchMerges()
         {
-            var pservice = ApplicationServiceContext.Current.GetService<IRepositoryService<Patient>>();
-
-            var patient1 = new Patient()
+            var patientUnderTestA = new Patient()
             {
-                DateOfBirth = DateTime.Parse("1983-04-04"),
+                DateOfBirth = DateTime.Parse("1983-05-10"),
                 Names = new List<EntityName>()
                 {
-                    new EntityName(NameUseKeys.Legal, "Smith", "Testy")
+                    new EntityName(NameUseKeys.Legal, "MDM", "Test Subject 5")
                 },
                 Identifiers = new List<EntityIdentifier>()
                 {
-                    new EntityIdentifier(new AssigningAuthority("TEST-MDM", "TEST-MDM", "1.2.3.4.999"), "MDM-2")
+                    new EntityIdentifier(this.m_testAuthority, "MDM-05A")
                 },
                 GenderConceptKey = Guid.Parse("F4E3A6BB-612E-46B2-9F77-FF844D971198"),
-                MultipleBirthOrder = 0
+                MultipleBirthOrder = 1
             };
-            var localPatient1 = pservice.Insert(patient1);
 
-            // Wait for master
-            //Thread.Sleep(1000);
-            // Assert that a master record was created
-            var masterPatient1 = pservice.Find(o => o.Identifiers.Any(i => i.Value == "MDM-2")).FirstOrDefault();
-            Assert.IsNotNull(masterPatient1);
-            Assert.AreEqual("MDM-2", masterPatient1.Identifiers.Last().Value);
-            Assert.AreEqual("M", masterPatient1.Tags.First(o=>o.TagKey == "$mdm.type").Value);
-            Assert.AreEqual("$mdm.processed", masterPatient1.Tags.First().TagKey);
-            Assert.AreEqual(localPatient1.Key, masterPatient1.Relationships.First().SourceEntityKey); // Ensure master is pointed properly
+            var savedLocalA = this.m_patientRepository.Insert(patientUnderTestA);
 
-            // Second local patient that exactly matches
-            var patient2 = new Patient()
+            // Assert -> A local is returned from the patient repository with a key and version id
+            Assert.IsNotNull(savedLocalA.Key);
+            Assert.IsNotNull(savedLocalA.VersionKey);
+
+            // Assert -> A query by identifier should result in a master being returned
+            var queriedMasterA = this.m_patientRepository.Find(o => o.Identifiers.Any(i => i.Value == "MDM-05A")).FirstOrDefault();
+            Assert.AreEqual("M", queriedMasterA.GetTag("$mdm.type"));
+            Assert.AreEqual("true", queriedMasterA.GetTag("$generated"));
+            Assert.AreEqual(1, queriedMasterA.Names.Count);
+            Assert.AreEqual(2, queriedMasterA.Identifiers.Count);
+
+            var patientUnderTestB = new Patient()
             {
-                DateOfBirth = DateTime.Parse("1983-04-04"),
+                DateOfBirth = DateTime.Parse("1983-05-10"),
                 Names = new List<EntityName>()
                 {
-                    new EntityName(NameUseKeys.Legal, "Smith", "Testy")
+                    new EntityName(NameUseKeys.Legal, "MDM", "Test Subject 5")
                 },
                 Identifiers = new List<EntityIdentifier>()
                 {
-                    new EntityIdentifier(new AssigningAuthority("TEST2", "TEST2", "1.2.3.4.999.5"), "MDM-2B")
+                    new EntityIdentifier(this.m_testAuthority, "MDM-05B")
                 },
                 GenderConceptKey = Guid.Parse("F4E3A6BB-612E-46B2-9F77-FF844D971198"),
-                MultipleBirthOrder = 0
+                MultipleBirthOrder = 2
             };
-            var localPatient2 = pservice.Insert(patient2);
-            //Thread.Sleep(1000);
-            // Assert that master was linked
-            var masterPatient2 = pservice.Find(o => o.Identifiers.Any(i => i.Value == "MDM-2B")).FirstOrDefault();
-            Assert.IsNotNull(masterPatient2);
-            Assert.AreEqual(masterPatient1.Key, masterPatient2.Key);
-            Assert.AreEqual(3, masterPatient2.Identifiers.Count()); // has both identifiers
-            Assert.IsTrue(masterPatient2.Identifiers.Any(o => o.Value == "MDM-2"));
-            Assert.IsTrue(masterPatient2.Identifiers.Any(o => o.Value == "MDM-2B"));
-            Assert.AreEqual(1, masterPatient2.Names.Count());
-            // Assert that both local patients are linked to MASTER
-            Assert.AreEqual(2, masterPatient2.Relationships.Count(r => r.RelationshipTypeKey == MdmConstants.MasterRecordRelationship));
-            Assert.IsTrue(masterPatient2.Relationships.Any(o => o.SourceEntityKey == localPatient1.Key));
-            Assert.IsTrue(masterPatient2.Relationships.Any(o => o.SourceEntityKey == localPatient2.Key));
-            
+
+            var savedLocalB = this.m_patientRepository.Insert(patientUnderTestB);
+
+            // Assert -> A local is returned from the patient repository with a key and version id
+            Assert.IsNotNull(savedLocalB.Key);
+            Assert.IsNotNull(savedLocalB.VersionKey);
+
+            // Assert -> A query by identifier should result in a master being returned
+            var queriedMasterB = this.m_patientRepository.Find(o => o.Identifiers.Any(i => i.Value == "MDM-05B")).FirstOrDefault();
+            Assert.AreEqual("M", queriedMasterB.GetTag("$mdm.type"));
+            Assert.AreEqual("true", queriedMasterB.GetTag("$generated"));
+            Assert.AreEqual(1, queriedMasterB.Names.Count);
+            Assert.AreEqual(2, queriedMasterB.Identifiers.Count);
+            Assert.IsTrue(queriedMasterB.Relationships.Any(o => o.SourceEntityKey == savedLocalB.Key && o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship));
+            // A points at B as a candidate
+            Assert.IsTrue(queriedMasterB.Relationships.Any(o => o.SourceEntityKey == savedLocalB.Key && o.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship && o.TargetEntityKey == queriedMasterA.Key));
+
+            // Let's update localB
+            savedLocalB.MultipleBirthOrder = savedLocalA.MultipleBirthOrder;
+            savedLocalB.Tags.Clear();
+            var afterUpdateSavedLocalB = this.m_patientRepository.Save(savedLocalB);
+            // Now the relationships should be updated so MASTER_A is returned
+            var queriedMasterAfterUpdate = this.m_patientRepository.Find(o => o.Identifiers.Any(i => i.Value == "MDM-05B")).SingleOrDefault();
+            Assert.AreEqual(queriedMasterA.Key, queriedMasterAfterUpdate.Key);
+            Assert.IsTrue(queriedMasterAfterUpdate.Relationships.Any(o => o.SourceEntityKey == savedLocalA.Key && o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship));
+            Assert.IsTrue(queriedMasterAfterUpdate.Relationships.Any(o => o.SourceEntityKey == savedLocalB.Key && o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship));
+
+            // Queried MasterAfterUpdate should point to queriedMasterB as replaces
+            Assert.IsTrue(queriedMasterAfterUpdate.Relationships.Any(o => o.RelationshipTypeKey == EntityRelationshipTypeKeys.Replaces && o.TargetEntityKey == queriedMasterB.Key));
+
+            // Fetch MASTER B and check status
+            queriedMasterB = this.m_patientRepository.Get(queriedMasterB.Key.Value);
+
+        }
+
+        /// <summary>
+        /// Tests that an MDM SOURCE record is detached automatically when it no longer matches the master it is attached to
+        /// </summary>
+        /// <remarks>
+        /// Midway through this test there is the following data:
+        /// 1. SOURCE_A pointing at MASTER_A
+        /// 2. SOURCE_B pointing at MASTER_A
+        /// Then, we update SOURCE_B so that it no longer matches MASTER_A we expect the following behaviors:
+        /// 1. SOURCE_A pointing at MASTER_A
+        /// 2. SOURCE_B point at MASTER_B
+        /// 3. SOURCE_B has pointer to MASTER_A indicating the original relationship
+        /// </remarks>
+        [Test]
+        public void TestMdmMultipleSourcesNoLongerMatchDetach()
+        {
+
+        }
+
+        /// <summary>
+        /// Test that an MDM record with a CANDIDATE relationship when reconciled points to the master
+        /// </summary>
+        /// <remarks>
+        /// Midway state:
+        /// 1. SOURCE_A pointing to MASTER_A
+        /// 2. SOURCE_B pointing to MASTER_B
+        /// 3. SOURCE_B candidate to MASTER_A
+        /// 
+        /// We then reconcile SOURCE_B's candidate to MASTER_A performing the linking operation via the merging interface
+        /// doing a SOURCE_B -> MASTER_A merge (which gets turned into a LINK)
+        /// 
+        /// The final state is:
+        /// 1. SOURCE_A pointing to MASTER_A
+        /// 2. SOURCE_B pointing to MASTER_A with "VALIDATED"
+        /// 3. SOURCE_B candidate to MASTER_A is removed
+        /// 4. MASTER_B is obsoleted (no longer appears)
+        /// </remarks>
+        [Test]
+        public void TestMdmReconciliation()
+        {
+
+        }
+
+        /// <summary>
+        /// This tests that a reconciled link is STICKY meaning the normal behavior does not apply 
+        /// </summary>
+        /// <remarks>
+        /// Midway state:
+        /// 1. SOURCE_A pointing to MASTER_A
+        /// 2. SOURCE_B pointing to MASTER_B
+        /// 3. SOURCE_B candidate to MASTER_A
+        /// 
+        /// We then reconcile SOURCE_B's candidate to MASTER_A performing the linking operation via the merging interface
+        /// doing a SOURCE_B -> MASTER_A merge (which gets turned into a LINK)
+        /// 
+        /// The second state is:
+        /// 1. SOURCE_A pointing to MASTER_A
+        /// 2. SOURCE_B pointing to MASTER_A with "VALIDATED"
+        /// 3. SOURCE_B candidate to MASTER_A is removed
+        /// 4. SOURCE_B has original master link to MASTER_B
+        /// 5. MASTER_B is obsoleted (no longer appears)
+        /// 
+        /// We then update SOURCE_B so it no longer matches MASTER_A however because the link is VERIFIED it is not touched
+        /// 
+        /// The final state is: 
+        /// 1. SOURCE_A point to MASTER_A
+        /// 2. SOURCE_B (with wildly different name) still pointing to MASTER_A
+        /// </remarks>
+        [Test]
+        public void TestMdmReconciliationIsSticky()
+        {
+
+        }
+
+        /// <summary>
+        /// This test verifies the promotion to ROT status
+        /// </summary>
+        /// <remarks>
+        /// The initial state at the midpoint of this test is:
+        /// 1. SOURCE_A points to MASTER_A
+        /// 
+        /// We then authenticate as a prinicpal which has EstablishRecordOfTruth permission. We then 
+        /// save a new patient with the MDM.TAG set to T and a pointer of MDM-MASTER to MASTER_A
+        /// 
+        /// The final state is:
+        /// 1. SOURCE_A points to MASTER_A
+        /// 2. ROT_A points to MASTER_A
+        /// 3. MASTER_A points to ROT_A
+        /// 4. Synthesized records contain only properties in ROT_A not in SOURCE_A
+        /// </remarks>
+        [Test]
+        public void TestMdmPromoteRecordOfTruth()
+        {
+
+        }
+
+        /// <summary>
+        /// This test verifies that updates to a ROT do not impact any of its associations with the MDM record
+        /// </summary>
+        /// <remarks>
+        /// The initial state at the midpoint of this test is:
+        /// 1. SOURCE_A points to MASTER_A
+        /// 2. ROT_A points to MASTER_A
+        /// 3. MASTER_A points to ROT_A
+        /// 4. Synthesized records contain only properties in ROT_A not SOURCE_A
+        /// 
+        /// The test then updates ROT_A to change the properties. The final state of this test is:
+        /// 1. SOURCE_A points to MASTER_A
+        /// 2. ROT_A still points to MASTER_A
+        /// 3. MASTER_A still points to ROT_A
+        /// 4. Synthesized record now contains properties updated in ROT_A
+        /// </remarks>
+        [Test]
+        public void TestMdmUpdateRecordOfTruth()
+        {
+
         }
 
         /// <summary>

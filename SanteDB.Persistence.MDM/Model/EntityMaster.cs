@@ -47,21 +47,34 @@ namespace SanteDB.Persistence.MDM.Model
     {
 
         /// <summary>
+        /// Default ctor for serialization
+        /// </summary>
+        public EntityRelationshipMaster()
+        {
+
+        }
+
+        /// <summary>
         /// Construct an ER master
         /// </summary>
         public EntityRelationshipMaster(Entity master, Entity local, EntityRelationship relationship)
         {
 
-            this.Original = relationship;
+            this.OriginalHolderKey = relationship.HolderKey;
+            this.OriginalTargetKey = relationship.TargetEntityKey;
             this.Key = relationship.Key; // HACK: This is just for the FHIR layer to track RP
             this.RelationshipRoleKey = relationship.RelationshipRoleKey;
             this.RelationshipTypeKey = relationship.RelationshipTypeKey;
             this.ClassificationKey = relationship.ClassificationKey;
             this.SourceEntityKey = relationship.SourceEntityKey;
             this.TargetEntityKey = relationship.TargetEntityKey;
-            if (this.SourceEntityKey == local.Key)
+
+            if (this.SourceEntityKey == local.Key && 
+                this.RelationshipTypeKey != MdmConstants.CandidateLocalRelationship &&
+                this.RelationshipTypeKey != MdmConstants.MasterRecordRelationship)
                 this.SourceEntityKey = master.Key;
-            else if(this.TargetEntityKey == local.Key)
+            else if(this.TargetEntityKey == local.Key &&
+                this.RelationshipTypeKey != MdmConstants.MasterRecordOfTruthRelationship)
                 this.TargetEntityKey = master.Key;
 
             // Does the target point at a local which has a master? If so, we want to synthesize the 
@@ -80,8 +93,14 @@ namespace SanteDB.Persistence.MDM.Model
         /// <summary>
         /// Gets the original relationship
         /// </summary>
-        [DataIgnore, XmlElement("original"), JsonProperty("original")]
-        public EntityRelationship Original { get; set; }
+        [DataIgnore, XmlElement("originalHolder"), JsonProperty("originalHolder")]
+        public Guid? OriginalHolderKey { get; set; }
+
+        /// <summary>
+        /// Gets the original relationship
+        /// </summary>
+        [DataIgnore, XmlElement("originalTarget"), JsonProperty("originalTarget")]
+        public Guid? OriginalTargetKey { get; set; }
 
     }
     /*
@@ -136,6 +155,7 @@ namespace SanteDB.Persistence.MDM.Model
     /// Represents a master record of an entity
     /// </summary>
     [XmlType(Namespace = "http://santedb.org/model")]
+    [XmlInclude(typeof(EntityRelationshipMaster))]
     public class EntityMaster<T> : Entity, IMdmMaster<T>
         where T : IdentifiedData, new()
     {
@@ -198,11 +218,19 @@ namespace SanteDB.Persistence.MDM.Model
                 entityMaster.Tags.Add(new EntityTag("$mdm.rot", "true"));
             }
 
-            // Copy targets for relationships
-            entityMaster.Relationships = this.LocalRecords.OfType<Entity>().SelectMany(o => 
-                o.Relationships.Where(r => r.TargetEntityKey != this.m_masterRecord.Key && r.SourceEntityKey != this.m_masterRecord.Key)
-                .Select(r => new EntityRelationshipMaster(this.m_masterRecord, o, r))
-                ).OfType<EntityRelationship>().ToList();
+            // Copy targets for relationships and refactor them
+            entityMaster.Relationships = 
+                entityMaster.LoadCollection(o=>o.Relationships).Where(r=>r.SourceEntityKey == entityMaster.Key)
+                .Union(
+                    // Rewrite local record regular relationships
+                    this.LocalRecords.OfType<Entity>().SelectMany(
+                            o => o.Relationships.Where(r => r.TargetEntityKey != this.m_masterRecord.Key && r.SourceEntityKey != this.m_masterRecord.Key)
+                            .Select(r => new EntityRelationshipMaster(this.m_masterRecord, o, r))
+                    ))
+                .Union(
+                        // Select MDM relationships conveyed on the locals 
+                        this.LocalRecords.OfType<Entity>().SelectMany(o => o.Relationships.Where(r => r.TargetEntityKey == this.m_masterRecord.Key || r.SourceEntityKey == this.m_masterRecord.Key))
+                    ).OfType<EntityRelationship>().ToList();
 
             entityMaster.Policies = this.LocalRecords.SelectMany(o => (o as Entity).Policies).Distinct().ToList();
             entityMaster.Tags.RemoveAll(o => o.TagKey == "$mdm.type");

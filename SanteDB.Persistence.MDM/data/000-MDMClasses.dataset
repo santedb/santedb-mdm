@@ -43,4 +43,25 @@
     </Concept>
     
   </update>
+
+
+
+  <sql>
+    <exec invariant="npgsql">
+      <![CDATA[
+-- FOR MASTER RELATIONSHIP TYPE
+INSERT INTO ent_rel_vrfy_cdtbl (rel_typ_cd_id, src_cls_cd_id, trg_cls_cd_id, err_desc) 
+  VALUES ('D1578637-E1CB-415E-B319-4011DA033813','49328452-7e30-4dcd-94cd-fd532d111578','49328452-7e30-4dcd-94cd-fd532d111578','MDM Replaces')
+  ON CONFLICT DO NOTHING;
+
+      ]]>
+    </exec>
+    <exec invariant="FirebirdSQL">
+      <![CDATA[
+INSERT INTO ent_rel_vrfy_cdtbl (rel_typ_cd_id, src_cls_cd_id, trg_cls_cd_id, err_desc) 
+  VALUES (char_to_uuid('D1578637-E1CB-415E-B319-4011DA033813'),char_to_uuid('49328452-7e30-4dcd-94cd-fd532d111578'),char_to_uuid('49328452-7e30-4dcd-94cd-fd532d111578'),'MDM Replaces');
+      ]]>
+    </exec>
+  </sql>
+
 </dataset>

@@ -62,7 +62,7 @@ namespace SanteDB.Persistence.MDM.Test
         /// </summary>
         public override EntityMaster<Patient> BeforeInsert(EntityMaster<Patient> data)
         {
-            if (!data.Identifiers.Any(o => o.Authority.DomainName == "NHID"))
+            if (!data.Identifiers.Any(o => o.LoadProperty(i=>i.Authority).DomainName == "NHID"))
                 data.Identifiers.Add(new Core.Model.DataTypes.EntityIdentifier(new AssigningAuthority("NHID", "NHID", "3.2.2.3.2.2.3.2")
                 {
                     AuthorityScopeXml = new List<Guid>() { MdmConstants.MasterRecordClassification }

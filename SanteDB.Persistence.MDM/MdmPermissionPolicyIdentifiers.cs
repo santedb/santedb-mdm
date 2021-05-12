@@ -45,5 +45,10 @@ namespace SanteDB.Persistence.MDM
         /// The principal has permission to merge MDM master records
         /// </summary>
         public const String MergeMdmMaster = UnrestrictedMdm + ".3";
+
+        /// <summary>
+        /// The principal has permission to merge MDM master records
+        /// </summary>
+        public const String EstablishRecordOfTruth = UnrestrictedMdm + ".4";
     }
 }

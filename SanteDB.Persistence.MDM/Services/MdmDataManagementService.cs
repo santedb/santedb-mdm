@@ -42,6 +42,7 @@ using SanteDB.Core.Model.Map;
 using SanteDB.Core.Interfaces;
 using SanteDB.Core.Model.Query;
 using SanteDB.Core.Exceptions;
+using SanteDB.Persistence.MDM.Services.Resources;
 
 namespace SanteDB.Persistence.MDM.Services
 {
@@ -58,14 +59,21 @@ namespace SanteDB.Persistence.MDM.Services
         /// </summary>
         public string ServiceName => "MIDM Daemon";
 
+        // Matching service
+        private IRecordMatchingService m_matchingService;
+        // Service manager
+        private IServiceManager m_serviceManager;
+        // Sub executor
+        private ISubscriptionExecutor m_subscriptionExecutor;
+
         // TRace source
         private Tracer m_traceSource = new Tracer(MdmConstants.TraceSourceName);
 
         // Configuration
-        private ResourceMergeConfigurationSection m_configuration = ApplicationServiceContext.Current.GetService<IConfigurationManager>().GetSection<ResourceMergeConfigurationSection>();
+        private ResourceMergeConfigurationSection m_configuration;
 
         // Listeners
-        private List<MdmResourceListener> m_listeners = new List<MdmResourceListener>();
+        private List<IDisposable> m_listeners = new List<IDisposable>();
 
         // True if the service is running
         public bool IsRunning => this.m_listeners.Count > 0;
@@ -86,6 +94,22 @@ namespace SanteDB.Persistence.MDM.Services
         /// Daemon has stopped
         /// </summary>
         public event EventHandler Stopped;
+
+        /// <summary>
+        /// Create injected service
+        /// </summary>
+        public MdmDataManagementService(IRecordMatchingService matchingService, IServiceManager serviceManager, IConfigurationManager configuration, ISubscriptionExecutor subscriptionExecutor = null, SimDataManagementService simDataManagementService = null)
+        {
+            this.m_configuration = configuration.GetSection<ResourceMergeConfigurationSection>();
+            this.m_matchingService = matchingService;
+            this.m_serviceManager = serviceManager;
+            this.m_subscriptionExecutor = subscriptionExecutor;
+
+            if(simDataManagementService != null)
+            {
+                throw new InvalidOperationException("Cannot run MDM and SIM in same mode");
+            }
+        }
 
         /// <summary>
         /// Dispose of this object
@@ -116,38 +140,38 @@ namespace SanteDB.Persistence.MDM.Services
                 ModelSerializationBinder.RegisterModelType(typeName, rt);
 
             }
-
             // Wait until application context is started
             ApplicationServiceContext.Current.Started += (o, e) =>
             {
-                if (ApplicationServiceContext.Current.GetService<IRecordMatchingService>() == null)
+                if (this.m_matchingService == null)
                     this.m_traceSource.TraceWarning("The MDM Service should be using a record matching service");
-                if (ApplicationServiceContext.Current.GetService<SimDataManagementService>() != null)
-                {
-                    throw new ConfigurationException("Cannot use MDM and SIM merging strategies at the same time. Please disable one or the other", null);
-                }
+
+                // Replace matching
+                var mdmMatcher = this.m_serviceManager.CreateInjected<MdmRecordMatchingService>();
+                this.m_serviceManager.AddServiceProvider(mdmMatcher);
+                this.m_serviceManager.RemoveServiceProvider(this.m_matchingService.GetType());
 
                 foreach (var itm in this.m_configuration.ResourceTypes)
                 {
                     this.m_traceSource.TraceInfo("Adding MDM listener for {0}...", itm.ResourceType.Name);
-                    var idt = typeof(MdmResourceListener<>).MakeGenericType(itm.ResourceType);
-                    var ids = Activator.CreateInstance(idt, itm) as MdmResourceListener;
+                    var idt = typeof(MdmResourceInterceptor<>).MakeGenericType(itm.ResourceType);
+                    var ids = Activator.CreateInstance(idt, itm) as IDisposable;
                     this.m_listeners.Add(ids);
-                    ApplicationServiceContext.Current.GetService<IServiceManager>().AddServiceProvider(ids);
+                    this.m_serviceManager.AddServiceProvider(ids);
                 }
 
                 // Add an MDM listener for subscriptions
-                var subscService = ApplicationServiceContext.Current.GetService<ISubscriptionExecutor>();
-                if (subscService != null)
+                if (this.m_subscriptionExecutor != null)
                 {
-                    subscService.Executing += MdmSubscriptionExecuting;
-                    subscService.Executed += MdmSubscriptionExecuted;
+                    m_subscriptionExecutor.Executing += MdmSubscriptionExecuting;
+                    m_subscriptionExecutor.Executed += MdmSubscriptionExecuted;
                 }
-                this.m_listeners.Add(new BundleResourceListener(this.m_listeners));
+                this.m_listeners.Add(new BundleResourceInterceptor(this.m_listeners));
 
                 // FTS?
                 if (ApplicationServiceContext.Current.GetService<IFreetextSearchService>() == null)
-                    ApplicationServiceContext.Current.GetService<IServiceManager>().AddServiceProvider(new MdmFreetextSearchService());
+                    m_serviceManager.AddServiceProvider(new MdmFreetextSearchService());
+
             };
 
             this.Started?.Invoke(this, EventArgs.Empty);
