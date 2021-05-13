@@ -1,8 +1,279 @@
 # SanteDB Master Data Management 
 
 This readme provides technical documentation on the MDM plugin for SanteDB. Overall architecture documentation can be found
-on the [SanteDB WIKI](https://help.santesuite.org/santedb/architecture/data-storage-patterns/master-data-storage)
+on the [SanteDB WIKI](https://help.santesuite.org/santedb/architecture/data-storage-patterns/master-data-storage).
+
+The use case for the Master Data Management plugin is to allow robust linking of records from multiple source systems
+to a single MASTER (aka golden, enterprise, etc.) record. The goals of the MDM record plugin are:
+
+* Allow source systems complete autonomy to edit/change their own source data feeds without impacting data feeds from other systems
+* Ensure that all data from sensitive data sources (like HIV clinics) are not disclosed within the golden record
+* Provide a transparent interface for callers of FHIR or HL7v2 to feed data to the MDM layer without knowing the specifics (i.e. it is transparent to the caller)
+* Provide system administrators which a clear understanding of where data within their CDR is sourced
+* Provide a mechanism for generated data (like identifiers, and tokens, etc.) to be segregated from source systems.
 
 ## Relationship Type Registrations
 
-The MDM layer registers the following relationship types 
+The MDM layer registers the following relationship types.
+
+Mnemonic|Use
+-|-
+MDM-Master|Links a SOURCE/LOCAL entity to a MASTER entity
+MDM-OriginalMaster|Whenever the MDM layer changes the MASTER automatically
+MDM-RecordOfTruth|Links a MDM MASTER to a record which is promoted to RECORD OF TRUTH (this record trumps all source system)
+MDM-Duplicate|Identifies a SOURCE was detected as a duplicate or a candidate of a MASTER
+MDM-IgnoreCandidateLocalRecord|Indicates that the SOURCE and MASTER have been flagged as NOT the same and any future attempt to flag the record should be ignored.
+
+**Note:** The MDM layer provides its own identiifer based `IRecordMatchingService` which wraps the configured `IRecordMatchingService` whcih allows the MDM layer 
+to match records on identifiers, even when no other matching solution is configured.
+
+## Behaviors
+
+### Case 1: Register New , Distinct Source Record
+
+This test case ensures that the basic test case is fulfilled in that a new record is created and a master is established for that record.
+
+Pre-Conditions:
+* None
+
+Test Steps:
+* `SOURCE_A` with minimal demographic data is registered (external id: `MDM-01`)
+
+Outcomes: 
+* MDM layer establishes `MASTER_A` 
+* MDM layer links `SOURCE_A` with `MASTER_A` with relationship `MDM-Master` and classification `AUTO`
+* Querying for `MDM-01` results in `MASTER_A` being returned
+* `MASTER_A` contains the properties from `SOURCE_A`
+
+### Case 2: Register New , Duplicate Source Record
+
+This test case ensures that when a new record matches an existing record (as defined in the matcher) the new source record is linked. This matching can be 
+on identifier (like an foreign identifier).
+
+Pre-Conditions:
+* `SOURCE_A` with minimal demographic data is registered (external id: `MDM-02A`)
+* `MASTER_A` has been established for `SOURCE_A`
+
+Test Steps:
+* `SOURCE_B` with matching demographics to `SOURCE_A` is registered  (external id: `MDM-02B`)
+
+Outcomes:
+* MDM layer links `SOURCE_B` with `MASTER_A` with relationship `MDM-Master` and classification `AUTO`
+* Querying for `MDM-02A` or `MDM-02B` results in `MASTER_A` being returned
+* `MASTER_A` contains both identifiers `MDM-02A` and `MDM-02B`
+* `MASTER_A` contains only one name (as they are identical)
+
+### Case 3: Register New , Suspected Duplicate Record
+
+This test case ensures that when a new source record is registered which has sufficient matching properties to be a `Probable` classification, that the
+MDM layer establishes appropriate linkages.
+
+Pre-Conditions:
+* `SOURCE_A` with minimal demographic data is registered (external id: `MDM-03A`)
+* `MASTER_A` has been established for `SOURCE_A`
+
+Test Steps:
+* `SOURCE_B` with demographics which match `SOURCE_A` (with the exception of `MutlipleBirthIndicator` being different) is registered (external id: `MDM-03B`)
+
+Outcomes:
+* MDM layer establishes `MASTER_B` for record `SOURCE_B` 
+* `SOURCE_B` is linked to `MASTER_B` with relationship type `MDM-Master` and class `AUTO`
+* `SOURCE_B` is linked to `MASTER_A` with relationship type `MDM-Duplicate` and class `AUTO`
+
+### Case 3: Updating a Source Record Maintains Master Relationship
+
+This test case ensures that a master record with only one source record maintains its link with its source even when the source is updated to 
+wildly different inforation.
+
+Pre-Conditions:
+* `SOURCE_A` with minimal demographic data is registered (external id: `MDM-03`)
+* `MASTER_A` has been established for `SOURCE_A`
+
+Test Steps:
+* Chagne all the properties of `SOURCE_A` to new values
+* Save `SOURCE_A` 
+
+Outcomes:
+* `MASTER_A` remains established, no new master is created
+* `SOURCE_A` remains pointed as `MASTER_A`
+* All synthesized data in `MASTER_A` matches the updates to `SOURCE_A`
+
+### Case 4: Update a Candidate Record to match the Master
+
+This test case ensures that a source record is flagged as a candidate record. At a later time, when an update to the candidate is received and the candidate 
+now matches the master it was a candidate for, the relationship is changed such that the candidate is now a linked master.
+
+Pre-Conditions:
+* `SOURCE_A` with minimal demographic data is registered (external id: `MDM-04A`)
+* `MASTER_A` has been established for `SOURCE_A`
+* `SOURCE_B` with demographic data similar to `SOURCE_A` is registered (external id: `MDM-04B`)
+* `MASTER_B` has been established for `SOURCE_B`
+* `SOURCE_B` has a relationship with `MASTER_A` of type `MDM-Duplicate` and class `AUTO`
+
+Test Steps:
+* Update the properties in `SOURCE_B` so that they match `SOURCE_A` (keep the identifiers the same)
+* Save `SOURCE_B`
+
+Outcomes:
+* `SOURCE_B` points to `MASTER_A` with relationship `MDM-Master` and class `AUTO`
+* `SOURCE_A` remains pointed to `MASTER_A` with relationship `MDM-Master` and class `AUTO`
+* `SOURCE_B` no longer has a `MDM-Duplicate` relationship with `MASTER_A`
+* `SOURCE_B` is linked to `MASTER_B` with relationship `MDM-OriginalMaster` and class `AUTO`
+* `MASTER_B` is obsoleted and does not appear in queries
+* `MASTER_A` has a relationship with `MASTER_B` of type `REPLACES`
+* Searching for `MDM-04A` or `MDM-04B` returns `MASTER_A`
+
+### Case 5: Update a Linked Source Such it Doesn't Match the Master
+
+In this test case, a master record contains two sources which had previously been automatically established. The source system updates one of the source records
+such that the matching engine no longer deems the source a match with the master. The source which was updated should be detached from the master.
+
+Pre-Conditions:
+* `SOURCE_A` is registered with minimal demographics (external id: `MDM-05A`)
+* `SOURCE_A`  points to `MASTER_A` with relationship `MDM-Master` and class `AUTO`
+* `SOURCE_B` is registered with same demographics as `SOURCE_A` (external id: `MDM-05B`)
+* `SOURCE_B` points to `MASTER_A` with relationship `MDM-Master` and class `AUTO`
+
+Test Steps:
+* `SOURCE_B` properties are changed to vary wildly from `SOURCE_A`
+* `SOURCE_B` is saved 
+
+Outcomes:
+* `SOURCE_A` remains pointed at `MASTER_A` with type `MDM-Master` and class `AUTO`
+* `SOURCE_B` points as `MASTER_A` with type `MDM-OriginalMaster` and class `AUTO`
+* `MASTER_B` is established in the database
+* `SOURCE_B` points to `MASTER_B` with type `MDM-Master` and class `AUTO`
+* Searching for `MDM-05A` returns `MASTER_A`
+* Searching for `MDM-05B` returns `MASTER_B`
+
+### Case 6: Manual Reconciliation of Candidate Record
+
+This test case ensures that when a candidate record is manually reconciled to be a match, that appropriate relationship steps occur.
+
+Pre-Conditions:
+* `SOURCE_A` with minimal demographic data is registered (external id: `MDM-06A`)
+* `MASTER_A` has been established for `SOURCE_A`
+* `SOURCE_B` with demographic data similar to `SOURCE_A` is registered (external id: `MDM-06B`)
+* `MASTER_B` has been established for `SOURCE_B`
+* `SOURCE_B` has a relationship with `MASTER_A` of type `MDM-Duplicate` and class `AUTO`
+
+Test Steps:
+* The `IRecordMergeService` instructs that `SOURCE_B` should be merged into `MASTER_A`
+
+Outcomes:
+* `SOURCE_A` points to `MASTER_A` with relationship `MDM-Master` and class `AUTO`
+* `SOURCE_B` points to `MASTER_A` with relationship `MDM-Master` and class `VERIFIED`
+* `SOURCE_B` relationship to `MASTER_A` with relationship `MDM-Duplicate` is removed
+* `SOURCE_B` relationship to `MASTER_B` is removed
+* `MASTER_B` is obsolete (no longer appears in searches)
+* `MASTER_A` points to `MASTER_B` with relationship `REPLACES`
+* Querying for `MDM-06A` or `MDM-06B` returns `MASTER_A`
+
+### Case 7: Manual Linking of a Source is "Sticky"
+
+In this test case, we perform the same test steps as Case #5, however becase the link between `SOURCE_B` and `MASTER_A` has a link type of `VERIFIED` the relationship
+does not change.
+
+Pre-Steps:
+* `SOURCE_A` with minimal demographic data is registered (external id: `MDM-07A`)
+* `MASTER_A` has been established for `SOURCE_A` with relationship `MDM-Master` and class `AUTO`
+* `SOURCE_B` with demographic data similar to `SOURCE_A` is registered (external id: `MDM-07B`)
+* `SOURCE_B` has a relationship with `MASTER_A` of type `MDM-Master` and class `VERIFIED`
+
+Test Steps:
+* `SOURCE_B` is updated such that the data is wildly different than previously estalbished
+
+Outcomes: 
+* `SOURCE_B` remains linked to `MASTER_A` with `MDM-Master` and class `VERIFIED`
+* `SOURCE_A` id detached from `MASTER_A` and a new master `MASTER_B` is established
+* `SOURCE_A` is linked to `MASTER_B` with link type `MDM-Master` and class `AUTO`
+* `SOURCE_A` is related to `MASTER_A` with link type `MDM-OriginalMaster` and class `AUTO`
+* Searching for `MDM-07B` returns `MASTER_A`
+* Searching for `MDM-07A` returns `MASTER_B`
+
+### Case 8: Ignoring of Candidate Records
+
+In this test case, we want to flag an identified candidate link as an ignore condition. Upon subsequent updates, the source should never be considered for matching
+or merging with another master, even if they meet criteria for candidate linking.
+
+Pre-Steps:
+* `SOURCE_A` with minimal demographic data is registered (external id: `MDM-08A`)
+* `MASTER_A` has been established for `SOURCE_A` with relationship `MDM-Master` and class `AUTO`
+* `SOURCE_B` with demographic data similar to `SOURCE_A` is registered (external id: `MDM-08B`)
+* `MASTER_B` has been established for `SOURCE_B` with relationship `MDM-Master` and class `AUTO`
+* `SOURCE_B` has a link to `MASTER_A` with relationship `MDM-Duplicate` and class `AUTO`
+
+Test Steps A:
+* The `IRecordMergeService` is called to ignore the relationship between `SOURCE_B` and `MASTER_A`
+
+Outcome A:
+* `SOURCE_B` is related to `MASTER_A` with relationship `MDM-IgnoreCandidateLocal` and class `VERIFIED`
+
+Test Steps B:
+* Update `SOURCE_B` such that the demographics information matches `SOURCE_A`
+* Save `SOURCE_B`
+
+Outcome B:
+* No changes in `SOURCE_B`'s relationship with `MASTER_A` or `MASTER_B`
+
+### Case 9: Un-Merge/Detach of Source from a Master is "Sticky"
+
+In this test case, we ensure that when a source is detached/unmerged from a master, that the detached source is never re-attached to the original master, even 
+if it matches according to the normal rewrite rules.
+
+Pre-Steps:
+* `SOURCE_A` with minimal demographic data is registered (external id: `MDM-09A`)
+* `MASTER_A` has been established for `SOURCE_A` with relationship `MDM-Master` and class `AUTO`
+* `SOURCE_B` with demographic data identical to `SOURCE_A` is registered (external id: `MDM-09B`)
+* `SOURCE_B` has a link to `MASTER_A` with relationship `MDM-Master` and class `AUTO`
+
+Test Steps A:
+* Use the `IRecordMergingService` to Unmerge `SOURCE_B` from `MASTER_A`
+
+Outcome A:
+* `MASTER_B` should be established for `SOURCE_B` with relationship `MDM-Master` and class `VERIFIED`
+* `SOURCE_B` has a relationship with `MASTER_A` with relationship `MDM-OriginalMaster` and class `VERIFIED`
+* Querying for `MDM-09A` returns `MASTER_A` and `MDM-09B` returns `MASTER_B`
+
+Test Steps B:
+* Update `SOURCE_B` so that the dmeographics exactly match `SOURCE_A`
+* Save `SOURCE_B`
+
+Outcome B:
+* `SOURCE_B` remains linked to `MASTER_B` with `MDM-Master` and class `VERIFIED`
+
+### Test Case 10: Create a Record of Truth
+
+In this test case we establish a known record of truth. Records of truth are special records which contain the most accurate information about a MASTER record.
+
+### Test Case 11: Update Record of Truth 
+
+In this test case we ensure that the Record Of Truth is not moved or merged in any fashion (similar to other locals). We also ensure that the synthesization of results take information from the ROT.
+
+### Test Case 12: Sensitive Data is Removed
+
+In this test case we setup two different policy levels on our source information.
+
+* `SOURCE_A` -> No policies applied
+* `SOURCE_B` -> TABOO policy applied
+
+We then link `SOURCE_A` and `SOURCE_B` to a single `MASTER_A`. Upon querying for data from `MASTER_A` with a principal which has no access to `TABOO` we note that only the data from `SOURCE_A` is included in the result set. We then change our prinicipal to one where `TABOO` is permitted and re-query. We should note that information from `SOURCE_B` is updated.
+
+### Test Case 13: Update to MASTER is Redirected To Local
+
+In SanteDB no system is permitted to operate on a master record without appropriate policies in place. This test case will test a condition where a client mistakenly 
+attempts to direclty update the master record from the API. The master record should realize this condition and should redirect the updates to the LOCAL record
+which the caller created in a previous step.
+
+### Test Case 14: Update to MASTER results in new LOCAL
+
+This is a special case of Test Case #13 whereby a new system has "downloaded" the master record and is attempting to re-submit the master. Here the MDM layer should
+establish a new SOURCE record for the update, and segregate (protect) the master/golden record.
+
+### Test Case 15: MASTER<>MASTER Merging
+
+This test case is a requirement for PMIR, we will attempt as a foreign credential to instruct the MDM layer to MERGE two master records together. The foreign credential
+which has no permission to MDM Write Master should result in an error/policy violation. When re-authenticating as a credential which has appropriate permission to administer
+MDM Masters, the two masters and their source records should be merged according to the logic specified.
+
+
