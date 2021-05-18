@@ -276,4 +276,51 @@ This test case is a requirement for PMIR, we will attempt as a foreign credentia
 which has no permission to MDM Write Master should result in an error/policy violation. When re-authenticating as a credential which has appropriate permission to administer
 MDM Masters, the two masters and their source records should be merged according to the logic specified.
 
+### Test Case 16: LOCAL>LOCAL Merging
 
+This test case a LOCAL source for records `SOURCE_A` and `SOURCE_B` wishes to merge `SOURCE_A` into `SOURCE_B`. The serouce has control of the two records and therefore the merge is committed.
+
+Pre-Steps:
+* `SOURCE_A` is registered with master link to `MASTER_A` (id: `MDM-16A`)
+* `SOURCE_B` is registered with master link to `MASTER_B` (id: `MDM-16B`)
+
+Test Steps:
+* The `IRecordMergeService` is called to indicate `SOURCE_A` replaces `SOURCE_B`
+
+The MDM layer should perform the appropriate merging logic.
+
+Outcomes:
+* `SOURCE_A` is related to `SOURCE_B` with relationship `REPLACES`
+* `SOURCE_B` is marked as `OBSOLETE`
+* `SOURCE_A` contains both `MDM-16A` and `MDM-16B` links
+
+### Test Case 17: LOCAL>LOCAL Merging Cross Domain
+
+This test case ensures that a non-owner source of a LOCAL record cannot merge two source records with different ownership. 
+
+Pre-Steps:
+* Authenticated as MDM-17A identity
+* `SOURCE_A` is registered with `MASTER_A` (id: `MDM-17A`)
+* `SOURCE_B` is registered with `MASTER_B` (id: `MDM-17B`)
+
+Test Steps:
+* Authenticate as MDM-17B
+* Use `IRecordMergeService` in an attempt to merge `SOURCE_A` into `SOURCE_B`
+
+Outcomes:
+* An error is thrown indicating lack of ownership
+* `SOURCE_A` and `SOURCE_B` remain unchanged, linked to `MASTER_A` and `MASTER_B` respectively
+
+### Test Case 18: Update Relationship Directly
+
+In this test case, an API caller attempts to modify the MDM relationships directly and receives various behaviors related to the process:
+
+Pre-Steps:
+* `SOURCE_A` is registered with `MASTER_A` (id: `MDM-18A`)
+* `SOURCE_B` is registered with `MASTER_A` (same demographics, id `MDM-18B`)
+* `SOURCE_C` is registered with `MASTER_B` (id: `MDM-18C`)
+* `SOURCE_D` is registered with `MASTER_C` and candidate link to `MASTER_B` (id: `MDM-18D`)
+
+Test Steps:
+* Directly call update to `EntityRelationship` in attempt to `DELETE` link between `SOURCE_A` and `MASTER_A`
+* Directly call update in attempt to UPDATE link between `SOURCE_A
