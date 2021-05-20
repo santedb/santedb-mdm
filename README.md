@@ -324,3 +324,12 @@ Pre-Steps:
 Test Steps:
 * Directly call update to `EntityRelationship` in attempt to `DELETE` link between `SOURCE_A` and `MASTER_A`
 * Directly call update in attempt to UPDATE link between `SOURCE_A
+
+### Test Case 20: Appropriate Policy Blocks in Place
+
+This test case ensures that a principal with access to TABOO Data is properly disclosed data in records marked as TABOO.
+
+### Test Case 21: Processing of Bundle Preserves Transaction
+
+This test case ensures that the MDM layer processing bundles preserves the existing bundle transaction components. The test will ensure that a bundle with a Patient and Organization are properly stored and retrieved from the underlying MDM persistence layer.
+
