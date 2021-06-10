@@ -133,6 +133,7 @@
     </PackageReference>
   </ItemGroup>
   <ItemGroup>
+    <Folder Include="Rest\" />
     <Folder Include="Properties\" />
   </ItemGroup>
   <ItemGroup>

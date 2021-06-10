@@ -17,10 +17,29 @@
  * Date: 2020-2-2
  */
 using SanteDB.Core.Model;
+using SanteDB.Core.Model.Entities;
 using SanteDB.Core.Services;
+using System.Collections.Generic;
 
 namespace SanteDB.Persistence.MDM.Services
 {
+
+    /// <summary>
+    /// Identity match attribute
+    /// </summary>
+    internal class MdmIdentityMatchAttribute : IRecordMatchAttribute
+    {
+        /// <summary>
+        /// Gets the name
+        /// </summary>
+        public string Name => nameof(Entity.Identifiers);
+
+        /// <summary>
+        /// Gets the score
+        /// </summary>
+        public double Score => 1.0d;
+    }
+
     /// <summary>
     /// Represents an internal MDM match result based on a unique ID
     /// </summary>
@@ -58,6 +77,11 @@ namespace SanteDB.Persistence.MDM.Services
         IdentifiedData IRecordMatchResult.Record => this.Record;
 
         /// <summary>
+        /// Get the attributes for this match result
+        /// </summary>
+        public IEnumerable<IRecordMatchAttribute> Attributes => new IRecordMatchAttribute[] { new MdmIdentityMatchAttribute() };
+
+        /// <summary>
         /// Create a new identity match result
         /// </summary>
         public MdmIdentityMatchResult(T record)
@@ -67,5 +91,7 @@ namespace SanteDB.Persistence.MDM.Services
             this.Score = this.Strength = 1.0f;
             this.Classification = RecordMatchClassification.Match;
         }
+
+
     }
 }

@@ -24,7 +24,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
     /// <summary>
     /// Represents a class that only intercepts events from the repository layer
     /// </summary>
-    public class MdmResourceInterceptor<TModel> : IDisposable
+    public class MdmResourceHandler<TModel> : IDisposable
         where TModel : IdentifiedData, new()
     {
 
@@ -46,10 +46,10 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// <summary>
         /// Resource listener
         /// </summary>
-        public MdmResourceInterceptor(ResourceMergeConfiguration configuration)
+        public MdmResourceHandler()
         {
             // Register the master 
-            this.m_dataManager = MdmDataManager<TModel>.Create(configuration);
+            this.m_dataManager = MdmDataManagerFactory.GetDataManager<TModel>();
             this.m_policyEnforcement = ApplicationServiceContext.Current.GetService<IPolicyEnforcementService>();
             this.m_batchRepository = ApplicationServiceContext.Current.GetService<IDataPersistenceService<Bundle>>();
 
@@ -272,7 +272,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             // Is the existing object a master?
             if (this.m_dataManager.IsMaster(e.Data))
             {
-                store = this.m_dataManager.GetLocalFor(e.Data, e.Principal); // Get a local for this object
+                store = this.m_dataManager.GetLocalFor(e.Data.Key.GetValueOrDefault(), e.Principal); // Get a local for this object
                 if (store == null)
                 {
                     store = this.m_dataManager.CreateLocalFor(e.Data);

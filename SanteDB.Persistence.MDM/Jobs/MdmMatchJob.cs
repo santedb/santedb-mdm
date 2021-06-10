@@ -25,6 +25,7 @@ using SanteDB.Core.Model.Constants;
 using SanteDB.Core.Model.Query;
 using SanteDB.Core.Security;
 using SanteDB.Core.Services;
+using SanteDB.Persistence.MDM.Services.Resources;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -115,53 +116,11 @@ namespace SanteDB.Persistence.MDM.Jobs
                 var queryService = ApplicationServiceContext.Current.GetService<IQueryPersistenceService>(); 
 
                 this.m_tracer.TraceInfo("Starting batch run of MDM Matching using configuration {0}", configName);
-                
+
+
                 // Fetch all then run
-                var queryId = Guid.NewGuid();
-                int ofs = 0;
-                Expression<Func<T, bool>> query = null;
-
-                if (typeof(Act).IsAssignableFrom(typeof(T)))
-                    query = QueryExpressionParser.BuildLinqExpression<T>(new NameValueCollection()
-                    {
-                        {
-                            "statusConcept" , StatusKeyStrings.Completed
-                        }
-                    });
-                else
-                    query = QueryExpressionParser.BuildLinqExpression<T>(new NameValueCollection()
-                    {
-                        {
-                            "statusConcept" , StatusKeyStrings.Active
-                        }
-                    });
-
-                var results = persistenceService.Query(o => true, queryId, ofs, 1, out int totalCount, AuthenticationContext.SystemPrincipal);
-
-                // Fetch all keys
-                var keys = queryService.GetQueryResults(queryId, 0, 20);
-                while(ofs < totalCount)
-                {
-                    // Process results
-                    keys.AsParallel().WithDegreeOfParallelism(2).ForAll(itm =>
-                    {
-                        this.m_tracer.TraceVerbose("Running match on {0}", itm);
-                        try
-                        {
-                            mergeService.FlagDuplicates(itm, configName);
-                        }
-                        catch (Exception ex)
-                        {
-                            this.m_tracer.TraceWarning("Couldn't apply match on {0} - {1}", itm, ex);
-                        }
-                    });
-
-                    this.Progress = (float)ofs / (float)totalCount;
-                    this.m_tracer.TraceInfo("MATCH JOB: {0:0%} COMPLETE", this.Progress);
-                    ofs += 20;
-                    keys = queryService.GetQueryResults(queryId, ofs, 20);
-                }
-
+                throw new NotImplementedException("Batch matching not supported");
+                
                 this.LastFinished = DateTime.Now;
                 this.CurrentState = JobStateType.Completed;
             }

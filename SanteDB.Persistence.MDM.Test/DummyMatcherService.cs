@@ -42,7 +42,7 @@ namespace SanteDB.Persistence.MDM.Test
         /// <summary>
         /// Perform blocking
         /// </summary>
-        public IEnumerable<T> Block<T>(T input, string configurationName) where T : IdentifiedData
+        public IEnumerable<T> Block<T>(T input, string configurationName, IEnumerable<Guid> ignoreList) where T : IdentifiedData
         {
             if (input.GetType() == typeof(Patient)) {
                 Patient p = (Patient)((Object)input);
@@ -62,16 +62,16 @@ namespace SanteDB.Persistence.MDM.Test
         /// <summary>
         /// Match existing records with others
         /// </summary>
-        public IEnumerable<IRecordMatchResult<T>> Match<T>(T input, string configurationName) where T : IdentifiedData
+        public IEnumerable<IRecordMatchResult<T>> Match<T>(T input, string configurationName, IEnumerable<Guid> ignoreList) where T : IdentifiedData
         {
             Assert.AreEqual("default", configurationName);
-            return this.Classify(input, this.Block(input, configurationName), configurationName);
+            return this.Classify(input, this.Block(input, configurationName, ignoreList), configurationName);
         }
 
         /// <summary>
         /// Match
         /// </summary>
-        public IEnumerable<IRecordMatchResult> Match(IdentifiedData input, string configurationName)
+        public IEnumerable<IRecordMatchResult> Match(IdentifiedData input, string configurationName, IEnumerable<Guid> ignoreList)
         {
             throw new NotImplementedException();
         }
@@ -128,6 +128,8 @@ namespace SanteDB.Persistence.MDM.Test
         /// Gets the method
         /// </summary>
         public RecordMatchMethod Method => RecordMatchMethod.Weighted;
+
+        public IEnumerable<IRecordMatchAttribute> Attributes => throw new NotImplementedException();
 
         /// <summary>
         /// Create a dummy match

@@ -1,10 +1,13 @@
 ﻿using SanteDB.Core;
 using SanteDB.Core.Model;
+using SanteDB.Core.Model.Acts;
 using SanteDB.Core.Model.DataTypes;
+using SanteDB.Core.Model.Entities;
 using SanteDB.Core.Model.Interfaces;
 using SanteDB.Core.Model.Query;
 using SanteDB.Core.Security;
 using SanteDB.Core.Services;
+using SanteDB.Persistence.MDM.Services.Resources;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -27,12 +30,20 @@ namespace SanteDB.Persistence.MDM.Services
         // Unique authorities
         private IEnumerable<Guid> m_uniqueAuthorities;
 
+        // Entity relationship
+        private IDataPersistenceService<EntityRelationship> m_erService;
+
+        // Act relationship
+        private IDataPersistenceService<ActRelationship> m_arService;
+
         /// <summary>
         /// Existing match service
         /// </summary>
-        public MdmRecordMatchingService(IDataPersistenceService<AssigningAuthority> authorityService, IRecordMatchingService existingMatchService = null)
+        public MdmRecordMatchingService(IDataPersistenceService<AssigningAuthority> authorityService, IDataPersistenceService<EntityRelationship> erService, IDataPersistenceService<ActRelationship> arService, IRecordMatchingService existingMatchService = null)
         {
             this.m_matchService = existingMatchService;
+            this.m_erService = erService;
+            this.m_arService = arService;
             this.m_uniqueAuthorities = authorityService.Query(o => o.IsUnique, AuthenticationContext.SystemPrincipal).Select(o => o.Key.Value);
         }
 
@@ -42,9 +53,31 @@ namespace SanteDB.Persistence.MDM.Services
         public string ServiceName => "MDM Record Matching Service";
 
         /// <summary>
+        /// Get the ignore list
+        /// </summary>
+        private IEnumerable<Guid> GetIgnoreList<T>(IEnumerable<Guid> userProvidedList, T input) 
+            where T: IdentifiedData
+        {
+            userProvidedList = userProvidedList ?? new Guid[0];
+
+            if (typeof(Entity).IsAssignableFrom(typeof(T)))
+            {
+                return userProvidedList.Union(this.m_erService.Query(o => o.SourceEntityKey == input.Key && o.RelationshipTypeKey == MdmConstants.IgnoreCandidateRelationship && o.ObsoleteVersionSequenceId == null, AuthenticationContext.SystemPrincipal).Select(o => o.Key.Value));
+            }
+            else if (typeof(Act).IsAssignableFrom(typeof(T)))
+            {
+                return userProvidedList.Union(this.m_arService.Query(o => o.SourceEntityKey == input.Key && o.RelationshipTypeKey == MdmConstants.IgnoreCandidateRelationship && o.ObsoleteVersionSequenceId == null, AuthenticationContext.SystemPrincipal).Select(o => o.Key.Value));
+            }
+            else
+            {
+                throw new InvalidOperationException();
+            }
+        }
+
+        /// <summary>
         /// Performs an identifier based match
         /// </summary>
-        private IEnumerable<IRecordMatchResult<T>> PerformIdentityMatch<T>(T entity) where T : IdentifiedData
+        private IEnumerable<IRecordMatchResult<T>> PerformIdentityMatch<T>(T entity, IEnumerable<Guid> ignoreKeys) where T : IdentifiedData
         {
             if (!(entity is IHasIdentifiers identifiers))
                 throw new InvalidOperationException($"Cannot perform identity match on {typeof(T)}");
@@ -63,6 +96,12 @@ namespace SanteDB.Persistence.MDM.Services
                 NameValueCollection nvc = new NameValueCollection();
                 foreach (var itm in uqIdentifiers)
                     nvc.Add($"identifier[{itm.Authority.Key}].value", itm.Value);
+
+                if (ignoreKeys?.Any() == true)
+                {
+                    nvc.Add("id", ignoreKeys.Select(o => $"!{o}"));
+                }
+
                 var filterExpression = QueryExpressionParser.BuildLinqExpression<T>(nvc);
                 // Now we want to filter returning the masters
                 using (AuthenticationContext.EnterSystemContext())
@@ -76,9 +115,12 @@ namespace SanteDB.Persistence.MDM.Services
         /// <summary>
         /// Perform a blocking stage setting
         /// </summary>
-        public IEnumerable<T> Block<T>(T input, string configurationName) where T : IdentifiedData
+        public IEnumerable<T> Block<T>(T input, string configurationName, IEnumerable<Guid> ignoreKeys) where T : IdentifiedData
         {
-            return this.m_matchService?.Block<T>(input, configurationName);
+            if (MdmConstants.MdmIdentityMatchConfiguration.Equals(configurationName))
+                return this.PerformIdentityMatch(input, this.GetIgnoreList(ignoreKeys, input)).Select(o=>o.Record);
+            else
+                return this.m_matchService?.Block<T>(input, configurationName, this.GetIgnoreList(ignoreKeys, input));
         }
 
         /// <summary>
@@ -87,7 +129,7 @@ namespace SanteDB.Persistence.MDM.Services
         public IEnumerable<IRecordMatchResult<T>> Classify<T>(T input, IEnumerable<T> blocks, string configurationName) where T : IdentifiedData
         {
             if (MdmConstants.MdmIdentityMatchConfiguration.Equals(configurationName))
-                return this.PerformIdentityMatch(input);
+                return this.PerformIdentityMatch(input, null);
             else
                 return this.m_matchService?.Classify<T>(input, blocks, configurationName);
         }
@@ -95,22 +137,25 @@ namespace SanteDB.Persistence.MDM.Services
         /// <summary>
         /// Perform a match
         /// </summary>
-        public IEnumerable<IRecordMatchResult<T>> Match<T>(T input, string configurationName) where T : IdentifiedData
+        public IEnumerable<IRecordMatchResult<T>> Match<T>(T input, string configurationName, IEnumerable<Guid> ignoreKeys) where T : IdentifiedData
         {
-            if(MdmConstants.MdmIdentityMatchConfiguration.Equals(configurationName))
-                return this.PerformIdentityMatch(input);
+
+            // Fetch ignore keys if none provided
+            
+            if (MdmConstants.MdmIdentityMatchConfiguration.Equals(configurationName))
+                return this.PerformIdentityMatch(input, this.GetIgnoreList(ignoreKeys, input));
             else
-                return this.m_matchService?.Match(input, configurationName);
+                return this.m_matchService?.Match(input, configurationName, this.GetIgnoreList(ignoreKeys, input));
         }
 
         /// <summary>
         /// Match 
         /// </summary>
-        public IEnumerable<IRecordMatchResult> Match(IdentifiedData input, string configurationName)
+        public IEnumerable<IRecordMatchResult> Match(IdentifiedData input, string configurationName, IEnumerable<Guid> ignoreKeys)
         {
             // TODO: Provide a lookup list with a lambda expression to make this go faster
-            var genMethod = typeof(MdmRecordMatchingService).GetGenericMethod(nameof(Match), new Type[] { input.GetType() }, new Type[] { input.GetType(), typeof(String) });
-            var results = genMethod.Invoke(this, new object[] { input, configurationName }) as IEnumerable;
+            var genMethod = typeof(MdmRecordMatchingService).GetGenericMethod(nameof(Match), new Type[] { input.GetType() }, new Type[] { input.GetType(), typeof(String), typeof(IEnumerable<Guid>) });
+            var results = genMethod.Invoke(this, new object[] { input, configurationName, ignoreKeys }) as IEnumerable;
             return results.OfType<IRecordMatchResult>();
         }
     }

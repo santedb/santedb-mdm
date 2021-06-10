@@ -43,6 +43,10 @@ using SanteDB.Core.Interfaces;
 using SanteDB.Core.Model.Query;
 using SanteDB.Core.Exceptions;
 using SanteDB.Persistence.MDM.Services.Resources;
+using SanteDB.Core.Jobs;
+using SanteDB.Persistence.MDM.Jobs;
+using SanteDB.Core.Model.Collection;
+using SanteDB.Core.Event;
 
 namespace SanteDB.Persistence.MDM.Services
 {
@@ -65,6 +69,12 @@ namespace SanteDB.Persistence.MDM.Services
         private IServiceManager m_serviceManager;
         // Sub executor
         private ISubscriptionExecutor m_subscriptionExecutor;
+        // Job manager
+        private IJobManagerService m_jobManager;
+        // Entity relationship service
+        private IDataPersistenceService<EntityRelationship> m_entityRelationshipService;
+        // Entity service
+        private IDataPersistenceService<Entity> m_entityService;
 
         // TRace source
         private Tracer m_traceSource = new Tracer(MdmConstants.TraceSourceName);
@@ -98,14 +108,14 @@ namespace SanteDB.Persistence.MDM.Services
         /// <summary>
         /// Create injected service
         /// </summary>
-        public MdmDataManagementService(IRecordMatchingService matchingService, IServiceManager serviceManager, IConfigurationManager configuration, ISubscriptionExecutor subscriptionExecutor = null, SimDataManagementService simDataManagementService = null)
+        public MdmDataManagementService(IRecordMatchingService matchingService, IServiceManager serviceManager, IConfigurationManager configuration, ISubscriptionExecutor subscriptionExecutor = null, SimDataManagementService simDataManagementService = null, IJobManagerService jobManagerService = null)
         {
             this.m_configuration = configuration.GetSection<ResourceMergeConfigurationSection>();
             this.m_matchingService = matchingService;
             this.m_serviceManager = serviceManager;
             this.m_subscriptionExecutor = subscriptionExecutor;
-
-            if(simDataManagementService != null)
+            this.m_jobManager = jobManagerService;
+            if (simDataManagementService != null)
             {
                 throw new InvalidOperationException("Cannot run MDM and SIM in same mode");
             }
@@ -154,11 +164,30 @@ namespace SanteDB.Persistence.MDM.Services
                 foreach (var itm in this.m_configuration.ResourceTypes)
                 {
                     this.m_traceSource.TraceInfo("Adding MDM listener for {0}...", itm.ResourceType.Name);
-                    var idt = typeof(MdmResourceInterceptor<>).MakeGenericType(itm.ResourceType);
-                    var ids = Activator.CreateInstance(idt, itm) as IDisposable;
+                    MdmDataManagerFactory.RegisterDataManager(itm);
+                    var idt = typeof(MdmResourceHandler<>).MakeGenericType(itm.ResourceType);
+                    var ids = Activator.CreateInstance(idt) as IDisposable;
                     this.m_listeners.Add(ids);
                     this.m_serviceManager.AddServiceProvider(ids);
+                    this.m_serviceManager.AddServiceProvider(MdmDataManagerFactory.CreateMerger(itm.ResourceType));
+
+                    // Add job
+                    var jobType = typeof(MdmMatchJob<>).MakeGenericType(itm.ResourceType);
+                    var job = Activator.CreateInstance(jobType) as IJob;
+                    this.m_jobManager?.AddJob(job, TimeSpan.MaxValue, JobStartType.Never);
                 }
+
+                // Add an entity relationship and act relationship watcher to the persistence layer for after update 
+                // this will ensure that appropriate cleanup is performed on successful processing of data
+                this.m_entityRelationshipService = ApplicationServiceContext.Current.GetService<IDataPersistenceService<EntityRelationship>>();
+                this.m_entityService = ApplicationServiceContext.Current.GetService<IDataPersistenceService<Entity>>();
+
+                ApplicationServiceContext.Current.GetService<IDataPersistenceService<Bundle>>().Inserted += RecheckBundleTrigger;
+                ApplicationServiceContext.Current.GetService<IDataPersistenceService<Bundle>>().Updated += RecheckBundleTrigger;
+                ApplicationServiceContext.Current.GetService<IDataPersistenceService<Bundle>>().Obsoleted += RecheckBundleTrigger;
+                this.m_entityRelationshipService.Inserted += RecheckRelationshipTrigger;
+                this.m_entityRelationshipService.Updated += RecheckRelationshipTrigger;
+                this.m_entityRelationshipService.Obsoleted += RecheckRelationshipTrigger;
 
                 // Add an MDM listener for subscriptions
                 if (this.m_subscriptionExecutor != null)
@@ -177,6 +206,60 @@ namespace SanteDB.Persistence.MDM.Services
             this.Started?.Invoke(this, EventArgs.Empty);
             return true;
         }
+
+        /// <summary>
+        /// Re-check relationships to ensure that they are properly in the database
+        /// </summary>
+        private void RecheckRelationshipTrigger(object sender, DataPersistedEventArgs<EntityRelationship> e)
+        {
+            switch (e.Data.RelationshipTypeKey.ToString())
+            {
+                case MdmConstants.MASTER_RECORD_RELATIONSHIP:
+                    // Is the data obsoleted (removed)? If so, then ensure we don't have a hanging master
+                    if (e.Data.ObsoleteVersionSequenceId.HasValue &&
+                        this.m_entityRelationshipService.Count(r => r.TargetEntityKey == e.Data.TargetEntityKey && r.TargetEntity.StatusConceptKey != StatusKeys.Obsolete && r.SourceEntityKey != e.Data.SourceEntityKey && r.ObsoleteVersionSequenceId == null) == 0)
+                    {
+                        this.m_entityService.Obsolete(new Entity() { Key = e.Data.TargetEntityKey }, e.Mode, e.Principal);
+                    }
+                    
+                    // MDM relationship should be the only active relationship between
+                    // So when:
+                    // A =[MDM-Master]=> B
+                    // You cannot have:
+                    // A =[MDM-Duplicate]=> B
+                    // A =[MDM-Original]=> B
+                    foreach(var itm in this.m_entityRelationshipService.Query(q=>q.RelationshipTypeKey != MdmConstants.MasterRecordRelationship && q.SourceEntityKey == e.Data.SourceEntityKey && q.TargetEntityKey == e.Data.TargetEntityKey && q.ObsoleteVersionSequenceId == null, e.Principal))
+                    {
+                        itm.ObsoleteVersionSequenceId = Int32.MaxValue;
+                        this.m_entityRelationshipService.Update(itm,e.Mode, e.Principal);
+                    }
+                    break;
+                case MdmConstants.RECORD_OF_TRUTH_RELATIONSHIP:
+                    // Is the ROT being assigned, and if so is there another ?
+                    if (!e.Data.ObsoleteVersionSequenceId.HasValue)
+                    {
+                        foreach (var rotRel in this.m_entityRelationshipService.Query(r => r.SourceEntityKey == e.Data.SourceEntityKey && r.TargetEntityKey != e.Data.TargetEntityKey && r.ObsoleteVersionSequenceId == null, e.Principal))
+                        {
+                            //Obsolete other ROTs (there can only be one)
+                            this.m_entityRelationshipService.Obsolete(rotRel, e.Mode, e.Principal);
+                        }
+                    }
+                    break;
+
+            }
+        }
+
+        /// <summary>
+        /// Recheck the bundle trigger to ensure the relationships make sense
+        /// </summary>
+        private void RecheckBundleTrigger(object sender, DataPersistedEventArgs<Bundle> e)
+        {
+            foreach (var itm in e.Data.Item.OfType<EntityRelationship>())
+            {
+                this.RecheckRelationshipTrigger(sender, new DataPersistedEventArgs<EntityRelationship>(itm, e.Mode, e.Principal));
+            }
+        }
+
 
         /// <summary>
         /// The subscription is executing
