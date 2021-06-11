@@ -27,7 +27,7 @@ namespace SanteDB.Persistence.MDM.Services
     /// <summary>
     /// Identity match attribute
     /// </summary>
-    internal class MdmIdentityMatchAttribute : IRecordMatchAttribute
+    internal class MdmIdentityMatchAttribute : IRecordMatchVector
     {
         /// <summary>
         /// Gets the name
@@ -79,7 +79,7 @@ namespace SanteDB.Persistence.MDM.Services
         /// <summary>
         /// Get the attributes for this match result
         /// </summary>
-        public IEnumerable<IRecordMatchAttribute> Attributes => new IRecordMatchAttribute[] { new MdmIdentityMatchAttribute() };
+        public IEnumerable<IRecordMatchVector> Vectors => new IRecordMatchVector[] { new MdmIdentityMatchAttribute() };
 
         /// <summary>
         /// Create a new identity match result

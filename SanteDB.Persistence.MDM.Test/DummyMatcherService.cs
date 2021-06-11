@@ -129,7 +129,7 @@ namespace SanteDB.Persistence.MDM.Test
         /// </summary>
         public RecordMatchMethod Method => RecordMatchMethod.Weighted;
 
-        public IEnumerable<IRecordMatchAttribute> Attributes => throw new NotImplementedException();
+        public IEnumerable<IRecordMatchVector> Vectors => throw new NotImplementedException();
 
         /// <summary>
         /// Create a dummy match
