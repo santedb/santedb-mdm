@@ -37,6 +37,7 @@ namespace SanteDB.Persistence.MDM.Model
         /// Gets the local records
         /// </summary>
         IEnumerable<IIdentifiedEntity> LocalRecords { get; }
+
     }
 
     /// <summary>

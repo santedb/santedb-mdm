@@ -50,5 +50,12 @@ namespace SanteDB.Persistence.MDM.Exceptions
         {
             this.TargetRecord = record;
         }
+
+        /// <summary>
+        /// Creates a new mdm exception object
+        /// </summary>
+        public MdmException(String message, Exception cause) : base(message, cause)
+        {
+        }
     }
 }

@@ -36,4 +36,13 @@
       <canOverride>false</canOverride>
     </SecurityPolicy>
   </update>
+  <update insertIfNotExists="true">
+    <SecurityPolicy xmlns="http://santedb.org/model">
+      <id>fd1f50cb-616c-11ea-8a2f-00155d640b09</id>
+      <name>Establish MDM Record of Truth</name>
+      <oid>1.3.6.1.4.1.33349.3.1.5.9.2.6.4</oid>
+      <isPublic>true</isPublic>
+      <canOverride>false</canOverride>
+    </SecurityPolicy>
+  </update>
 </dataset>

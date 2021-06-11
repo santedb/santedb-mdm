@@ -53,6 +53,10 @@
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
+  <ItemGroup>
+    <Compile Remove="Services\BundleResourceListener.cs" />
+    <Compile Remove="Services\MdmResourceListener.cs" />
+  </ItemGroup>
   <!--<ItemGroup>
     <Reference Include="System" />
     <Reference Include="System.Configuration" />
@@ -95,6 +99,8 @@
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       <SubType>Designer</SubType>
     </None>
+    <None Include="Services\BundleResourceListener.cs" />
+    <None Include="Services\MdmResourceListener.cs" />
   </ItemGroup>
   <Choose>
     <When Condition="$(SolutionName.Contains('-ext'))">
@@ -127,7 +133,11 @@
     </PackageReference>
   </ItemGroup>
   <ItemGroup>
+    <Folder Include="Rest\" />
     <Folder Include="Properties\" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\santedb-restsvc\SanteDB.Rest.Common\SanteDB.Rest.Common.csproj" />
   </ItemGroup>
   <ItemGroup>
     <None Update="data\004-MDMRelationshipClasses.dataset">

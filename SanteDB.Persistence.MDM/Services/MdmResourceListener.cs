@@ -141,6 +141,7 @@ namespace SanteDB.Persistence.MDM.Services
         public MdmResourceListener(ResourceMergeConfiguration configuration)
         {
             // Register the master 
+            
             ModelSerializationBinder.RegisterModelType($"{typeof(T).Name}Master", typeof(Entity).IsAssignableFrom(typeof(T)) ? typeof(EntityMaster<T>) : typeof(ActMaster<T>));
             this.m_resourceConfiguration = configuration;
             this.m_bundlePersistence = ApplicationServiceContext.Current.GetService<IDataPersistenceService<Bundle>>();

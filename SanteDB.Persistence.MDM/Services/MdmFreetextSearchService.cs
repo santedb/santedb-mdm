@@ -25,6 +25,7 @@ using SanteDB.Core.Model.Query;
 using SanteDB.Core.Security;
 using SanteDB.Core.Services;
 using SanteDB.Persistence.MDM.Model;
+using SanteDB.Persistence.MDM.Services.Resources;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -56,7 +57,6 @@ namespace SanteDB.Persistence.MDM.Services
         public IEnumerable<TEntity> Search<TEntity>(string[] term, Guid queryId, int offset, int? count, out int totalResults, ModelSort<TEntity>[] orderBy) where TEntity : IdentifiedData, new()
         {
             // Perform the queries on the terms
-            var mdmListener = ApplicationServiceContext.Current.GetService<MdmResourceListener<TEntity>>();
             if (this.m_configuration.ResourceTypes.Any(rt => rt.ResourceType == typeof(TEntity))) // Under MDM control
             {
                 var idps = ApplicationServiceContext.Current.GetService<IUnionQueryDataPersistenceService<Entity>>();

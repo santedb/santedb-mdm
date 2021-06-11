@@ -26,27 +26,31 @@ namespace SanteDB.Persistence.MDM
     public static class MdmConstants
     {
 
+        public const string MASTER_RECORD_RELATIONSHIP = "97730a52-7e30-4dcd-94cd-fd532d111578";
+        public const string CANDIDATE_RECORD_RELATIONSHIP = "56cfb115-8207-4f89-b52e-d20dbad8f8cc";
+        public const string IGNORE_CANDIDATE_RELATIONSHIP = "decfb115-8207-4f89-b52e-d20dbad8f8cc";
+        public const string RECORD_OF_TRUTH_RELATIONSHIP = "1C778948-2CB6-4696-BC04-4A6ECA140C20";
         /// <summary>
         /// Relationship used to represents a local/master relationship
         /// </summary>
         /// <remarks>Whenever the MDM persistence layer is used the system will link incoming records (dirty records)
         /// with a generated pristine record tagged as a master record.</remarks>
-        public static readonly Guid MasterRecordRelationship = Guid.Parse("97730a52-7e30-4dcd-94cd-fd532d111578");
+        public static readonly Guid MasterRecordRelationship = Guid.Parse(MASTER_RECORD_RELATIONSHIP);
 
         /// <summary>
         /// Relationship used to represent that a local record has a high probability of being a duplicate with a master record
         /// </summary>
-        public static readonly Guid CandidateLocalRelationship = Guid.Parse("56cfb115-8207-4f89-b52e-d20dbad8f8cc");
+        public static readonly Guid CandidateLocalRelationship = Guid.Parse(CANDIDATE_RECORD_RELATIONSHIP);
 
         /// <summary>
         /// Relationship to represent the ignoring of a duplicate
         /// </summary>
-        public static readonly Guid IgnoreCandidateRelationship = Guid.Parse("decfb115-8207-4f89-b52e-d20dbad8f8cc");
+        public static readonly Guid IgnoreCandidateRelationship = Guid.Parse(IGNORE_CANDIDATE_RELATIONSHIP);
 
         /// <summary>
         /// Represents a record of truth, this is a record which is promoted on the master record such that it is the "true" version of the record
         /// </summary>
-        public static readonly Guid MasterRecordOfTruthRelationship = Guid.Parse("1C778948-2CB6-4696-BC04-4A6ECA140C20");
+        public static readonly Guid MasterRecordOfTruthRelationship = Guid.Parse(RECORD_OF_TRUTH_RELATIONSHIP);
 
         /// <summary>
         /// Master record classification
@@ -84,5 +88,19 @@ namespace SanteDB.Persistence.MDM
         /// </summary>
         public static readonly Guid VerifiedClassification = Guid.Parse("3B9365BA-C229-44C4-95AE-6489809A33F0");
 
+        /// <summary>
+        /// MDM Type tag
+        /// </summary>
+        public const string MdmTypeTag = "$mdm.type";
+
+        /// <summary>
+        /// MDM Processed Tag
+        /// </summary>
+        public const string MdmProcessedTag = "$mdm.processed";
+
+        /// <summary>
+        /// Identity match configuration
+        /// </summary>
+        public const string MdmIdentityMatchConfiguration = "$identity";
     }
 }

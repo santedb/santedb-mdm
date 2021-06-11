@@ -61,11 +61,16 @@ namespace SanteDB.Persistence.MDM.Docker
             {
                 resourceConf.ResourceTypes = resources.Split(';').Select(o => {
                     var conf = o.Split('=');
+
                     return new ResourceMergeConfiguration()
                     {
                         ResourceTypeXml = conf[0],
                         AutoMerge = autoMerge,
-                        MatchConfiguration = new List<string>() { conf[1] }
+                        MatchConfiguration = new List<ResourceMergeMatchConfiguration>()
+                        {
+                            new ResourceMergeMatchConfiguration(MdmConstants.MdmIdentityMatchConfiguration, true),
+                            new ResourceMergeMatchConfiguration(conf[1], autoMerge)
+                        }
                     };
                 }).ToList();
             }

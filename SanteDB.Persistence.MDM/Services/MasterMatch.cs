@@ -25,7 +25,7 @@ namespace SanteDB.Persistence.MDM.Services
     /// <summary>
     /// Represents a master match 
     /// </summary>
-    public class MasterMatch
+    public class MasterMatch : IEqualityComparer<MasterMatch>, IEquatable<MasterMatch>
     {
         /// <summary>
         /// Gets the master UUID
@@ -45,13 +45,7 @@ namespace SanteDB.Persistence.MDM.Services
             this.MatchResult = match;
             this.Master = master;
         }
-    }
 
-    /// <summary>
-    /// Equality comparer
-    /// </summary>
-    internal class MasterMatchEqualityComparer : IEqualityComparer<MasterMatch>
-    {
         /// <summary>
         /// Determine if x equals y
         /// </summary>
@@ -67,5 +61,14 @@ namespace SanteDB.Persistence.MDM.Services
         {
             return obj.Master.GetHashCode();
         }
+
+        /// <summary>
+        /// True if this equals other
+        /// </summary>
+        public bool Equals(MasterMatch other)
+        {
+            return this.Master == other.Master;
+        }
     }
+
 }
