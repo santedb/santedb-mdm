@@ -305,12 +305,12 @@ namespace SanteDB.Persistence.MDM.Services
                 e.Cancel = true;
                 if (typeof(Entity).IsAssignableFrom(typeof(T)))
                 {
-                    var master = ApplicationServiceContext.Current.GetService<IDataPersistenceService<Entity>>().Get(e.Id.Value, null, false, AuthenticationContext.Current.Principal);
+                    var master = ApplicationServiceContext.Current.GetService<IDataPersistenceService<Entity>>().Get(e.Id.Value, null, AuthenticationContext.Current.Principal);
                     e.Result = new EntityMaster<T>(master).GetMaster(AuthenticationContext.Current.Principal);
                 }
                 else if (typeof(Act).IsAssignableFrom(typeof(T)))
                 {
-                    var master = ApplicationServiceContext.Current.GetService<IDataPersistenceService<Act>>().Get(e.Id.Value, null, false, AuthenticationContext.Current.Principal);
+                    var master = ApplicationServiceContext.Current.GetService<IDataPersistenceService<Act>>().Get(e.Id.Value, null, AuthenticationContext.Current.Principal);
                     e.Result = new ActMaster<T>(master).GetMaster(AuthenticationContext.Current.Principal);
                 }
             }
@@ -1685,7 +1685,7 @@ namespace SanteDB.Persistence.MDM.Services
 
                 var master = this.m_rawMasterPersistenceService.Get(masterKey);
 
-                var linkedDuplicate = this.m_dataPersistenceService.Get(linkedDuplicateKey, null, false, AuthenticationContext.Current.Principal);
+                var linkedDuplicate = this.m_dataPersistenceService.Get(linkedDuplicateKey, null, AuthenticationContext.Current.Principal);
                 if (master is Entity entityMaster)
                 {
                     var retMaster = new EntityMaster<T>(entityMaster).GetMaster(AuthenticationContext.Current.Principal) as Entity;
@@ -1814,7 +1814,7 @@ namespace SanteDB.Persistence.MDM.Services
 
                 AuthenticationContext.Current = new AuthenticationContext(AuthenticationContext.SystemPrincipal);
 
-                var localRecord = this.m_dataPersistenceService.Get(key, null, true, AuthenticationContext.SystemPrincipal);
+                var localRecord = this.m_dataPersistenceService.Get(key, null, AuthenticationContext.SystemPrincipal);
                 if (localRecord == null) // This is actually a master? 
                 {
                     // Run for candidates and related

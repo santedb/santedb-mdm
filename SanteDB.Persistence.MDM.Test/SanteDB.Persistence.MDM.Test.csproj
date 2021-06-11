@@ -71,10 +71,6 @@
           <Project>{DB9BC05E-45F1-4F96-A161-F36BDECAF566}</Project>
           <Name>SanteDB.Server.Core</Name>
         </ProjectReference>
-        <ProjectReference Include="..\..\SanteDB.Persistence.Data.ADO.Test\SanteDB.Persistence.Data.ADO.Test.csproj">
-          <Project>{11407adb-e336-4c0c-af8e-ea6b601ba69e}</Project>
-          <Name>SanteDB.Persistence.Data.ADO.Test</Name>
-        </ProjectReference>
       </ItemGroup>
     </When>
     <Otherwise>
@@ -130,5 +126,4 @@
       </PropertyGroup>
     </Otherwise>
   </Choose>
-
 </Project>
