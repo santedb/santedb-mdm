@@ -71,7 +71,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         public override bool IsMaster(Guid dataKey)
         {
-            return this.m_entityPersistenceService.Get(dataKey, null, true, AuthenticationContext.SystemPrincipal).ClassConceptKey == MdmConstants.MasterRecordClassification;
+            return this.m_entityPersistenceService.Get(dataKey, null, AuthenticationContext.SystemPrincipal).ClassConceptKey == MdmConstants.MasterRecordClassification;
         }
 
         /// <summary>
@@ -89,7 +89,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             }
             else if (entity.Key.HasValue)
             {
-                return this.m_entityPersistenceService.Get(entity.Key.Value, null, true, AuthenticationContext.SystemPrincipal).ClassConceptKey == MdmConstants.MasterRecordClassification;
+                return this.m_entityPersistenceService.Get(entity.Key.Value, null, AuthenticationContext.SystemPrincipal).ClassConceptKey == MdmConstants.MasterRecordClassification;
             }
             return false;
         }
@@ -174,7 +174,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             }
             else if (entity.Key.HasValue)
             {
-                return this.m_entityPersistenceService.Get(entity.Key.Value, null, true, AuthenticationContext.SystemPrincipal)?.DeterminerConceptKey == MdmConstants.RecordOfTruthDeterminer;
+                return this.m_entityPersistenceService.Get(entity.Key.Value, null, AuthenticationContext.SystemPrincipal)?.DeterminerConceptKey == MdmConstants.RecordOfTruthDeterminer;
             }
             return false;
         }
@@ -298,23 +298,22 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// <summary>
         /// Synthesize the specified query
         /// </summary>
-        public override IEnumerable<IMdmMaster> MdmQuery(NameValueCollection masterQuery, NameValueCollection localQuery, Guid? queryId, int offset, int? count, out int totalResults)
+        public override IQueryResultSet<IMdmMaster> MdmQuery(NameValueCollection masterQuery, NameValueCollection localQuery)
         {
-            var localLinq = QueryExpressionParser.BuildLinqExpression<Entity>(localQuery, null, false);
+            var localLinq = QueryExpressionParser.BuildLinqExpression<TModel>(localQuery, null, false);
+            IQueryResultSet<TModel> resultSet = null;
 
             // Try to do a linked query (unless the query is on a special local filter value)
             // TODO: Make it configurable which properties trigger a master query
-            if (masterQuery.Keys.Any(o => o.StartsWith("identifier")) && this.m_entityPersistenceService is IUnionQueryDataPersistenceService<Entity> unionQuery)
+            if (masterQuery.Keys.Any(o => o.StartsWith("identifier")))
             {
-                var masterLinq = QueryExpressionParser.BuildLinqExpression<Entity>(masterQuery, null, false);
-                return unionQuery.Union(new Expression<Func<Entity, bool>>[] { localLinq, masterLinq }, queryId.GetValueOrDefault(), offset, count, out totalResults, AuthenticationContext.SystemPrincipal).Select(this.Synthesize);
-            }
-            else if (this.m_entityPersistenceService is IStoredQueryDataPersistenceService<Entity> storedQuery)
-            {
-                return storedQuery.Query(localLinq, queryId.GetValueOrDefault(), offset, count ?? 100, out totalResults, AuthenticationContext.SystemPrincipal).Select(this.Synthesize);
+                var masterLinq = QueryExpressionParser.BuildLinqExpression<TModel>(masterQuery, null, false);
+                resultSet = this.m_persistenceService.Query(localLinq,AuthenticationContext.SystemPrincipal).AsResultSet().Union(masterLinq);
             }
             else
-                return this.m_entityPersistenceService.Query(localLinq, offset, count ?? 100, out totalResults, AuthenticationContext.SystemPrincipal).Select(this.Synthesize);
+                resultSet = this.m_persistenceService.Query(localLinq, AuthenticationContext.SystemPrincipal).AsResultSet();
+
+            return new MdmEntityResultSet<TModel>(resultSet);
         }
 
         /// <summary>
@@ -330,7 +329,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         public override IMdmMaster MdmGet(Guid masterKey)
         {
-            var master = this.m_entityPersistenceService.Get(masterKey, null, false, AuthenticationContext.SystemPrincipal);
+            var master = this.m_entityPersistenceService.Get(masterKey, null, AuthenticationContext.SystemPrincipal);
             if (master != null)
             {
                 return new EntityMaster<TModel>(master);
@@ -905,7 +904,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         public override IMdmMaster GetMasterFor(Guid localKey)
         {
-            var masterEntity = this.m_entityPersistenceService.Get(localKey, null, true, AuthenticationContext.SystemPrincipal) as Entity;
+            var masterEntity = this.m_entityPersistenceService.Get(localKey, null, AuthenticationContext.SystemPrincipal) as Entity;
             if (masterEntity.ClassConceptKey == MdmConstants.MasterRecordClassification)
             {
                 return new EntityMaster<TModel>(masterEntity);

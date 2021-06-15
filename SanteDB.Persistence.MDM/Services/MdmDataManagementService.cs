@@ -192,7 +192,6 @@ namespace SanteDB.Persistence.MDM.Services
                 // Add an MDM listener for subscriptions
                 if (this.m_subscriptionExecutor != null)
                 {
-                    m_subscriptionExecutor.Executing += MdmSubscriptionExecuting;
                     m_subscriptionExecutor.Executed += MdmSubscriptionExecuted;
                 }
                 this.m_listeners.Add(new BundleResourceInterceptor(this.m_listeners));
@@ -219,7 +218,7 @@ namespace SanteDB.Persistence.MDM.Services
                     if (e.Data.ObsoleteVersionSequenceId.HasValue &&
                         this.m_entityRelationshipService.Count(r => r.TargetEntityKey == e.Data.TargetEntityKey && r.TargetEntity.StatusConceptKey != StatusKeys.Obsolete && r.SourceEntityKey != e.Data.SourceEntityKey && r.ObsoleteVersionSequenceId == null) == 0)
                     {
-                        this.m_entityService.Obsolete(new Entity() { Key = e.Data.TargetEntityKey }, e.Mode, e.Principal);
+                        this.m_entityService.Obsolete(e.Data.TargetEntityKey.Value, e.Mode, e.Principal);
                     }
                     
                     // MDM relationship should be the only active relationship between
@@ -241,7 +240,7 @@ namespace SanteDB.Persistence.MDM.Services
                         foreach (var rotRel in this.m_entityRelationshipService.Query(r => r.SourceEntityKey == e.Data.SourceEntityKey && r.TargetEntityKey != e.Data.TargetEntityKey && r.ObsoleteVersionSequenceId == null, e.Principal))
                         {
                             //Obsolete other ROTs (there can only be one)
-                            this.m_entityRelationshipService.Obsolete(rotRel, e.Mode, e.Principal);
+                            this.m_entityRelationshipService.Obsolete(rotRel.Key.Value, e.Mode, e.Principal);
                         }
                     }
                     break;
@@ -258,16 +257,6 @@ namespace SanteDB.Persistence.MDM.Services
             {
                 this.RecheckRelationshipTrigger(sender, new DataPersistedEventArgs<EntityRelationship>(itm, e.Mode, e.Principal));
             }
-        }
-
-
-        /// <summary>
-        /// The subscription is executing
-        /// </summary>
-        private void MdmSubscriptionExecuting(object sender, Core.Event.QueryRequestEventArgs<IdentifiedData> e)
-        {
-            e.Count = e.Count + 1; // Fetch one additional record
-            e.UseFuzzyTotals = true;
         }
 
         /// <summary>
