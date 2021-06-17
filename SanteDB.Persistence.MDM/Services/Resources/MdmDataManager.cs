@@ -13,6 +13,7 @@ using SanteDB.Persistence.MDM.Model;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Security.Principal;
 using System.Text;
 
@@ -83,6 +84,11 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// Refactor relationships
         /// </summary>
         public abstract void RefactorRelationships(List<IdentifiedData> item, Guid fromEntityKey, Guid toEntityKey);
+
+        /// <summary>
+        /// Get all MDM candidate locals regardless of where they are attached
+        /// </summary>
+        public abstract IEnumerable<IdentifiedData> GetAllMdmCandidateLocals();
 
         /// <summary>
         /// Validate the MDM state
