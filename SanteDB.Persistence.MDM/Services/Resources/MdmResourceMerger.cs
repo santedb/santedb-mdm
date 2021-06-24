@@ -47,12 +47,22 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// <summary>
         /// Get the ignore list
         /// </summary>
-        public abstract IEnumerable<Guid> GetIgnoreList(Guid masterKey);
+        public abstract IEnumerable<Guid> GetIgnoredKeys(Guid masterKey);
+
+        /// <summary>
+        /// Get the ignore list
+        /// </summary>
+        public abstract IEnumerable<IdentifiedData> GetIgnored(Guid masterKey);
 
         /// <summary>
         /// Get the merge candidate keys
         /// </summary>
-        public abstract IEnumerable<Guid> GetMergeCandidates(Guid masterKey);
+        public abstract IEnumerable<Guid> GetMergeCandidateKeys(Guid masterKey);
+
+        /// <summary>
+        /// Get merge candidates
+        /// </summary>
+        public abstract IEnumerable<IdentifiedData> GetMergeCandidates(Guid masterKey);
 
         /// <summary>
         /// Ignore the specified candidate

@@ -30,6 +30,17 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         }
 
         /// <summary>
+        /// Create the specified data manager
+        /// </summary>
+        public static MdmDataManager<TModel> GetDataManager<TModel>(Type forType)
+            where TModel : IdentifiedData
+        {
+            if (m_createdInstances.TryGetValue(forType, out object instance))
+                return (MdmDataManager<TModel>)instance;
+            return null;
+        }
+
+        /// <summary>
         /// Register data manager
         /// </summary>
         internal static void RegisterDataManager(ResourceMergeConfiguration configuration)

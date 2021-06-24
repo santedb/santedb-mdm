@@ -166,7 +166,7 @@ namespace SanteDB.Persistence.MDM.Services
                     this.m_traceSource.TraceInfo("Adding MDM listener for {0}...", itm.ResourceType.Name);
                     MdmDataManagerFactory.RegisterDataManager(itm);
                     var idt = typeof(MdmResourceHandler<>).MakeGenericType(itm.ResourceType);
-                    var ids = Activator.CreateInstance(idt) as IDisposable;
+                    var ids = this.m_serviceManager.CreateInjected(idt) as IDisposable;
                     this.m_listeners.Add(ids);
                     this.m_serviceManager.AddServiceProvider(ids);
                     this.m_serviceManager.AddServiceProvider(MdmDataManagerFactory.CreateMerger(itm.ResourceType));

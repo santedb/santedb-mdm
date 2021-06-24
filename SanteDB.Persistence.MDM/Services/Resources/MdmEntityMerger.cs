@@ -20,6 +20,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
     /// <summary>
     /// An MDM merger that operates on Entities
     /// </summary>
+    /// <remarks>This class exists to allow callers to interact with the operations in the underlying infrastructure.</remarks>
     public class MdmEntityMerger<TEntity> : MdmResourceMerger<TEntity>
         where TEntity : Entity, new()
     {
@@ -46,34 +47,59 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// <summary>
         /// Get the ignore list
         /// </summary>
-        public override IEnumerable<Guid> GetIgnoreList(Guid masterKey)
+        public override IEnumerable<Guid> GetIgnoredKeys(Guid masterKey) => this.GetIgnored(masterKey).Select(o => o.Key.Value);
+
+        /// <summary>
+        /// Gets ignored records
+        /// </summary>
+        public override IEnumerable<IdentifiedData> GetIgnored(Guid masterKey)
         {
             if (this.m_dataManager.IsMaster(masterKey))
             {
                 return this.m_dataManager.GetIgnoredCandidateLocals(masterKey)
-                    .Select(o => o.SourceEntityKey.Value);
+                    .Select(o => o.LoadProperty(p => p.SourceEntity) as IdentifiedData);
             }
             else
             {
                 return this.m_dataManager.GetIgnoredMasters(masterKey)
-                    .Select(o => o.TargetEntityKey.Value);
+                    .Select(o => o.LoadProperty(p => p.TargetEntity) as IdentifiedData);
             }
         }
 
         /// <summary>
         /// Get candidate associations
         /// </summary>
-        public override IEnumerable<Guid> GetMergeCandidates(Guid masterKey)
+        public override IEnumerable<Guid> GetMergeCandidateKeys(Guid masterKey) => this.GetMergeCandidates(masterKey).Select(o => o.Key.Value);
+
+        /// <summary>
+        /// Get merge candidates
+        /// </summary>
+        public override IEnumerable<IdentifiedData> GetMergeCandidates(Guid masterKey)
         {
-            if (this.m_dataManager.IsMaster(masterKey))
+            if(masterKey == Guid.Empty)
+            {
+                return this.m_dataManager.GetAllMdmCandidateLocals();
+            }
+            else if (this.m_dataManager.IsMaster(masterKey))
             {
                 return this.m_dataManager.GetCandidateLocals(masterKey)
-                   .Select(o => o.SourceEntityKey.Value);
+                    .OfType<EntityRelationship>()
+                    .Select(o => {
+                       var retVal = o.LoadProperty(p => p.SourceEntity) as Entity;
+                        retVal.AddTag("$match.score", $"{o.Strength:%%.%%}");
+                        return retVal;
+                    });
             }
             else
             {
                 return this.m_dataManager.GetEstablishedCandidateMasters(masterKey)
-                    .Select(o => o.TargetEntityKey.Value);
+                    .OfType<EntityRelationship>()
+                    .Select(o =>
+                    {
+                        var retVal = o.LoadProperty(p => p.TargetEntity) as Entity;
+                        retVal.AddTag("$match.score", $"{o.Strength:%%.%%}");
+                        return retVal;
+                    });
             }
         }
 

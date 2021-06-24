@@ -900,6 +900,14 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         }
 
         /// <summary>
+        /// Get all candidate locals
+        /// </summary>
+        public override IEnumerable<IdentifiedData> GetAllMdmCandidateLocals()
+        {
+            return this.m_relationshipService.Query(o => o.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship && o.ObsoleteVersionSequenceId == null, AuthenticationContext.SystemPrincipal);
+        }
+
+        /// <summary>
         /// Get the master construct record for <paramref name="localKey"/>
         /// </summary>
         public override IMdmMaster GetMasterFor(Guid localKey)
