@@ -114,8 +114,9 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 e.Cancel = true; // We want to cancel the callers query
 
                 // We are wrapping an entity, so we query entity masters
-                e.Results = this.m_dataManager.MdmQuery(query, localQuery, e.QueryId, e.Count, out int tr).Select(o => o.GetMaster(e.Principal)).OfType<TModel>();
-                e.TotalResults = tr;
+                // TODO: Ensure that the query mapping actually performs this on dataquery exhaustion rather than on
+                //       a batch observation.
+                e.Results = this.m_dataManager.MdmQuery(query, localQuery).Select(o => o.GetMaster(e.Principal) as TModel);
             }
         }
 

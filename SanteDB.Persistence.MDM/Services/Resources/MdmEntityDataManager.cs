@@ -296,7 +296,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         }
 
         /// <summary>
-        /// Synthesize the specified query
+        /// Perform the specified query against the underlying result set
         /// </summary>
         public override IQueryResultSet<IMdmMaster> MdmQuery(NameValueCollection masterQuery, NameValueCollection localQuery)
         {
@@ -308,14 +308,14 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             if (masterQuery.Keys.Any(o => o.StartsWith("identifier")))
             {
                 var masterLinq = QueryExpressionParser.BuildLinqExpression<TModel>(masterQuery, null, false);
-                resultSet = this.m_persistenceService.Query(localLinq,AuthenticationContext.SystemPrincipal).AsResultSet().Union(masterLinq);
+                resultSet = this.m_persistenceService.Query(localLinq, AuthenticationContext.SystemPrincipal).AsResultSet().Union(masterLinq);
             }
             else
                 resultSet = this.m_persistenceService.Query(localLinq, AuthenticationContext.SystemPrincipal).AsResultSet();
 
             return new MdmEntityResultSet<TModel>(resultSet);
         }
-
+        
         /// <summary>
         /// Synthesize a master
         /// </summary>
