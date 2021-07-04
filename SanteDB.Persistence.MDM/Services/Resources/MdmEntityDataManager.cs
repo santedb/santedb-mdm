@@ -79,6 +79,10 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         public override bool IsMaster(TModel entity)
         {
+            if(entity == default(TModel))
+            {
+                throw new ArgumentNullException(nameof(entity), "Entity argument null");
+            }
             if (entity.GetTag(MdmConstants.MdmTypeTag) == "M")
             {
                 return true;

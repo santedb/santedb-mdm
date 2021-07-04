@@ -36,6 +36,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         internal MdmDataManager(IDataPersistenceService underlyingDataPersistence)
         {
+            if (underlyingDataPersistence == null)
+                throw new InvalidOperationException($"Type {typeof(TModel).FullName} does not have a persistence service registered");
             this.m_underlyingTypePersistence = underlyingDataPersistence;
         }
 
