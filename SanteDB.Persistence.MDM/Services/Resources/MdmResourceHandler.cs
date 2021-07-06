@@ -24,7 +24,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
     /// <summary>
     /// Represents a class that only intercepts events from the repository layer
     /// </summary>
-    public class MdmResourceHandler<TModel> : IDisposable
+    public class MdmResourceHandler<TModel> : IDisposable, IMdmResourceHandler
         where TModel : IdentifiedData, new()
     {
 
@@ -337,5 +337,25 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 this.m_notifyRepository.Querying -= this.OnQuerying;
             }
         }
+
+        /// <summary>
+        /// Generic version of on pre validate
+        /// </summary>
+        void IMdmResourceHandler.OnPrePersistenceValidate(object sender, object args) => this.OnPrePersistenceValidate(sender, (DataPersistingEventArgs<TModel>)args);
+
+        /// <summary>B
+        /// On inserting generic version
+        /// </summary>
+        void IMdmResourceHandler.OnInserting(object sender, object args) => this.OnInserting(sender, (DataPersistingEventArgs<TModel>)args);
+
+        /// <summary>
+        /// On saving non-generic version
+        /// </summary>
+        void IMdmResourceHandler.OnSaving(object sender, object args) => this.OnSaving(sender, (DataPersistingEventArgs<TModel>)args);
+        
+        /// <summary>
+        /// On obsoleting non-generic
+        /// </summary>
+        void IMdmResourceHandler.OnObsoleting(object sender, object args) => this.OnObsoleting(sender, (DataPersistingEventArgs<TModel>)args);
     }
 }
