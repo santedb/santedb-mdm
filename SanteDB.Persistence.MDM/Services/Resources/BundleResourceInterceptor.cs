@@ -114,7 +114,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 var data = bundle.Item[i];
                 var mdmHandler = typeof(MdmResourceHandler<>).MakeGenericType(data.GetType());
                 var evtArgType = argType.MakeGenericType(data.GetType());
-                var evtArgs = Activator.CreateInstance(evtArgType, data, (eventArgs as SecureAccessEventArgs).Principal);
+                var evtArgs = Activator.CreateInstance(evtArgType, data, TransactionMode.Commit, (eventArgs as SecureAccessEventArgs).Principal);
 
                 foreach (var hdlr in this.m_listeners.Where(o => o.GetType() == mdmHandler))
                 {

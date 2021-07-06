@@ -93,7 +93,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             }
             else if (entity.Key.HasValue)
             {
-                return this.m_entityPersistenceService.Get(entity.Key.Value, null, true, AuthenticationContext.SystemPrincipal).ClassConceptKey == MdmConstants.MasterRecordClassification;
+                return this.m_entityPersistenceService.Get(entity.Key.Value, null, true, AuthenticationContext.SystemPrincipal)?.ClassConceptKey == MdmConstants.MasterRecordClassification;
             }
             return false;
         }
