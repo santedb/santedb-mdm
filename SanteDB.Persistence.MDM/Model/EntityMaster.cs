@@ -69,12 +69,12 @@ namespace SanteDB.Persistence.MDM.Model
             this.SourceEntityKey = relationship.SourceEntityKey;
             this.TargetEntityKey = relationship.TargetEntityKey;
 
-            if (this.SourceEntityKey == local.Key && 
+            if (this.SourceEntityKey == local.Key &&
                 this.RelationshipTypeKey != MdmConstants.OriginalMasterRelationship &&
                 this.RelationshipTypeKey != MdmConstants.CandidateLocalRelationship &&
                 this.RelationshipTypeKey != MdmConstants.MasterRecordRelationship)
                 this.SourceEntityKey = master.Key;
-            else if(this.TargetEntityKey == local.Key &&
+            else if (this.TargetEntityKey == local.Key &&
                 this.RelationshipTypeKey != MdmConstants.MasterRecordOfTruthRelationship)
                 this.TargetEntityKey = master.Key;
 
@@ -82,7 +82,7 @@ namespace SanteDB.Persistence.MDM.Model
             var targetMaster = this.GetTargetAs<Entity>().GetRelationships().FirstOrDefault(mr => mr.RelationshipTypeKey == MdmConstants.MasterRecordRelationship);
             if (targetMaster != null)
                 this.TargetEntityKey = targetMaster.TargetEntityKey;
-           
+
         }
 
         /// <summary>
@@ -172,7 +172,7 @@ namespace SanteDB.Persistence.MDM.Model
 
         // Local records
         private List<T> m_localRecords;
-     
+
         /// <summary>
         /// Create entity master
         /// </summary>
@@ -220,8 +220,8 @@ namespace SanteDB.Persistence.MDM.Model
             }
 
             // Copy targets for relationships and refactor them
-            entityMaster.Relationships = 
-                entityMaster.LoadCollection(o=>o.Relationships).Where(r=>r.SourceEntityKey == entityMaster.Key)
+            entityMaster.Relationships =
+                entityMaster.LoadCollection(o => o.Relationships).Where(r => r.SourceEntityKey == entityMaster.Key)
                 .Union(
                     // Rewrite local record regular relationships
                     this.LocalRecords.OfType<Entity>().SelectMany(
@@ -265,16 +265,16 @@ namespace SanteDB.Persistence.MDM.Model
                     this.m_localRecords = EntitySource.Current.Provider.Query<EntityRelationship>(o => o.TargetEntityKey == this.Key && o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship).Select(o => o.LoadProperty<T>("SourceEntity")).ToList();
                     this.m_localRecords.OfType<Entity>().ToList().ForEach(o =>
                     {
-                        o.LoadCollection<EntityRelationship>(nameof(Entity.Relationships));
+                        o.LoadCollection(p => p.Relationships, true);
                         o.LoadCollection<EntityAddress>(nameof(Entity.Addresses));
                         o.LoadCollection<EntityTag>(nameof(Entity.Tag));
                         o.LoadCollection<EntityTelecomAddress>(nameof(Entity.Telecoms));
                         o.LoadCollection<EntityIdentifier>(nameof(Entity.Identifiers));
                         o.LoadCollection<EntityName>(nameof(Entity.Names));
                         o.LoadCollection<EntityNote>(nameof(Entity.Notes));
-                        o.LoadCollection<SecurityPolicyInstance>(nameof(Entity.Policies));
+                        o.LoadCollection<SecurityPolicyInstance>(nameof(Entity.Policies), true);
                         o.LoadCollection<EntityExtension>(nameof(Entity.Extensions));
-                   
+
                         if (o is Place place)
                             place.LoadCollection<PlaceService>(nameof(Place.Services));
                         if (o is Person person)

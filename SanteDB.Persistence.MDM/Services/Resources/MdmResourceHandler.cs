@@ -112,7 +112,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 var localQuery = new NameValueCollection(query.ToDictionary(o => $"relationship[{MdmConstants.MasterRecordRelationship}].source@{typeof(TModel).Name}.{o.Key}", o => o.Value));
                 query.Add("classConcept", MdmConstants.MasterRecordClassification.ToString());
                 e.Cancel = true; // We want to cancel the callers query
-
+                
                 // We are wrapping an entity, so we query entity masters
                 e.Results = this.m_dataManager.MdmQuery(query, localQuery, e.QueryId, e.Offset, e.Count, out int tr).Select(o => o.GetMaster(e.Principal)).OfType<TModel>();
                 e.TotalResults = tr;
@@ -148,6 +148,9 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 var obsoleteInstructions = this.m_dataManager.MdmTxObsolete(e.Data, null);
                 this.m_batchRepository.Update(new Bundle(obsoleteInstructions), TransactionMode.Commit, e.Principal);
             }
+
+            e.Cancel = true;
+            e.Success = true;
         }
 
         /// <summary>
@@ -185,7 +188,12 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     bundle = (Bundle)bre?.BeforeUpdate(bundle) ?? bundle;
                     bundle = this.m_batchRepository.Update(bundle, TransactionMode.Commit, e.Principal);
                     bundle = (Bundle)bre?.AfterUpdate(bundle) ?? bundle;
+                    e.Data = bundle.Item.Find(o => o.Key == e.Data.Key) as TModel; // copy to get key data
+
                 }
+
+                e.Cancel = true;
+                e.Success = true;
             }
             catch (Exception ex)
             {
@@ -241,7 +249,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 if (sender is Bundle bundle)
                 {
                     var transactionItems = this.PrepareTransaction(e.Data, bundle.Item);
-                    bundle.Item.InsertRange(bundle.Item.FindIndex(o => o.Key == e.Data.Key), transactionItems.Where(o => o != e.Data));
+                    var insertItems = transactionItems.Where(o => o.Key != e.Data.Key && !bundle.Item.Any(b => b.Key == o.Key && b.Key.HasValue));
+                    bundle.Item.InsertRange(bundle.Item.FindIndex(o => o.Key == e.Data.Key),insertItems);
                 }
                 else
                 {
@@ -251,8 +260,11 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     bundle = (Bundle)bre?.BeforeInsert(bundle) ?? bundle;
                     bundle = this.m_batchRepository.Insert(bundle, TransactionMode.Commit, e.Principal);
                     bundle = (Bundle)bre?.AfterInsert(bundle) ?? bundle;
+
+                    e.Data = bundle.Item.Find(o => o.Key == e.Data.Key) as TModel; // copy to get key data
                 }
                 e.Cancel = true;
+                e.Success = true;
             }
             catch (Exception ex)
             {

@@ -32,6 +32,13 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         where TModel : Entity, new()
     {
 
+        private readonly Guid[] m_mdmRelationshipTypes = new Guid[]
+        {
+            MdmConstants.MasterRecordClassification,
+            MdmConstants.CandidateLocalRelationship,
+            MdmConstants.RecordOfTruthDeterminer
+        };
+
         // Tracer
         private Tracer m_traceSource = new Tracer(MdmConstants.TraceSourceName);
 
@@ -263,14 +270,14 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             {
                 if (obj is Entity entity)
                 {
-                    entity.Relationships.Where(o => o.SourceEntityKey == fromEntityKey).ToList().ForEach(o => o.SourceEntityKey = toEntityKey);
-                    entity.Relationships.Where(o => o.TargetEntityKey == fromEntityKey).ToList().ForEach(o => o.TargetEntityKey = toEntityKey);
+                    entity.Relationships.Where(o => o.SourceEntityKey == fromEntityKey && this.m_mdmRelationshipTypes.Contains(o.RelationshipTypeKey.GetValueOrDefault())).ToList().ForEach(o => o.SourceEntityKey = toEntityKey);
+                    entity.Relationships.Where(o => o.TargetEntityKey == fromEntityKey && this.m_mdmRelationshipTypes.Contains(o.RelationshipTypeKey.GetValueOrDefault())).ToList().ForEach(o => o.TargetEntityKey = toEntityKey);
                 }
                 else if (obj is Act act)
                 {
                     act.Participations.Where(o => o.PlayerEntityKey == fromEntityKey).ToList().ForEach(o => o.PlayerEntityKey = toEntityKey);
                 }
-                else if (obj is ITargetedAssociation entityRelationship)
+                else if (obj is ITargetedAssociation entityRelationship && !this.m_mdmRelationshipTypes.Contains(entityRelationship.AssociationTypeKey.GetValueOrDefault()))
                 {
                     if (entityRelationship.SourceEntityKey == fromEntityKey)
                     {

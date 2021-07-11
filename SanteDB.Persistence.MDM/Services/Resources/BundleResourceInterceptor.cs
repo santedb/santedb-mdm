@@ -172,7 +172,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                         bundle.Item[i] = subData;
 
                     if (eventArgs is DataPersistingEventArgs<Bundle> eclc)
-                        eclc.Cancel |= (bool)evtArgType.GetProperty("Cancel")?.GetValue(evtArgs);
+                        eclc.Success |= eclc.Cancel |= (bool)evtArgType.GetProperty("Cancel")?.GetValue(evtArgs);
 
                 }
             }
