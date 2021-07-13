@@ -1,5 +1,6 @@
 ﻿using SanteDB.Core;
 using SanteDB.Core.Configuration;
+using SanteDB.Core.Diagnostics;
 using SanteDB.Core.Event;
 using SanteDB.Core.Model;
 using SanteDB.Core.Model.Collection;
@@ -19,21 +20,35 @@ namespace SanteDB.Persistence.MDM.Services.Resources
     public class BundleResourceInterceptor : IDisposable
     {
 
+        private Tracer m_tracer = Tracer.GetTracer(typeof(BundleResourceInterceptor));
+
         // Listeners for chaining
         private IEnumerable<IDisposable> m_listeners;
 
         // Notify repository
         private INotifyRepositoryService<Bundle> m_notifyRepository;
 
+        // Bundle Persistence
+        private IDataPersistenceService<Bundle> m_bundlePersistence;
+
         /// <summary>
         /// Bundle resource listener
         /// </summary>
         public BundleResourceInterceptor(IEnumerable<IDisposable> listeners) 
         {
+            if(listeners == null)
+            {
+                throw new ArgumentNullException(nameof(listeners), "Listeners for chained invokation is required");
+            }
             this.m_listeners = listeners;
 
-            this.m_notifyRepository = ApplicationServiceContext.Current.GetService<INotifyRepositoryService<Bundle>>();
+            foreach(var itm in this.m_listeners)
+            {
+                this.m_tracer.TraceInfo("Bundles will be chained to {0}", itm.GetType().FullName);
+            }
 
+            this.m_notifyRepository = ApplicationServiceContext.Current.GetService<INotifyRepositoryService<Bundle>>();
+            this.m_bundlePersistence = ApplicationServiceContext.Current.GetService<IDataPersistenceService<Bundle>>();
             // Subscribe
             this.m_notifyRepository.Inserting += this.OnPrePersistenceValidate;
             this.m_notifyRepository.Saving += this.OnPrePersistenceValidate;
@@ -108,26 +123,56 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         private Bundle ChainInvoke(object sender, object eventArgs, Bundle bundle, string methodName, Type argType)
         {
-            var principal = eventArgs.GetType().GetProperty("Principal").GetValue(eventArgs) as IPrincipal;
+            var principal = eventArgs.GetType().GetProperty("Principal")?.GetValue(eventArgs) as IPrincipal;
+            if (principal == null)
+            {
+                throw new InvalidOperationException("Cannot determine the principal of this request. MDM requires an authenticated principal");
+            }
+
+            this.m_tracer.TraceInfo("Will chain-invoke {0} on {1} items", methodName, bundle.Item.Count);
+
             for (int i = 0; i < bundle.Item.Count; i++)
             {
                 var data = bundle.Item[i];
+                if(data == null)
+                {
+                    throw new InvalidOperationException($"Bundle object at index {i} is null");
+                }
                 var mdmHandler = typeof(MdmResourceHandler<>).MakeGenericType(data.GetType());
                 var evtArgType = argType.MakeGenericType(data.GetType());
-                var evtArgs = Activator.CreateInstance(evtArgType, data, (eventArgs as SecureAccessEventArgs).Principal);
+                var evtArgs = Activator.CreateInstance(evtArgType, data, TransactionMode.Commit, (eventArgs as SecureAccessEventArgs).Principal);
 
-                foreach (var hdlr in this.m_listeners.Where(o => o.GetType() == mdmHandler))
+                foreach (IMdmResourceHandler hdlr in this.m_listeners?.Where(o => o?.GetType() == mdmHandler))
                 {
-                    var exeMethod = mdmHandler.GetMethod(methodName);
-                    exeMethod.Invoke(hdlr, new Object[] { bundle, evtArgs });
+
+                    switch (methodName) {
+                        case nameof(OnPrePersistenceValidate):
+                            hdlr.OnPrePersistenceValidate(bundle, evtArgs);
+                            break;
+                        case nameof(OnSaving):
+                            hdlr.OnSaving(bundle, evtArgs);
+                            break;
+                        case nameof(OnInserting):
+                            hdlr.OnInserting(bundle, evtArgs);
+                            break;
+                        case nameof(OnObsoleting):
+                            hdlr.OnObsoleting(bundle, evtArgs);
+                            break;
+                        default:
+                            throw new InvalidOperationException($"Cannot determine how to handle {methodName}");
+                    }
 
                     // Cancel?
-                    var subData = evtArgType.GetProperty("Data").GetValue(evtArgs) as IdentifiedData;
+                    var subData = evtArgType.GetProperty("Data")?.GetValue(evtArgs) as IdentifiedData;
+                    if(subData == null)
+                    {
+                        throw new InvalidOperationException($"Response to {hdlr.GetType().FullName}.{methodName} returned no data");
+                    }
                     if (bundle.Item[i].Key == subData.Key)
                         bundle.Item[i] = subData;
 
-                    if (eventArgs is DataPersistingEventArgs<Bundle>)
-                        (eventArgs as DataPersistingEventArgs<Bundle>).Cancel |= (bool)evtArgType.GetProperty("Cancel").GetValue(evtArgs);
+                    if (eventArgs is DataPersistingEventArgs<Bundle> eclc)
+                        eclc.Success |= eclc.Cancel |= (bool)evtArgType.GetProperty("Cancel")?.GetValue(evtArgs);
 
                 }
             }
@@ -135,6 +180,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             // Now that bundle is processed , process it
             if ((eventArgs as DataPersistingEventArgs<Bundle>)?.Cancel == true && (methodName == "OnInserting" || methodName == "OnSaving"))
             {
+                this.m_tracer.TraceInfo("Post-Running Triggers from Cancelled Bundle Handler on {0}", methodName);
+
                 var businessRulesSerice = ApplicationServiceContext.Current.GetService<IBusinessRulesService<Bundle>>();
                 bundle = businessRulesSerice?.BeforeInsert(bundle) ?? bundle;
                 // Business rules shouldn't be used for relationships, we need to delay load the sources
@@ -147,7 +194,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                             i.SourceEntity = candidate;
                     }
                 });
-                bundle = ApplicationServiceContext.Current.GetService<IDataPersistenceService<Bundle>>().Insert(bundle, TransactionMode.Commit, principal);
+                bundle = this.m_bundlePersistence.Insert(bundle, TransactionMode.Commit, principal);
                 bundle = businessRulesSerice?.AfterInsert(bundle) ?? bundle;
 
             }

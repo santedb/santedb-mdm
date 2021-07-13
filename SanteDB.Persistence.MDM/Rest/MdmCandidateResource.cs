@@ -31,16 +31,13 @@ namespace SanteDB.Persistence.MDM.Rest
         // Configuration
         private ResourceMergeConfigurationSection m_configuration;
 
-        // Batch service
-        private IRepositoryService<Bundle> m_batchService;
-
         /// <summary>
         /// Candidate operations manager
         /// </summary>
         public MdmCandidateOperation(IConfigurationManager configurationManager)
         {
             this.m_configuration = configurationManager.GetSection<ResourceMergeConfigurationSection>();
-            this.ParentTypes = this.m_configuration.ResourceTypes.Select(o => o.ResourceType).ToArray();
+            this.ParentTypes = this.m_configuration?.ResourceTypes.Select(o => o.ResourceType).ToArray() ?? Type.EmptyTypes;
         }
 
         /// <summary>

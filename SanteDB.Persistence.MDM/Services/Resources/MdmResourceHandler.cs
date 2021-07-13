@@ -24,7 +24,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
     /// <summary>
     /// Represents a class that only intercepts events from the repository layer
     /// </summary>
-    public class MdmResourceHandler<TModel> : IDisposable
+    public class MdmResourceHandler<TModel> : IDisposable, IMdmResourceHandler
         where TModel : IdentifiedData, new()
     {
 
@@ -112,7 +112,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 var localQuery = new NameValueCollection(query.ToDictionary(o => $"relationship[{MdmConstants.MasterRecordRelationship}].source@{typeof(TModel).Name}.{o.Key}", o => o.Value));
                 query.Add("classConcept", MdmConstants.MasterRecordClassification.ToString());
                 e.Cancel = true; // We want to cancel the callers query
-
+                
                 // We are wrapping an entity, so we query entity masters
                 // TODO: Ensure that the query mapping actually performs this on dataquery exhaustion rather than on
                 //       a batch observation.
@@ -149,6 +149,9 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 var obsoleteInstructions = this.m_dataManager.MdmTxObsolete(e.Data, null);
                 this.m_batchRepository.Update(new Bundle(obsoleteInstructions), TransactionMode.Commit, e.Principal);
             }
+
+            e.Cancel = true;
+            e.Success = true;
         }
 
         /// <summary>
@@ -186,7 +189,12 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     bundle = (Bundle)bre?.BeforeUpdate(bundle) ?? bundle;
                     bundle = this.m_batchRepository.Update(bundle, TransactionMode.Commit, e.Principal);
                     bundle = (Bundle)bre?.AfterUpdate(bundle) ?? bundle;
+                    e.Data = bundle.Item.Find(o => o.Key == e.Data.Key) as TModel; // copy to get key data
+
                 }
+
+                e.Cancel = true;
+                e.Success = true;
             }
             catch (Exception ex)
             {
@@ -241,8 +249,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 // Is the sender a bundle?
                 if (sender is Bundle bundle)
                 {
-                    var transactionItems = this.PrepareTransaction(e.Data, bundle.Item);
-                    bundle.Item.InsertRange(bundle.Item.FindIndex(o => o.Key == e.Data.Key), transactionItems.Where(o => o != e.Data));
+                    bundle.Item = this.PrepareTransaction(e.Data, bundle.Item).ToList();
                 }
                 else
                 {
@@ -252,8 +259,11 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     bundle = (Bundle)bre?.BeforeInsert(bundle) ?? bundle;
                     bundle = this.m_batchRepository.Insert(bundle, TransactionMode.Commit, e.Principal);
                     bundle = (Bundle)bre?.AfterInsert(bundle) ?? bundle;
+
+                    e.Data = bundle.Item.Find(o => o.Key == e.Data.Key) as TModel; // copy to get key data
                 }
                 e.Cancel = true;
+                e.Success = true;
             }
             catch (Exception ex)
             {
@@ -338,5 +348,25 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 this.m_notifyRepository.Querying -= this.OnQuerying;
             }
         }
+
+        /// <summary>
+        /// Generic version of on pre validate
+        /// </summary>
+        void IMdmResourceHandler.OnPrePersistenceValidate(object sender, object args) => this.OnPrePersistenceValidate(sender, (DataPersistingEventArgs<TModel>)args);
+
+        /// <summary>B
+        /// On inserting generic version
+        /// </summary>
+        void IMdmResourceHandler.OnInserting(object sender, object args) => this.OnInserting(sender, (DataPersistingEventArgs<TModel>)args);
+
+        /// <summary>
+        /// On saving non-generic version
+        /// </summary>
+        void IMdmResourceHandler.OnSaving(object sender, object args) => this.OnSaving(sender, (DataPersistingEventArgs<TModel>)args);
+        
+        /// <summary>
+        /// On obsoleting non-generic
+        /// </summary>
+        void IMdmResourceHandler.OnObsoleting(object sender, object args) => this.OnObsoleting(sender, (DataPersistingEventArgs<TModel>)args);
     }
 }
