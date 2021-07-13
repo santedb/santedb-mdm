@@ -248,9 +248,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 // Is the sender a bundle?
                 if (sender is Bundle bundle)
                 {
-                    var transactionItems = this.PrepareTransaction(e.Data, bundle.Item);
-                    var insertItems = transactionItems.Where(o => o.Key != e.Data.Key && !bundle.Item.Any(b => b.Key == o.Key && b.Key.HasValue));
-                    bundle.Item.InsertRange(bundle.Item.FindIndex(o => o.Key == e.Data.Key),insertItems);
+                    bundle.Item = this.PrepareTransaction(e.Data, bundle.Item).ToList();
                 }
                 else
                 {
