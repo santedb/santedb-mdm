@@ -82,7 +82,7 @@ namespace SanteDB.Persistence.MDM.Model
             var targetMaster = this.GetTargetAs<Entity>().GetRelationships().FirstOrDefault(mr => mr.RelationshipTypeKey == MdmConstants.MasterRecordRelationship);
             if (targetMaster != null)
                 this.TargetEntityKey = targetMaster.TargetEntityKey;
-
+            this.m_annotations.Clear();
         }
 
         /// <summary>
