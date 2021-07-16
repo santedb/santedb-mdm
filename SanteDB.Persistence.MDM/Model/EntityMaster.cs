@@ -82,7 +82,7 @@ namespace SanteDB.Persistence.MDM.Model
             var targetMaster = this.GetTargetAs<Entity>().GetRelationships().FirstOrDefault(mr => mr.RelationshipTypeKey == MdmConstants.MasterRecordRelationship);
             if (targetMaster != null)
                 this.TargetEntityKey = targetMaster.TargetEntityKey;
-
+            this.m_annotations.Clear();
         }
 
         /// <summary>
@@ -170,6 +170,9 @@ namespace SanteDB.Persistence.MDM.Model
         // The master record
         private Entity m_masterRecord;
 
+        // Record of truth
+        private Entity m_recordOfTruth;
+
         // Local records
         private List<T> m_localRecords;
 
@@ -190,6 +193,8 @@ namespace SanteDB.Persistence.MDM.Model
         {
             this.CopyObjectData(master, false, true);
             this.m_masterRecord = master;
+            this.m_recordOfTruth = this.LoadCollection<EntityRelationship>("Relationships").FirstOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordOfTruthRelationship)?.LoadProperty(o=>o.TargetEntity);
+
         }
 
         /// <summary>
@@ -202,26 +207,25 @@ namespace SanteDB.Persistence.MDM.Model
             master.CopyObjectData<IdentifiedData>(this.m_masterRecord, overwritePopulatedWithNull: false, ignoreTypeMismatch: true);
 
             // Is there a relationship which is the record of truth
-            var rot = this.LoadCollection<EntityRelationship>("Relationships").FirstOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordOfTruthRelationship);
             var pep = ApplicationServiceContext.Current.GetService<IPrivacyEnforcementService>();
             var locals = this.LocalRecords.Select(o => pep != null ? pep.Apply(o, principal) : o).OfType<T>().ToArray();
 
             if (locals.Length == 0) // Not a single local can be viewed
                 return null;
-            else if (rot == null) // We have to create a synthetic record 
+            else if (this.m_recordOfTruth == null) // We have to create a synthetic record 
             {
                 master.SemanticCopy(locals);
             }
             else // there is a ROT so use it to override the values
             {
-                master.SemanticCopy(rot.LoadProperty<T>("TargetEntity"));
+                master.SemanticCopy((T)(object)this.m_recordOfTruth);
                 master.SemanticCopyNullFields(locals);
                 entityMaster.Tags.Add(new EntityTag("$mdm.rot", "true"));
             }
 
-            // Copy targets for relationships and refactor them
-            entityMaster.Relationships =
-                entityMaster.LoadCollection(o => o.Relationships).Where(r => r.SourceEntityKey == entityMaster.Key)
+            // HACK: Copy targets for relationships and refactor them - Find a cleaner way to do this
+            var relationships = new List<EntityRelationship>();
+            foreach(var rel in entityMaster.LoadCollection(o => o.Relationships).Where(r => r.SourceEntityKey == entityMaster.Key)
                 .Union(
                     // Rewrite local record regular relationships
                     this.LocalRecords.OfType<Entity>().SelectMany(
@@ -231,7 +235,14 @@ namespace SanteDB.Persistence.MDM.Model
                 .Union(
                         // Select MDM relationships conveyed on the locals 
                         this.LocalRecords.OfType<Entity>().SelectMany(o => o.Relationships.Where(r => r.TargetEntityKey == this.m_masterRecord.Key || r.SourceEntityKey == this.m_masterRecord.Key))
-                    ).OfType<EntityRelationship>().ToList();
+                    ))
+            {
+                if (!relationships.Any(r => r.SemanticEquals(rel)))
+                    relationships.Add(rel);
+            }
+            entityMaster.Relationships = relationships;
+
+            
 
             entityMaster.Policies = this.LocalRecords.SelectMany(o => (o as Entity).Policies).Distinct().ToList();
             entityMaster.Tags.RemoveAll(o => o.TagKey == "$mdm.type");
@@ -242,7 +253,7 @@ namespace SanteDB.Persistence.MDM.Model
             entityMaster.CreationTime = this.ModifiedOn;
             entityMaster.PreviousVersionKey = this.m_masterRecord.PreviousVersionKey;
             entityMaster.Key = this.m_masterRecord.Key;
-            entityMaster.VersionKey = this.m_masterRecord.VersionKey;
+            entityMaster.VersionKey = this.m_recordOfTruth?.VersionKey ?? this.m_masterRecord.VersionKey;
             entityMaster.VersionSequence = this.m_masterRecord.VersionSequence;
             return master;
         }
@@ -250,7 +261,12 @@ namespace SanteDB.Persistence.MDM.Model
         /// <summary>
         /// Modified on
         /// </summary>
-        public override DateTimeOffset ModifiedOn => this.m_localRecords?.OrderByDescending(o => o.ModifiedOn).OfType<BaseEntityData>().FirstOrDefault().ModifiedOn ?? this.ModifiedOn;
+        public override DateTimeOffset ModifiedOn => this.m_recordOfTruth?.ModifiedOn ?? this.m_localRecords?.OrderByDescending(o => o.ModifiedOn).OfType<BaseEntityData>().FirstOrDefault().ModifiedOn ?? this.ModifiedOn;
+
+        /// <summary>
+        /// Get the version tag 
+        /// </summary>
+        public override string Tag => this.m_recordOfTruth?.Tag ?? this.m_localRecords?.OrderByDescending(o => o.ModifiedOn).OfType<BaseEntityData>().FirstOrDefault().Tag ?? base.Tag;
 
         /// <summary>
         /// Get the local records of this master

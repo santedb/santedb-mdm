@@ -288,21 +288,26 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 {
                     store = this.m_dataManager.CreateLocalFor(e.Data);
                 }
+                else
+                {
+                    // Copy the changed data from the inbound to the new local
+                    store.SemanticCopy(e.Data);
+                    store.SemanticCopy(e.Data);
+                }
 
                 if (store is IVersionedEntity versioned)
                 {
                     versioned.VersionSequence = null;
                     versioned.VersionKey = null;
                 }
-
-                // Copy the data from the inbound to the new local
-                store.SemanticCopy(e.Data);
-                store.SemanticCopy(e.Data);
+                
             }
             else if (!store.Key.HasValue)
             {
                 store.Key = Guid.NewGuid(); // Ensure that we have a key for the object.
             }
+
+            store.StripAssociatedItemSources();
 
             // Is this a ROT?
             if (this.m_dataManager.IsRecordOfTruth(e.Data))
@@ -310,8 +315,6 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 this.m_policyEnforcement.Demand(MdmPermissionPolicyIdentifiers.EstablishRecordOfTruth);
                 store = this.m_dataManager.PromoteRecordOfTruth(store);
             }
-
-            store.StripAssociatedItemSources();
 
             // Rewrite any relationships we need to
             if (sender is Bundle bundle)
