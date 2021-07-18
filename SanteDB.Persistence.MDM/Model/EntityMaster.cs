@@ -88,19 +88,19 @@ namespace SanteDB.Persistence.MDM.Model
         /// <summary>
         /// Get the type name
         /// </summary>
-        [DataIgnore, XmlIgnore, JsonProperty("$type")]
+        [SerializationMetadata, XmlIgnore, JsonProperty("$type")]
         public override string Type { get => $"EntityRelationshipMaster"; set { } }
 
         /// <summary>
         /// Gets the original relationship
         /// </summary>
-        [DataIgnore, XmlElement("originalHolder"), JsonProperty("originalHolder")]
+        [SerializationMetadata, XmlElement("originalHolder"), JsonProperty("originalHolder")]
         public Guid? OriginalHolderKey { get; set; }
 
         /// <summary>
         /// Gets the original relationship
         /// </summary>
-        [DataIgnore, XmlElement("originalTarget"), JsonProperty("originalTarget")]
+        [SerializationMetadata, XmlElement("originalTarget"), JsonProperty("originalTarget")]
         public Guid? OriginalTargetKey { get; set; }
 
     }
@@ -164,7 +164,7 @@ namespace SanteDB.Persistence.MDM.Model
         /// <summary>
         /// Get the type name
         /// </summary>
-        [DataIgnore, XmlIgnore, JsonProperty("$type")]
+        [SerializationMetadata, XmlIgnore, JsonProperty("$type")]
         public override string Type { get => $"{typeof(T).Name}Master"; set { } }
 
         // The master record
