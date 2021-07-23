@@ -94,6 +94,21 @@ namespace SanteDB.Persistence.MDM
         public const string MdmTypeTag = "$mdm.type";
 
         /// <summary>
+        /// Resource tag
+        /// </summary>
+        public const string MdmResourceTag = "$mdm.resource";
+
+        /// <summary>
+        /// generated tag
+        /// </summary>
+        public const string MdmGeneratedTag = "$generated";
+
+        /// <summary>
+        /// Record of truth indicator
+        /// </summary>
+        public const string MdmRotIndicatorTag = "$mdm.rot";
+
+        /// <summary>
         /// MDM Processed Tag
         /// </summary>
         public const string MdmProcessedTag = "$mdm.processed";

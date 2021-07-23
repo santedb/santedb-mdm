@@ -78,7 +78,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         public override bool IsMaster(Guid dataKey)
         {
-            return this.m_entityPersistenceService.Get(dataKey, null, true, AuthenticationContext.SystemPrincipal).ClassConceptKey == MdmConstants.MasterRecordClassification;
+            return this.m_entityPersistenceService.Get(dataKey, null, true, AuthenticationContext.SystemPrincipal)?.ClassConceptKey == MdmConstants.MasterRecordClassification;
         }
 
         /// <summary>
@@ -98,7 +98,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             {
                 return true;
             }
-            else if (entity.Key.HasValue)
+            else if (entity.Key.HasValue && !entity.ClassConceptKey.HasValue) // only the key
             {
                 return this.m_entityPersistenceService.Get(entity.Key.Value, null, true, AuthenticationContext.SystemPrincipal)?.ClassConceptKey == MdmConstants.MasterRecordClassification;
             }
@@ -387,7 +387,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 Key = Guid.NewGuid(),
                 VersionKey = null,
                 CreatedByKey = Guid.Parse(AuthenticationContext.SystemApplicationSid),
-                DeterminerConceptKey = DeterminerKeys.Specific
+                DeterminerConceptKey = DeterminerKeys.Specific,
+                TypeConceptKey = local.ClassConceptKey
             };
             local.Relationships.Add(new EntityRelationship(MdmConstants.MasterRecordRelationship, local.Key, retVal.Key, MdmConstants.AutomagicClassification));
             return retVal;

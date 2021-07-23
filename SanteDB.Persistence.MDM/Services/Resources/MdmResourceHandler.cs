@@ -78,7 +78,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         internal virtual void OnRetrieved(object sender, DataRetrievedEventArgs<TModel> e)
         {
-            if (!this.m_dataManager.IsMaster(e.Data) &&
+            if (e.Data != null && 
+                !this.m_dataManager.IsMaster(e.Data) &&
                 e.Principal != AuthenticationContext.SystemPrincipal
                 && !this.m_dataManager.IsOwner(e.Data, e.Principal))
             {
@@ -294,6 +295,14 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     store.SemanticCopy(e.Data);
                 }
 
+                // Remove MDM tags since this is a master
+                if(store is ITaggable taggable)
+                {
+                    taggable.RemoveTag(MdmConstants.MdmTypeTag);
+                    taggable.RemoveTag(MdmConstants.MdmGeneratedTag);
+                    taggable.RemoveTag(MdmConstants.MdmRotIndicatorTag);
+                    taggable.RemoveTag(MdmConstants.MdmResourceTag);
+                }
                 if (store is IVersionedEntity versioned)
                 {
                     versioned.VersionSequence = null;
@@ -325,6 +334,17 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 }
                 bundle.Item.AddRange(this.m_dataManager.ExtractRelationships(store).OfType<IdentifiedData>());
                 this.m_dataManager.RefactorRelationships(bundle.Item, e.Data.Key.Value, store.Key.Value);
+
+                // Rewrite the focal object to the proper objects actually being actioned
+                if (e.Data.Key != store.Key.Value)
+                {
+                    var replaceKeys = bundle.FocalObjects.Where(f => f == e.Data.Key).ToArray();
+                    if (replaceKeys.Any())
+                    {
+                        bundle.FocalObjects.Add(store.Key.Value);
+                        bundle.FocalObjects.RemoveAll(f => f == e.Data.Key);
+                    }
+                }
             }
             else
             {

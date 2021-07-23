@@ -71,18 +71,7 @@ namespace SanteDB.Persistence.MDM.Test
             this.m_entityRepository = ApplicationServiceContext.Current.GetService<IRepositoryService<Entity>>();
         }
 
-        /// <summary>
-        /// Authenticate 
-        /// </summary>
-        private void AuthenticateAs(String userName, String password)
-        {
-            var userService  = ApplicationServiceContext.Current.GetService<IIdentityProviderService>();
-            var sesPvdService = ApplicationServiceContext.Current.GetService<ISessionProviderService>();
-            var sesIdService = ApplicationServiceContext.Current.GetService<ISessionIdentityProviderService>();
-            //var session = sesPvdService.Establish(userService.Authenticate(userName, password), "http://localhost", false, null, null, null);
-            //AuthenticationContext.Current = new AuthenticationContext(sesIdService.Authenticate(session));
-            AuthenticationContext.Current = new AuthenticationContext(userService.Authenticate(userName, password));
-        }
+     
 
         /// <summary>
         /// This test registers a new patient in the database and ensures that the MDM layer established as new master

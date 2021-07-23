@@ -150,6 +150,7 @@ namespace SanteDB.Persistence.MDM.Services
                 ModelSerializationBinder.RegisterModelType(typeName, rt);
 
             }
+
             // Wait until application context is started
             ApplicationServiceContext.Current.Started += (o, e) =>
             {
@@ -196,6 +197,9 @@ namespace SanteDB.Persistence.MDM.Services
                     m_subscriptionExecutor.Executed += MdmSubscriptionExecuted;
                 }
                 this.m_listeners.Add(new BundleResourceInterceptor(this.m_listeners));
+
+                // Slipstream the MdmEntityProvider
+                EntitySource.Current = new EntitySource(new MdmEntityProvider());
 
                 // FTS?
                 if (ApplicationServiceContext.Current.GetService<IFreetextSearchService>() == null)
