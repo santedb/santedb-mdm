@@ -108,7 +108,7 @@ namespace SanteDB.Persistence.MDM.Services
         /// <summary>
         /// Create injected service
         /// </summary>
-        public MdmDataManagementService(IRecordMatchingService matchingService, IServiceManager serviceManager, IConfigurationManager configuration, ISubscriptionExecutor subscriptionExecutor = null, SimDataManagementService simDataManagementService = null, IJobManagerService jobManagerService = null)
+        public MdmDataManagementService(IServiceManager serviceManager, IConfigurationManager configuration, IRecordMatchingService matchingService = null, ISubscriptionExecutor subscriptionExecutor = null, SimDataManagementService simDataManagementService = null, IJobManagerService jobManagerService = null)
         {
             this.m_configuration = configuration.GetSection<ResourceMergeConfigurationSection>();
             this.m_matchingService = matchingService;
@@ -160,7 +160,11 @@ namespace SanteDB.Persistence.MDM.Services
                 // Replace matching
                 var mdmMatcher = this.m_serviceManager.CreateInjected<MdmRecordMatchingService>();
                 this.m_serviceManager.AddServiceProvider(mdmMatcher);
-                this.m_serviceManager.RemoveServiceProvider(this.m_matchingService.GetType());
+
+                if (this.m_matchingService != null)
+                {
+                    this.m_serviceManager.RemoveServiceProvider(this.m_matchingService.GetType());
+                }
 
                 foreach (var itm in this.m_configuration.ResourceTypes)
                 {
