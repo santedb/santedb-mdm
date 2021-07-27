@@ -28,7 +28,7 @@ namespace SanteDB.Persistence.MDM.Services
         private IRecordMatchingService m_matchService;
 
         // Unique authorities
-        private IEnumerable<Guid> m_uniqueAuthorities;
+        private ICollection<Guid> m_uniqueAuthorities;
 
         // Entity relationship
         private IDataPersistenceService<EntityRelationship> m_erService;
@@ -44,7 +44,18 @@ namespace SanteDB.Persistence.MDM.Services
             this.m_matchService = existingMatchService;
             this.m_erService = erService;
             this.m_arService = arService;
-            this.m_uniqueAuthorities = authorityService.Query(o => o.IsUnique, AuthenticationContext.SystemPrincipal).Select(o => o.Key.Value);
+            this.m_uniqueAuthorities = authorityService.Query(o => o.IsUnique, AuthenticationContext.SystemPrincipal).Select(o => o.Key.Value).ToList();
+            authorityService.Inserted += (o, e) =>
+            {
+                if (e.Data.IsUnique)
+                {
+                    this.m_uniqueAuthorities.Add(e.Data.Key.Value);
+                }
+            };
+            authorityService.Obsoleted += (o, e) =>
+            {
+                this.m_uniqueAuthorities.Remove(e.Data.Key.Value);
+            };
         }
 
         /// <summary>
