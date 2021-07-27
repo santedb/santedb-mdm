@@ -200,7 +200,7 @@ namespace SanteDB.Persistence.MDM.Model
         /// <summary>
         /// Get the constructed master reord
         /// </summary>
-        public T GetMaster(IPrincipal principal)
+        public T Synthesize(IPrincipal principal)
         {
             var master = new T();
             var entityMaster = master as Entity;
@@ -304,7 +304,7 @@ namespace SanteDB.Persistence.MDM.Model
         /// <summary>
         /// Get master record
         /// </summary>
-        IIdentifiedEntity IMdmMaster.GetMaster(IPrincipal principal) => this.GetMaster(principal);
+        IIdentifiedEntity IMdmMaster.GetMaster(IPrincipal principal) => this.Synthesize(principal);
 
         /// <summary>
         /// Gets local records

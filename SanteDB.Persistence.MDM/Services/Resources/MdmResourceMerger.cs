@@ -72,7 +72,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// <summary>
         /// Merge the specified duplicates
         /// </summary>
-        public abstract void Merge(Guid masterKey, IEnumerable<Guid> linkedDuplicates);
+        public abstract RecordMergeResult Merge(Guid masterKey, IEnumerable<Guid> linkedDuplicates);
 
         /// <summary>
         /// Un-ignore the specified object
@@ -82,7 +82,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// <summary>
         /// Un-merge the specified object
         /// </summary>
-        public abstract void Unmerge(Guid masterKey, Guid unmergeDuplicateKey);
+        public abstract RecordMergeResult Unmerge(Guid masterKey, Guid unmergeDuplicateKey);
 
 
         /// <summary>

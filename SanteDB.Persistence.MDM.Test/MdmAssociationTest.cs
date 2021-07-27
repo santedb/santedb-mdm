@@ -51,6 +51,7 @@ namespace SanteDB.Persistence.MDM.Test
         private readonly AssigningAuthority m_testAuthority = new AssigningAuthority("TEST-MDM", "TEST-MDM", "1.2.3.4.9999");
 
         private IRepositoryService<Patient> m_patientRepository;
+        private IRepositoryService<Person> m_personRepository;
         private IRecordMergingService<Patient> m_patientMerge;
         private IRepositoryService<Entity> m_entityRepository;
 
@@ -67,11 +68,74 @@ namespace SanteDB.Persistence.MDM.Test
             ApplicationServiceContext.Current.AddBusinessRule(typeof(BundleBusinessRule));
             ApplicationServiceContext.Current.AddBusinessRule(typeof(NationalHealthIdRule));
             this.m_patientRepository = ApplicationServiceContext.Current.GetService<IRepositoryService<Patient>>();
+            this.m_personRepository = ApplicationServiceContext.Current.GetService<IRepositoryService<Person>>();
             this.m_patientMerge = ApplicationServiceContext.Current.GetService<IRecordMergingService<Patient>>();
             this.m_entityRepository = ApplicationServiceContext.Current.GetService<IRepositoryService<Entity>>();
         }
 
-     
+        /// <summary>
+        /// This test registers a new patient and ensures that parent repository calls are intercepted
+        /// </summary>
+        // TODO: This test should only be enabled if we decide to call upstream repositories to have masters
+        // [Test(Description = "Case 0: Chained / Upstream Calls")]
+        public void TestMdmInterceptsParentTypes()
+        {
+
+            using (AuthenticationContext.EnterSystemContext())
+            {
+                var patientUnderTest = new Patient()
+                {
+                    DateOfBirth = DateTime.Parse("1983-01-10"),
+                    Names = new List<EntityName>()
+                {
+                    new EntityName(NameUseKeys.Legal, "MDM", "Test Subject 0")
+                },
+                    Identifiers = new List<EntityIdentifier>()
+                {
+                    new EntityIdentifier(this.m_testAuthority, "MDM-00")
+                },
+                    GenderConceptKey = Guid.Parse("F4E3A6BB-612E-46B2-9F77-FF844D971198")
+                };
+
+                var savedLocal = this.m_patientRepository.Insert(patientUnderTest);
+
+                // Assert -> A local is returned from the patient repository with a key and version id
+                Assert.IsNotNull(savedLocal.Key);
+                Assert.IsNotNull(savedLocal.VersionKey);
+
+                // Assert -> A query by identifier should result in a master being returned
+                var queriedMaster = this.m_patientRepository.Find(o => o.Identifiers.Any(i => i.Value == "MDM-00")).FirstOrDefault();
+                Assert.AreEqual("M", queriedMaster.GetTag("$mdm.type"));
+                Assert.AreEqual("true", queriedMaster.GetTag("$generated"));
+                Assert.AreEqual(1, queriedMaster.Names.Count);
+                Assert.AreEqual(2, queriedMaster.Identifiers.Count);
+
+                // Assert -> A fetch by ID from master should return master
+                var fetchMaster = this.m_patientRepository.Get(queriedMaster.Key.Value);
+                Assert.AreEqual(queriedMaster.Key, fetchMaster.Key);
+                
+                // Assert -> A fetch by ID for local should return local
+                var fetchLocal = this.m_patientRepository.Get(savedLocal.Key.Value);
+                Assert.AreEqual(1, fetchLocal.Names.Count);
+                Assert.AreEqual(1, fetchLocal.Identifiers.Count);
+                Assert.IsNull(fetchLocal.GetTag("$mdm.type"));
+
+                // Assert -> Call to IRepositoryService<Person> behaves the same way
+                var queriedPersonMaster = this.m_personRepository.Find(o => o.Identifiers.Any(i => i.Value == "MDM-00")).FirstOrDefault();
+                Assert.AreEqual("M", queriedMaster.GetTag("$mdm.type"));
+                Assert.AreEqual("true", queriedMaster.GetTag("$generated"));
+                Assert.AreEqual(1, queriedMaster.Names.Count);
+                Assert.AreEqual(2, queriedMaster.Identifiers.Count);
+
+                // Assert -> Call to IRepositoryService<Entity> behaves the same way
+                var queryEntityMaster = this.m_entityRepository.Find(o => o.Identifiers.Any(i => i.Value == "MDM-00")).FirstOrDefault();
+                Assert.AreEqual("M", queriedMaster.GetTag("$mdm.type"));
+                Assert.AreEqual("true", queriedMaster.GetTag("$generated"));
+                Assert.AreEqual(1, queriedMaster.Names.Count);
+                Assert.AreEqual(2, queriedMaster.Identifiers.Count);
+
+            }
+        }
 
         /// <summary>
         /// This test registers a new patient in the database and ensures that the MDM layer established as new master
@@ -125,6 +189,7 @@ namespace SanteDB.Persistence.MDM.Test
                 Assert.AreEqual(1, fetchLocal.Names.Count);
                 Assert.AreEqual(1, fetchLocal.Identifiers.Count);
                 Assert.IsNull(fetchLocal.GetTag("$mdm.type"));
+                
             }
         }
 

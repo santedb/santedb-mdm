@@ -4,7 +4,10 @@ using SanteDB.Core.Diagnostics;
 using SanteDB.Core.Event;
 using SanteDB.Core.Exceptions;
 using SanteDB.Core.Model;
+using SanteDB.Core.Model.Acts;
+using SanteDB.Core.Model.Attributes;
 using SanteDB.Core.Model.Collection;
+using SanteDB.Core.Model.Entities;
 using SanteDB.Core.Model.Interfaces;
 using SanteDB.Core.Model.Query;
 using SanteDB.Core.Security;
@@ -13,9 +16,13 @@ using SanteDB.Core.Security.Principal;
 using SanteDB.Core.Security.Services;
 using SanteDB.Core.Services;
 using SanteDB.Persistence.MDM.Exceptions;
+using SanteDB.Persistence.MDM.Model;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
+using System.Reflection;
 using System.Security.Principal;
 using System.Text;
 
@@ -27,6 +34,9 @@ namespace SanteDB.Persistence.MDM.Services.Resources
     public class MdmResourceHandler<TModel> : IDisposable, IMdmResourceHandler
         where TModel : IdentifiedData, new()
     {
+
+        // Class concept key
+        private Guid[] m_classConceptKey;
 
         // Policy enforcement service
         private IPolicyEnforcementService m_policyEnforcement;
@@ -60,6 +70,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             if (this.m_notifyRepository == null)
                 throw new InvalidOperationException($"Could not find repository service for {typeof(TModel)}");
 
+            this.m_classConceptKey = typeof(TModel).GetCustomAttributes<ClassConceptKeyAttribute>(false).Select(o=>Guid.Parse(o.ClassConcept)).ToArray();
+
             // Subscribe
             this.m_notifyRepository.Inserting += this.OnPrePersistenceValidate;
             this.m_notifyRepository.Saving += this.OnPrePersistenceValidate;
@@ -71,6 +83,71 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             this.m_notifyRepository.Retrieving += this.OnRetrieving;
             this.m_notifyRepository.Querying += this.OnQuerying;
 
+            // Bind down the repository services
+            // TODO: Determine if this level of interception is required - this only impacts when (for example) IRepositoryService<Patient>
+            // is bound to MDM and someone calls IRepositoryService<Person> - without it calls to the former will return MDM based resources
+            // whereas calls to the latter will return raw non-MDM resources (even if they are patients - they will be local, non-MDM patients).
+            var baseType = typeof(TModel).BaseType;
+            while (typeof(Entity).IsAssignableFrom(baseType) || typeof(Act).IsAssignableFrom(baseType))
+            {
+                var repoType = typeof(INotifyRepositoryService<>).MakeGenericType(baseType);
+                var repoInstance = ApplicationServiceContext.Current.GetService(repoType);
+                if (repoInstance == null)
+                {
+                    break;
+                }
+
+                // Hand off reflection notifcation
+                var eventHandler = repoType.GetEvent("Queried");
+                var parmType = typeof(QueryResultEventArgs<>).MakeGenericType(baseType);
+                var parameter = Expression.Parameter(parmType);
+                var dataAccess = Expression.MakeMemberAccess(parameter, parmType.GetProperty("Results"));
+                var principalAccess = Expression.MakeMemberAccess(parameter, parmType.GetProperty("Principal"));
+                var methodInfo = this.GetType().GetGenericMethod(nameof(OnGenericQueried), new Type[] { baseType }, new Type[] { typeof(IEnumerable<>).MakeGenericType(baseType), typeof(IPrincipal) });
+                var lambdaMethod = typeof(Expression).GetGenericMethod(nameof(Expression.Lambda), new Type[] { eventHandler.EventHandlerType }, new Type[] { typeof(Expression), typeof(ParameterExpression[]) });
+                var lambdaAccess = lambdaMethod.Invoke(null, new object[] { Expression.Assign(dataAccess, Expression.Call(Expression.Constant(this), (MethodInfo)methodInfo, dataAccess, principalAccess)), new ParameterExpression[] { Expression.Parameter(typeof(Object)), parameter } }) as LambdaExpression;
+                //eventHandler.AddEventHandler(repoInstance, lambdaAccess.Compile());
+                //var lamdaAccess = Expression.Lambda(Expression.Call(Expression.Constant(this), this.GetType().GetMethod(nameof(OnGenericQueried))), dataAccess), Expression.Parameter(typeof(Object)), parameter);
+                // Continue down base types
+                baseType = baseType.BaseType;
+            }
+        }
+
+        /// <summary>
+        /// Handles when a generic repository (above the repository this is subscribed to) is queried
+        /// </summary>
+        public IEnumerable<TReturn> OnGenericQueried<TReturn>(IEnumerable<TReturn> results, IPrincipal principal)
+            where TReturn : IdentifiedData
+        {
+            return results.Select(o =>
+            {
+                // It is a type controlled by this handler - so we want to ensure we return the master rather than a local
+                if (o is TModel tmodel && !this.m_dataManager.IsMaster(tmodel)) 
+                {
+                    return this.m_dataManager.GetMasterFor(tmodel.Key.Value).GetMaster(principal);
+                }
+                // It is a type which is classified as a master and has a type concept 
+                else if (o is IHasClassConcept ihcc && ihcc.ClassConceptKey == MdmConstants.MasterRecordClassification &&
+                    o is IHasTypeConcept ihtc && this.m_classConceptKey.Contains(ihtc.TypeConceptKey.GetValueOrDefault()))
+                {
+                    if(o is Entity ent)
+                    {
+                        return new EntityMaster<TModel>(ent).Synthesize(principal);
+                    }
+                    else if(o is Act act)
+                    {
+                        return new ActMaster<TModel>(act).Synthesize(principal);
+                    }
+                    else
+                    {
+                        return o;
+                    }
+                }
+                else
+                {
+                    return o;
+                }
+            }).OfType<TReturn>();
         }
 
         /// <summary>

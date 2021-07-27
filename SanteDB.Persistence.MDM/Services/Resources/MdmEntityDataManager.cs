@@ -70,6 +70,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             this.m_persistenceService = ApplicationServiceContext.Current.GetService<IDataPersistenceService<TModel>>();
             this.m_relationshipService = ApplicationServiceContext.Current.GetService<IDataPersistenceService<EntityRelationship>>();
             this.m_matchingService = ApplicationServiceContext.Current.GetService<IRecordMatchingService>();
+
+           
         }
 
 

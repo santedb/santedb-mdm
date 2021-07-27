@@ -75,7 +75,7 @@ namespace SanteDB.Persistence.MDM.Services
         private IDataPersistenceService<EntityRelationship> m_entityRelationshipService;
         // Entity service
         private IDataPersistenceService<Entity> m_entityService;
-
+      
         // TRace source
         private Tracer m_traceSource = new Tracer(MdmConstants.TraceSourceName);
 
@@ -141,6 +141,11 @@ namespace SanteDB.Persistence.MDM.Services
             // Pre-register types for serialization
             foreach (var itm in this.m_configuration.ResourceTypes)
             {
+                if (itm.ResourceType == typeof(Entity))
+                {
+                    throw new InvalidOperationException("Cannot bind MDM control to Entity or Act , only sub-classes");
+                }
+
                 var rt = itm.ResourceType;
                 string typeName = $"{rt.Name}Master";
                 if (typeof(Entity).IsAssignableFrom(rt))
@@ -168,6 +173,7 @@ namespace SanteDB.Persistence.MDM.Services
 
                 foreach (var itm in this.m_configuration.ResourceTypes)
                 {
+                   
                     this.m_traceSource.TraceInfo("Adding MDM listener for {0}...", itm.ResourceType.Name);
                     MdmDataManagerFactory.RegisterDataManager(itm);
                     var idt = typeof(MdmResourceHandler<>).MakeGenericType(itm.ResourceType);
@@ -214,6 +220,8 @@ namespace SanteDB.Persistence.MDM.Services
             this.Started?.Invoke(this, EventArgs.Empty);
             return true;
         }
+
+
 
         /// <summary>
         /// Re-check relationships to ensure that they are properly in the database
