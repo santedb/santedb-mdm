@@ -22,32 +22,9 @@
   <sections>
     <add type="SanteDB.Core.Configuration.ApplicationServiceContextConfigurationSection, SanteDB.Core.Api" />
     <add type="SanteDB.Core.Configuration.DiagnosticsConfigurationSection, SanteDB.Core.Api" />
-    <add type="SanteDB.Authentication.OAuth2.Configuration.OAuthConfigurationSection, SanteDB.Authentication.OAuth2" />
     <add type="SanteDB.Core.Configuration.AuditAccountabilityConfigurationSection, SanteDB.Core.Api"/>
-    <add type="SanteDB.Caching.Redis.Configuration.RedisConfigurationSection, SanteDB.Caching.Redis" />
-    <add type="SanteDB.Server.Core.Configuration.JobConfigurationSection, SanteDB.Server.Core" />
-    <add type="SanteDB.Server.Core.Configuration.RestConfigurationSection, SanteDB.Server.Core" />
-    <add type="SanteDB.Server.Core.Configuration.BasicAuthorizationConfigurationSection, SanteDB.Server.Core" />
-    <add type="SanteDB.Server.Core.Configuration.ClaimsAuthorizationConfigurationSection, SanteDB.Server.Core" />
     <add type="SanteDB.Server.Core.Configuration.SecurityConfigurationSection, SanteDB.Server.Core" />
-    <add type="SanteDB.Core.Security.Tfa.Email.Configuration.TfaEmailMechanismConfigurationSection, SanteDB.Core.Security.Tfa.Email" />
-    <add type="SanteDB.Core.Security.Tfa.Twilio.Configuration.TwilioTfaMechanismConfigurationSection, SanteDB.Core.Security.Tfa.Twilio" />
-    <add type="SanteDB.Messaging.AMI.Configuration.AmiConfigurationSection, SanteDB.Messaging.AMI" />
-    <add type="SanteDB.Messaging.FHIR.Configuration.FhirServiceConfigurationSection, SanteDB.Messaging.FHIR" />
-    <add type="SanteDB.Messaging.GS1.Configuration.Gs1ConfigurationSection, SanteDB.Messaging.GS1" />
-    <add type="SanteDB.Messaging.HDSI.Configuration.HdsiConfigurationSection, SanteDB.Messaging.HDSI" />
-    <add type="SanteDB.Messaging.HL7.Configuration.Hl7ConfigurationSection, SanteDB.Messaging.HL7" />
-    <add type="SanteDB.Persistence.Auditing.ADO.Configuration.AdoAuditConfigurationSection, SanteDB.Persistence.Auditing.ADO" />
     <add type="SanteDB.Persistence.Data.ADO.Configuration.AdoPersistenceConfigurationSection, SanteDB.Persistence.Data.ADO" />
-    <add type="SanteDB.Persistence.Diagnostics.Email.Configuration.DiagnosticEmailServiceConfigurationSection, SanteDB.Persistence.Diagnostics.Email" />
-    <add type="SanteDB.Persistence.Diagnostics.Jira.Configuration.JiraServiceConfigurationSection, SanteDB.Persistence.Diagnostics.Jira, Version=1.1.2.24606, Culture=neutral, PublicKeyToken=null" />
-    <add type="SanteDB.Persistence.MDM.Configuration.MdmConfigurationSection, SanteDB.Persistence.MDM" />
-    <add type="SanteDB.Persistence.Reporting.ADO.Configuration.ReportingConfiguration, SanteDB.Persistence.Reporting.ADO" />
-    <add type="SanteDB.Reporting.Core.Configuration.ReportingConfigurationSection, SanteDB.Reporting.Core" />
-    <add type="SanteDB.Reporting.Jasper.Configuration.JasperConfigurationSection, SanteDB.Reporting.Jasper" />
-    <add type="SanteDB.Warehouse.ADO.Configuration.AdoWarehouseConfigurationSection, SanteDB.Warehouse.ADO" />
-    <add type="SanteDB.Server.Core.Configuration.SanteDBServerConfiguration, SanteDB.Server.Core" />
-    <add type="SanteDB.Messaging.Atna.Configuration.AtnaConfigurationSection, SanteDB.Messaging.Atna" />
     <add type="SanteDB.OrmLite.Configuration.OrmConfigurationSection, SanteDB.OrmLite" />
     <add type="SanteDB.Core.Configuration.ResourceMergeConfigurationSection, SanteDB.Core.Api, Version=2.0.0.0"/>
   </sections>
@@ -105,7 +82,6 @@
             <add type="SanteDB.Core.Security.DefaultPolicyDecisionService, SanteDB.Core.Api" />
 
       <add type="SanteDB.Server.Core.Services.Impl.LocalRepositoryService, SanteDB.Server.Core, Version=0.6.0.0"/>
-      <add type="SanteDB.Server.Core.Services.Impl.ThreadPoolService, SanteDB.Server.Core, Version=0.6.0.0" />
       <add type="SanteDB.Persistence.MDM.Test.DummyMatcherService, SanteDB.Persistence.MDM.Test, Version=1.0.0.0"/>
       <add type="SanteDB.Persistence.MDM.Services.MdmDataManagementService, SanteDB.Persistence.MDM, Version=1.0.0.0"/>
       <add type="SanteDB.Server.Core.Services.Impl.LocalTagPersistenceService, SanteDB.Server.Core, Version=1.0.0.0"/>

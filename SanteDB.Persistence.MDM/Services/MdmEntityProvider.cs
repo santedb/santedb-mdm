@@ -67,14 +67,14 @@ namespace SanteDB.Persistence.MDM.Services
                 var retVal = persistenceService.Get(key.Value, versionKey, true, AuthenticationContext.Current.Principal);
                 if (retVal is Entity entity && entity.ClassConceptKey == MdmConstants.MasterRecordClassification)
                 {
-                    if (entityTypeMap.TryGetValue(entity.TypeConceptKey.Value, out Type t))
+                    if (entityTypeMap.TryGetValue(entity.TypeConceptKey.GetValueOrDefault(), out Type t))
                     {
                         var master = Activator.CreateInstance(typeof(EntityMaster<>).MakeGenericType(t), entity) as IMdmMaster;
                         return (TObject)master.GetMaster(AuthenticationContext.Current.Principal);
                     }
                     else
                     {
-                        throw new InvalidOperationException($"Cannot determine how to load synthetic master for {entity.TypeConceptKey}");
+                        return retVal;
                     }
                 }
                 else

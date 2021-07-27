@@ -722,7 +722,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 // If there is a candidate that is marked as to be deleted
                 // but another which is not - we take the candidate with a current
                 // key and update the strength (i.e. the candidate still is valid)
-                else if (candidateRelationships.Any(r => r.Key.HasValue) && !candidateRelationships.All(r => r.ObsoleteVersionSequenceId.HasValue))
+                else if (candidateRelationships.Any(r => r.ObsoleteVersionSequenceId.HasValue) && !candidateRelationships.All(r => r.ObsoleteVersionSequenceId.HasValue))
                 {
                     var existingRel = candidateRelationships.FirstOrDefault(o => o.ObsoleteVersionSequenceId.HasValue); // the obsoleted one already exists in DB
                     existingRel.Strength = candidateRelationships.First().Strength;
@@ -733,7 +733,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 {
                     yield return candidateRelationships.FirstOrDefault(); // Most strong link
                 }
-
+                
                 // Other relationship types
                 foreach (var otherRel in res.Where(o => MdmConstants.MasterRecordRelationship != o.RelationshipTypeKey && MdmConstants.CandidateLocalRelationship != o.RelationshipTypeKey && MdmConstants.OriginalMasterRelationship != o.RelationshipTypeKey))
                 {

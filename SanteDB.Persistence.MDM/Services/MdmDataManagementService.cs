@@ -224,22 +224,26 @@ namespace SanteDB.Persistence.MDM.Services
             {
                 case MdmConstants.MASTER_RECORD_RELATIONSHIP:
                     // Is the data obsoleted (removed)? If so, then ensure we don't have a hanging master
-                    if (e.Data.ObsoleteVersionSequenceId.HasValue &&
-                        this.m_entityRelationshipService.Count(r => r.TargetEntityKey == e.Data.TargetEntityKey && r.TargetEntity.StatusConceptKey != StatusKeys.Obsolete && r.SourceEntityKey != e.Data.SourceEntityKey && r.ObsoleteVersionSequenceId == null) == 0)
+                    if (e.Data.ObsoleteVersionSequenceId.HasValue)
                     {
-                        this.m_entityService.Obsolete(new Entity() { Key = e.Data.TargetEntityKey }, e.Mode, e.Principal);
+
+                        if (this.m_entityRelationshipService.Count(r => r.TargetEntityKey == e.Data.TargetEntityKey && r.TargetEntity.StatusConceptKey != StatusKeys.Obsolete && r.SourceEntityKey != e.Data.SourceEntityKey && r.ObsoleteVersionSequenceId == null) == 0)
+                        {
+                            this.m_entityService.Obsolete(new Entity() { Key = e.Data.TargetEntityKey }, e.Mode, e.Principal);
+                        }
+                        return; // no need to de-dup check on obsoleted object
                     }
-                    
+
                     // MDM relationship should be the only active relationship between
                     // So when:
                     // A =[MDM-Master]=> B
                     // You cannot have:
                     // A =[MDM-Duplicate]=> B
                     // A =[MDM-Original]=> B
-                    foreach(var itm in this.m_entityRelationshipService.Query(q=>q.RelationshipTypeKey != MdmConstants.MasterRecordRelationship && q.SourceEntityKey == e.Data.SourceEntityKey && q.TargetEntityKey == e.Data.TargetEntityKey && q.ObsoleteVersionSequenceId == null, e.Principal))
+                    foreach (var itm in this.m_entityRelationshipService.Query(q => q.RelationshipTypeKey != MdmConstants.MasterRecordRelationship && q.SourceEntityKey == e.Data.SourceEntityKey && q.TargetEntityKey == e.Data.TargetEntityKey && q.ObsoleteVersionSequenceId == null, e.Principal))
                     {
                         itm.ObsoleteVersionSequenceId = Int32.MaxValue;
-                        this.m_entityRelationshipService.Update(itm,e.Mode, e.Principal);
+                        this.m_entityRelationshipService.Update(itm, e.Mode, e.Principal);
                     }
                     break;
                 case MdmConstants.RECORD_OF_TRUTH_RELATIONSHIP:
