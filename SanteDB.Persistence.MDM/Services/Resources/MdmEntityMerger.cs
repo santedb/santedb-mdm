@@ -74,33 +74,33 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// <summary>
         /// Get merge candidates
         /// </summary>
-        public override IEnumerable<IdentifiedData> GetMergeCandidates(Guid masterKey)
+        public override IEnumerable<IdentifiedData> GetMergeCandidates(Guid masterKey, int offset = 0, int? count = null)
         {
-            if(masterKey == Guid.Empty)
-            {
-                return this.m_dataManager.GetAllMdmCandidateLocals();
-            }
-            else if (this.m_dataManager.IsMaster(masterKey))
-            {
-                return this.m_dataManager.GetCandidateLocals(masterKey)
-                    .OfType<EntityRelationship>()
-                    .Select(o => {
-                       var retVal = o.LoadProperty(p => p.SourceEntity) as Entity;
-                        retVal.AddTag("$match.score", $"{o.Strength:%%.%%}");
-                        return retVal;
-                    });
-            }
-            else
-            {
-                return this.m_dataManager.GetEstablishedCandidateMasters(masterKey)
-                    .OfType<EntityRelationship>()
-                    .Select(o =>
-                    {
-                        var retVal = o.LoadProperty(p => p.TargetEntity) as Entity;
-                        retVal.AddTag("$match.score", $"{o.Strength:%%.%%}");
-                        return retVal;
-                    });
-            }
+	        if (masterKey == Guid.Empty)
+	        {
+		        return this.m_dataManager.GetAllMdmCandidateLocals(offset, count);
+	        }
+	        else if (this.m_dataManager.IsMaster(masterKey))
+	        {
+		        return this.m_dataManager.GetCandidateLocals(masterKey)
+			        .OfType<EntityRelationship>()
+			        .Select(o => {
+				        var retVal = o.LoadProperty(p => p.SourceEntity) as Entity;
+				        retVal.AddTag("$match.score", $"{o.Strength:%%.%%}");
+				        return retVal;
+			        });
+	        }
+	        else
+	        {
+		        return this.m_dataManager.GetEstablishedCandidateMasters(masterKey)
+			        .OfType<EntityRelationship>()
+			        .Select(o =>
+			        {
+				        var retVal = o.LoadProperty(p => p.TargetEntity) as Entity;
+				        retVal.AddTag("$match.score", $"{o.Strength:%%.%%}");
+				        return retVal;
+			        });
+	        }
         }
 
         /// <summary>

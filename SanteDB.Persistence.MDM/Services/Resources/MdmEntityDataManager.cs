@@ -22,6 +22,7 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Security.Principal;
 using System.Text;
+using Newtonsoft.Json;
 
 namespace SanteDB.Persistence.MDM.Services.Resources
 {
@@ -928,6 +929,14 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         public override IEnumerable<IdentifiedData> GetAllMdmCandidateLocals()
         {
             return this.m_relationshipService.Query(o => o.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship && o.ObsoleteVersionSequenceId == null, AuthenticationContext.SystemPrincipal);
+        }
+
+        /// <summary>
+        /// Get all candidate locals
+        /// </summary>
+        public override IEnumerable<IdentifiedData> GetAllMdmCandidateLocals(int offset, int? count = null)
+        {
+	        return this.m_relationshipService.Query(o => o.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship && o.ObsoleteVersionSequenceId == null, offset, count, out _, AuthenticationContext.SystemPrincipal);
         }
 
         /// <summary>

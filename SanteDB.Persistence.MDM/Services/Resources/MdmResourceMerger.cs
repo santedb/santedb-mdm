@@ -62,7 +62,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// <summary>
         /// Get merge candidates
         /// </summary>
-        public abstract IEnumerable<IdentifiedData> GetMergeCandidates(Guid masterKey);
+        public abstract IEnumerable<IdentifiedData> GetMergeCandidates(Guid masterKey, int offset = 0, int? count = null);
 
         /// <summary>
         /// Ignore the specified candidate
