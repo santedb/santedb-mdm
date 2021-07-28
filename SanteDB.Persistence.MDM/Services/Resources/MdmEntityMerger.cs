@@ -1,4 +1,5 @@
-﻿using SanteDB.Core.Event;
+﻿using SanteDB.Core.BusinessRules;
+using SanteDB.Core.Event;
 using SanteDB.Core.Exceptions;
 using SanteDB.Core.Model;
 using SanteDB.Core.Model.Collection;
@@ -11,6 +12,7 @@ using SanteDB.Core.Services;
 using SanteDB.Persistence.MDM.Exceptions;
 using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Linq;
 using System.Security;
 using System.Text;
@@ -154,7 +156,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                         survivor = this.m_dataManager.GetLocalFor(survivorKey, AuthenticationContext.Current.Principal);
                         if (survivor == null)
                         {
-                            throw new MdmException(survivor, $"Cannot find writeable LOCAL for {survivorKey}", e);
+                            throw new DetectedIssueException(Core.BusinessRules.DetectedIssuePriorityType.Error, MdmConstants.INVALID_MERGE_ISSUE, $"Principal has no authority to merge into {survivorKey}", DetectedIssueKeys.SecurityIssue, e);
                         }
                         recordMergeStatus = RecordMergeStatus.Alternate;
                         isSurvivorMaster = false;
@@ -181,7 +183,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                             victim = this.m_dataManager.GetLocalFor(itm, AuthenticationContext.Current.Principal);
                             if (victim == null)
                             {
-                                throw new MdmException(survivor, $"Cannot find writeable LOCAL for {itm}", e);
+                                throw new DetectedIssueException(Core.BusinessRules.DetectedIssuePriorityType.Error, MdmConstants.INVALID_MERGE_ISSUE, $"Principal has no authority to merge {itm}", DetectedIssueKeys.SecurityIssue, e);
                             }
                             isVictimMaster = false;
                             recordMergeStatus = RecordMergeStatus.Alternate;

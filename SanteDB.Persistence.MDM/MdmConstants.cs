@@ -117,5 +117,10 @@ namespace SanteDB.Persistence.MDM
         /// Identity match configuration
         /// </summary>
         public const string MdmIdentityMatchConfiguration = "$identity";
+
+        /// <summary>
+        /// Detected issue code for invalid merge
+        /// </summary>
+        public const string INVALID_MERGE_ISSUE = "mdm-no-local-or-permission";
     }
 }

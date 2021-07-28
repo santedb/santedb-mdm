@@ -28,7 +28,7 @@ namespace SanteDB.Persistence.MDM.Exceptions
     /// <summary>
     /// Represents an underlying exception in the MDM layer
     /// </summary>
-    public class MdmException : Exception
+    public class MdmException : InvalidOperationException
     {
 
         /// <summary>
