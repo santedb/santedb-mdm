@@ -325,7 +325,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
 
             // Try to do a linked query (unless the query is on a special local filter value)
             // TODO: Make it configurable which properties trigger a master query
-            if (masterQuery.Keys.Any(o => o.StartsWith("identifier")) && this.m_entityPersistenceService is IUnionQueryDataPersistenceService<Entity> unionQuery)
+            if (masterQuery.Keys.Any(o => o.StartsWith("identifier") || o == "id") && this.m_entityPersistenceService is IUnionQueryDataPersistenceService<Entity> unionQuery)
             {
                 var masterLinq = QueryExpressionParser.BuildLinqExpression<Entity>(masterQuery, null, false);
                 return unionQuery.Union(new Expression<Func<Entity, bool>>[] { localLinq, masterLinq }, queryId.GetValueOrDefault(), offset, count, out totalResults, AuthenticationContext.SystemPrincipal).Select(this.Synthesize);
@@ -972,7 +972,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             // First enusre validate state
             if (!this.IsMaster(survivorKey) || !this.IsMaster(victimKey))
             {
-                throw new InvalidOperationException($"Moth {survivorKey} and {victimKey} must be MASTER");
+                throw new InvalidOperationException($"Both {survivorKey} and {victimKey} must be MASTER");
             }
 
             // First we obsolete the old
@@ -1008,9 +1008,12 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 yield return new EntityRelationship(MdmConstants.CandidateLocalRelationship, rel.SourceEntityKey, survivorKey, rel.ClassificationKey);
             }
 
-            // Identifiers for the victim are migrated
+            
+            // Identifiers for the victim are obsoleted and migrated
             foreach (var ident in victimData.LoadCollection(o => o.Identifiers).Where(o => !survivorData.LoadCollection(s => s.Identifiers).Any(s => !s.SemanticEquals(o))))
             {
+                ident.ObsoleteVersionSequenceId = Int32.MaxValue;
+                yield return ident;
                 yield return new EntityIdentifier(ident.Authority, ident.Value)
                 {
                     IssueDate = ident.IssueDate,
