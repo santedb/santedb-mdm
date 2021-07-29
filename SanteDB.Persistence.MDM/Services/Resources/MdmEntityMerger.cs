@@ -1,4 +1,5 @@
-﻿using SanteDB.Core.Event;
+﻿using SanteDB.Core.BusinessRules;
+using SanteDB.Core.Event;
 using SanteDB.Core.Exceptions;
 using SanteDB.Core.Model;
 using SanteDB.Core.Model.Collection;
@@ -11,6 +12,7 @@ using SanteDB.Core.Services;
 using SanteDB.Persistence.MDM.Exceptions;
 using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Linq;
 using System.Security;
 using System.Text;
@@ -125,7 +127,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// <summary>
         /// Merge the specified records together
         /// </summary>
-        public override void Merge(Guid survivorKey, IEnumerable<Guid> linkedDuplicates)
+        public override RecordMergeResult Merge(Guid survivorKey, IEnumerable<Guid> linkedDuplicates)
         {
 
             try
@@ -135,10 +137,11 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 if (this.FireMerging(survivorKey, linkedDuplicates))
                 {
                     this.m_tracer.TraceWarning("Pre-Event Handler for merge indicated cancel on {0}", survivorKey);
-                    return;
+                    return new RecordMergeResult(RecordMergeStatus.Cancelled, null, null);
                 }
 
                 // We want to get the target
+                RecordMergeStatus recordMergeStatus = RecordMergeStatus.Success;
                 var survivor = this.m_dataManager.GetRaw(survivorKey) as Entity;
                 bool isSurvivorMaster = this.m_dataManager.IsMaster(survivorKey);
                 if (isSurvivorMaster)
@@ -153,8 +156,9 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                         survivor = this.m_dataManager.GetLocalFor(survivorKey, AuthenticationContext.Current.Principal);
                         if (survivor == null)
                         {
-                            throw new MdmException(survivor, $"Cannot find writeable LOCAL for {survivorKey}", e);
+                            throw new DetectedIssueException(Core.BusinessRules.DetectedIssuePriorityType.Error, MdmConstants.INVALID_MERGE_ISSUE, $"Principal has no authority to merge into {survivorKey}", DetectedIssueKeys.SecurityIssue, e);
                         }
+                        recordMergeStatus = RecordMergeStatus.Alternate;
                         isSurvivorMaster = false;
                     }
                 }
@@ -162,7 +166,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 Bundle transactionBundle = new Bundle();
 
                 // For each linked duplicate
-                foreach (var itm in linkedDuplicates)
+                var replaced = linkedDuplicates.Select(itm =>
                 {
 
                     var victim = this.m_dataManager.GetRaw(itm) as Entity;
@@ -177,11 +181,12 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                         catch (PolicyViolationException e) when (e.PolicyId == MdmPermissionPolicyIdentifiers.MergeMdmMaster)
                         {
                             victim = this.m_dataManager.GetLocalFor(itm, AuthenticationContext.Current.Principal);
-                            if (survivor == null)
+                            if (victim == null)
                             {
-                                throw new MdmException(survivor, $"Cannot find writeable LOCAL for {itm}", e);
+                                throw new DetectedIssueException(Core.BusinessRules.DetectedIssuePriorityType.Error, MdmConstants.INVALID_MERGE_ISSUE, $"Principal has no authority to merge {itm}", DetectedIssueKeys.SecurityIssue, e);
                             }
                             isVictimMaster = false;
+                            recordMergeStatus = RecordMergeStatus.Alternate;
                         }
                     }
 
@@ -216,6 +221,15 @@ namespace SanteDB.Persistence.MDM.Services.Resources
 
                         // Copy identifiers over
                         transactionBundle.AddRange(
+                            victim.LoadCollection(o => o.Identifiers).Where(i => !survivor.LoadCollection(o => o.Identifiers).Any(e => e.SemanticEquals(i))).Select(o =>
+                            {
+                                o.ObsoleteVersionSequenceId = Int32.MaxValue;
+                                return o;
+                            })
+                        );
+
+                        // Copy identifiers over
+                        transactionBundle.AddRange(
                             victim.LoadCollection(o => o.Identifiers).Where(i => !survivor.LoadCollection(o => o.Identifiers).Any(e => e.SemanticEquals(i))).Select(o => new EntityIdentifier(o.Authority, o.Value)
                             {
                                 SourceEntityKey = survivor.Key,
@@ -225,20 +239,25 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                         );
 
                         // Remove links from victim
-                        foreach(var rel in this.m_dataManager.GetAllMdmAssociations(victim.Key.Value).OfType<EntityRelationship>())
+                        foreach (var rel in this.m_dataManager.GetAllMdmAssociations(victim.Key.Value).OfType<EntityRelationship>())
                         {
                             rel.ObsoleteVersionSequenceId = Int32.MaxValue;
                             transactionBundle.Add(rel);
                         }
+
                     }
                     else
                     {
                         throw new MdmException($"Cannot determine viable merge/link strategy between {survivor.Key} and {victim.Key}", null);
                     }
-                }
+
+                    return victim.Key.Value;
+
+                }).ToArray();
 
                 this.m_batchPersistence.Insert(transactionBundle, TransactionMode.Commit, AuthenticationContext.Current.Principal);
                 this.FireMerged(survivorKey, linkedDuplicates);
+                return new RecordMergeResult(recordMergeStatus, new Guid[] { survivor.Key.Value }, replaced);
             }
             catch (Exception ex)
             {
@@ -252,7 +271,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             throw new NotImplementedException();
         }
 
-        public override void Unmerge(Guid masterKey, Guid unmergeDuplicateKey)
+        public override RecordMergeResult Unmerge(Guid masterKey, Guid unmergeDuplicateKey)
         {
             throw new NotImplementedException();
         }

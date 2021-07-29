@@ -84,12 +84,12 @@ namespace SanteDB.Persistence.MDM.Services
         /// <summary>
         /// Create a new identity match result
         /// </summary>
-        public MdmIdentityMatchResult(T record)
+        public MdmIdentityMatchResult(T record, RecordMatchClassification classification = RecordMatchClassification.Match, float score = 1.0f)
         {
             this.Record = record;
             this.Method = RecordMatchMethod.Identifier;
-            this.Score = this.Strength = 1.0f;
-            this.Classification = RecordMatchClassification.Match;
+            this.Score = this.Strength = score;
+            this.Classification = classification;
         }
 
 

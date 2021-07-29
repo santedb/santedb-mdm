@@ -70,6 +70,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             this.m_persistenceService = ApplicationServiceContext.Current.GetService<IDataPersistenceService<TModel>>();
             this.m_relationshipService = ApplicationServiceContext.Current.GetService<IDataPersistenceService<EntityRelationship>>();
             this.m_matchingService = ApplicationServiceContext.Current.GetService<IRecordMatchingService>();
+
+           
         }
 
 
@@ -78,7 +80,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         public override bool IsMaster(Guid dataKey)
         {
-            return this.m_entityPersistenceService.Get(dataKey, null, AuthenticationContext.SystemPrincipal).ClassConceptKey == MdmConstants.MasterRecordClassification;
+            return this.m_entityPersistenceService.Get(dataKey, null, AuthenticationContext.SystemPrincipal)?.ClassConceptKey == MdmConstants.MasterRecordClassification;
         }
 
         /// <summary>
@@ -98,7 +100,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             {
                 return true;
             }
-            else if (entity.Key.HasValue)
+            else if (entity.Key.HasValue && !entity.ClassConceptKey.HasValue) // only the key
             {
                 return this.m_entityPersistenceService.Get(entity.Key.Value, null, AuthenticationContext.SystemPrincipal)?.ClassConceptKey == MdmConstants.MasterRecordClassification;
             }
@@ -324,7 +326,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
 
             // Try to do a linked query (unless the query is on a special local filter value)
             // TODO: Make it configurable which properties trigger a master query
-            if (masterQuery.Keys.Any(o => o.StartsWith("identifier")))
+            if (masterQuery.Keys.Any(o => o.StartsWith("identifier") || o == "id"))
             {
                 var masterLinq = QueryExpressionParser.BuildLinqExpression<TModel>(masterQuery, null, false);
                 resultSet = this.m_persistenceService.Query(localLinq, AuthenticationContext.SystemPrincipal).AsResultSet().Union(masterLinq);
@@ -386,7 +388,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 Key = Guid.NewGuid(),
                 VersionKey = null,
                 CreatedByKey = Guid.Parse(AuthenticationContext.SystemApplicationSid),
-                DeterminerConceptKey = DeterminerKeys.Specific
+                DeterminerConceptKey = DeterminerKeys.Specific,
+                TypeConceptKey = local.ClassConceptKey
             };
             local.Relationships.Add(new EntityRelationship(MdmConstants.MasterRecordRelationship, local.Key, retVal.Key, MdmConstants.AutomagicClassification));
             return retVal;
@@ -720,7 +723,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 // If there is a candidate that is marked as to be deleted
                 // but another which is not - we take the candidate with a current
                 // key and update the strength (i.e. the candidate still is valid)
-                else if (candidateRelationships.Any(r => r.Key.HasValue) && !candidateRelationships.All(r => r.ObsoleteVersionSequenceId.HasValue))
+                else if (candidateRelationships.Any(r => r.ObsoleteVersionSequenceId.HasValue) && !candidateRelationships.All(r => r.ObsoleteVersionSequenceId.HasValue))
                 {
                     var existingRel = candidateRelationships.FirstOrDefault(o => o.ObsoleteVersionSequenceId.HasValue); // the obsoleted one already exists in DB
                     existingRel.Strength = candidateRelationships.First().Strength;
@@ -731,7 +734,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 {
                     yield return candidateRelationships.FirstOrDefault(); // Most strong link
                 }
-
+                
                 // Other relationship types
                 foreach (var otherRel in res.Where(o => MdmConstants.MasterRecordRelationship != o.RelationshipTypeKey && MdmConstants.CandidateLocalRelationship != o.RelationshipTypeKey && MdmConstants.OriginalMasterRelationship != o.RelationshipTypeKey))
                 {
@@ -968,7 +971,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             // First enusre validate state
             if (!this.IsMaster(survivorKey) || !this.IsMaster(victimKey))
             {
-                throw new InvalidOperationException($"Moth {survivorKey} and {victimKey} must be MASTER");
+                throw new InvalidOperationException($"Both {survivorKey} and {victimKey} must be MASTER");
             }
 
             // First we obsolete the old
@@ -1004,9 +1007,12 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 yield return new EntityRelationship(MdmConstants.CandidateLocalRelationship, rel.SourceEntityKey, survivorKey, rel.ClassificationKey);
             }
 
-            // Identifiers for the victim are migrated
+            
+            // Identifiers for the victim are obsoleted and migrated
             foreach (var ident in victimData.LoadCollection(o => o.Identifiers).Where(o => !survivorData.LoadCollection(s => s.Identifiers).Any(s => !s.SemanticEquals(o))))
             {
+                ident.ObsoleteVersionSequenceId = Int32.MaxValue;
+                yield return ident;
                 yield return new EntityIdentifier(ident.Authority, ident.Value)
                 {
                     IssueDate = ident.IssueDate,

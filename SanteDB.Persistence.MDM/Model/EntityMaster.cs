@@ -200,7 +200,7 @@ namespace SanteDB.Persistence.MDM.Model
         /// <summary>
         /// Get the constructed master reord
         /// </summary>
-        public T GetMaster(IPrincipal principal)
+        public T Synthesize(IPrincipal principal)
         {
             var master = new T();
             var entityMaster = master as Entity;
@@ -220,7 +220,7 @@ namespace SanteDB.Persistence.MDM.Model
             {
                 master.SemanticCopy((T)(object)this.m_recordOfTruth);
                 master.SemanticCopyNullFields(locals);
-                entityMaster.Tags.Add(new EntityTag("$mdm.rot", "true"));
+                entityMaster.Tags.Add(new EntityTag(MdmConstants.MdmRotIndicatorTag, "true"));
             }
 
             // HACK: Copy targets for relationships and refactor them - Find a cleaner way to do this
@@ -246,10 +246,9 @@ namespace SanteDB.Persistence.MDM.Model
 
             entityMaster.Policies = this.LocalRecords.SelectMany(o => (o as Entity).Policies).Distinct().ToList();
             entityMaster.Tags.RemoveAll(o => o.TagKey == "$mdm.type");
-            entityMaster.Tags.Add(new EntityTag("$mdm.type", "M")); // This is a master
-            entityMaster.Tags.Add(new EntityTag("$mdm.resource", typeof(T).Name)); // The original resource of the master
-            entityMaster.Tags.Add(new EntityTag("$generated", "true")); // This object was generated
-            entityMaster.Tags.Add(new EntityTag("$alt.keys", String.Join(";", this.m_localRecords.Select(o => o.Key.ToString()))));
+            entityMaster.Tags.Add(new EntityTag(MdmConstants.MdmTypeTag, "M")); // This is a master
+            entityMaster.Tags.Add(new EntityTag(MdmConstants.MdmResourceTag, typeof(T).Name)); // The original resource of the master
+            entityMaster.Tags.Add(new EntityTag(MdmConstants.MdmGeneratedTag, "true")); // This object was generated
             entityMaster.CreationTime = this.ModifiedOn;
             entityMaster.PreviousVersionKey = this.m_masterRecord.PreviousVersionKey;
             entityMaster.Key = this.m_masterRecord.Key;
@@ -305,7 +304,7 @@ namespace SanteDB.Persistence.MDM.Model
         /// <summary>
         /// Get master record
         /// </summary>
-        IIdentifiedEntity IMdmMaster.GetMaster(IPrincipal principal) => this.GetMaster(principal);
+        IIdentifiedEntity IMdmMaster.GetMaster(IPrincipal principal) => this.Synthesize(principal);
 
         /// <summary>
         /// Gets local records

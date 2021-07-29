@@ -28,7 +28,7 @@ namespace SanteDB.Persistence.MDM.Services
         private IRecordMatchingService m_matchService;
 
         // Unique authorities
-        private IEnumerable<Guid> m_uniqueAuthorities;
+        private ICollection<Guid> m_uniqueAuthorities;
 
         // Entity relationship
         private IDataPersistenceService<EntityRelationship> m_erService;
@@ -44,7 +44,18 @@ namespace SanteDB.Persistence.MDM.Services
             this.m_matchService = existingMatchService;
             this.m_erService = erService;
             this.m_arService = arService;
-            this.m_uniqueAuthorities = authorityService.Query(o => o.IsUnique, AuthenticationContext.SystemPrincipal).Select(o => o.Key.Value);
+            this.m_uniqueAuthorities = authorityService.Query(o => o.IsUnique, AuthenticationContext.SystemPrincipal).Select(o => o.Key.Value).ToList();
+            authorityService.Inserted += (o, e) =>
+            {
+                if (e.Data.IsUnique)
+                {
+                    this.m_uniqueAuthorities.Add(e.Data.Key.Value);
+                }
+            };
+            authorityService.Obsoleted += (o, e) =>
+            {
+                this.m_uniqueAuthorities.Remove(e.Data.Key.Value);
+            };
         }
 
         /// <summary>
@@ -81,7 +92,6 @@ namespace SanteDB.Persistence.MDM.Services
         {
             if (!(entity is IHasIdentifiers identifiers))
                 throw new InvalidOperationException($"Cannot perform identity match on {typeof(T)}");
-
 
             // Identifiers in which entity has the unique authority
             var uqIdentifiers = identifiers.Identifiers.OfType<IExternalIdentifier>().Where(o => this.m_uniqueAuthorities.Contains(o.Authority?.Key ?? Guid.Empty));
@@ -129,9 +139,41 @@ namespace SanteDB.Persistence.MDM.Services
         public IEnumerable<IRecordMatchResult<T>> Classify<T>(T input, IEnumerable<T> blocks, string configurationName) where T : IdentifiedData
         {
             if (MdmConstants.MdmIdentityMatchConfiguration.Equals(configurationName))
-                return this.PerformIdentityMatch(input, null);
+                return this.PerformIdentityClassify(input, blocks);
             else
                 return this.m_matchService?.Classify<T>(input, blocks, configurationName);
+        }
+
+        /// <summary>
+        /// Perform a classification operation on identifier
+        /// </summary>
+        private IEnumerable<IRecordMatchResult<T>> PerformIdentityClassify<T>(T input, IEnumerable<T> blocks) where T : IdentifiedData
+        {
+            if (!(input is IHasIdentifiers identifiers))
+                throw new InvalidOperationException($"Cannot perform identity match on {typeof(T)}");
+
+            // Identifiers in which entity has the unique authority
+            var uqIdentifiers = identifiers.Identifiers.OfType<IExternalIdentifier>().Where(o => this.m_uniqueAuthorities.Contains(o.Authority?.Key ?? Guid.Empty));
+            if (uqIdentifiers?.Any(i => i.Authority == null) == true)
+                throw new InvalidOperationException("Some identifiers are missing authorities, cannot perform identity match");
+
+            if (uqIdentifiers?.Any() != true)
+                return blocks.Select(o => new MdmIdentityMatchResult<T>(o, RecordMatchClassification.NonMatch, 0.0f));
+            else
+            {
+                return blocks.Select(o =>
+                {
+                    if (o is IHasIdentifiers oid)
+                    {
+                        var isMatch = oid.Identifiers.Any(i => uqIdentifiers.Any(u => u.Authority.Key == i.Authority.Key && i.Value == u.Value));
+                        return new MdmIdentityMatchResult<T>(o, isMatch ? RecordMatchClassification.Match : RecordMatchClassification.NonMatch, isMatch ? 1.0f : 0.0f);
+                    }
+                    else
+                    {
+                        return new MdmIdentityMatchResult<T>(o, RecordMatchClassification.NonMatch, 0.0f);
+                    }
+                });
+            }
         }
 
         /// <summary>

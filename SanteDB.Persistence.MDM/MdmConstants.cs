@@ -94,6 +94,21 @@ namespace SanteDB.Persistence.MDM
         public const string MdmTypeTag = "$mdm.type";
 
         /// <summary>
+        /// Resource tag
+        /// </summary>
+        public const string MdmResourceTag = "$mdm.resource";
+
+        /// <summary>
+        /// generated tag
+        /// </summary>
+        public const string MdmGeneratedTag = "$generated";
+
+        /// <summary>
+        /// Record of truth indicator
+        /// </summary>
+        public const string MdmRotIndicatorTag = "$mdm.rot";
+
+        /// <summary>
         /// MDM Processed Tag
         /// </summary>
         public const string MdmProcessedTag = "$mdm.processed";
@@ -102,5 +117,10 @@ namespace SanteDB.Persistence.MDM
         /// Identity match configuration
         /// </summary>
         public const string MdmIdentityMatchConfiguration = "$identity";
+
+        /// <summary>
+        /// Detected issue code for invalid merge
+        /// </summary>
+        public const string INVALID_MERGE_ISSUE = "mdm-no-local-or-permission";
     }
 }

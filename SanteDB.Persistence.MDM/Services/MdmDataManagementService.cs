@@ -75,7 +75,7 @@ namespace SanteDB.Persistence.MDM.Services
         private IDataPersistenceService<EntityRelationship> m_entityRelationshipService;
         // Entity service
         private IDataPersistenceService<Entity> m_entityService;
-
+      
         // TRace source
         private Tracer m_traceSource = new Tracer(MdmConstants.TraceSourceName);
 
@@ -108,7 +108,7 @@ namespace SanteDB.Persistence.MDM.Services
         /// <summary>
         /// Create injected service
         /// </summary>
-        public MdmDataManagementService(IRecordMatchingService matchingService, IServiceManager serviceManager, IConfigurationManager configuration, ISubscriptionExecutor subscriptionExecutor = null, SimDataManagementService simDataManagementService = null, IJobManagerService jobManagerService = null)
+        public MdmDataManagementService(IServiceManager serviceManager, IConfigurationManager configuration, IRecordMatchingService matchingService = null, ISubscriptionExecutor subscriptionExecutor = null, SimDataManagementService simDataManagementService = null, IJobManagerService jobManagerService = null)
         {
             this.m_configuration = configuration.GetSection<ResourceMergeConfigurationSection>();
             this.m_matchingService = matchingService;
@@ -141,6 +141,11 @@ namespace SanteDB.Persistence.MDM.Services
             // Pre-register types for serialization
             foreach (var itm in this.m_configuration.ResourceTypes)
             {
+                if (itm.ResourceType == typeof(Entity))
+                {
+                    throw new InvalidOperationException("Cannot bind MDM control to Entity or Act , only sub-classes");
+                }
+
                 var rt = itm.ResourceType;
                 string typeName = $"{rt.Name}Master";
                 if (typeof(Entity).IsAssignableFrom(rt))
@@ -150,6 +155,7 @@ namespace SanteDB.Persistence.MDM.Services
                 ModelSerializationBinder.RegisterModelType(typeName, rt);
 
             }
+
             // Wait until application context is started
             ApplicationServiceContext.Current.Started += (o, e) =>
             {
@@ -159,10 +165,15 @@ namespace SanteDB.Persistence.MDM.Services
                 // Replace matching
                 var mdmMatcher = this.m_serviceManager.CreateInjected<MdmRecordMatchingService>();
                 this.m_serviceManager.AddServiceProvider(mdmMatcher);
-                this.m_serviceManager.RemoveServiceProvider(this.m_matchingService.GetType());
+
+                if (this.m_matchingService != null)
+                {
+                    this.m_serviceManager.RemoveServiceProvider(this.m_matchingService.GetType());
+                }
 
                 foreach (var itm in this.m_configuration.ResourceTypes)
                 {
+                   
                     this.m_traceSource.TraceInfo("Adding MDM listener for {0}...", itm.ResourceType.Name);
                     MdmDataManagerFactory.RegisterDataManager(itm);
                     var idt = typeof(MdmResourceHandler<>).MakeGenericType(itm.ResourceType);
@@ -196,6 +207,9 @@ namespace SanteDB.Persistence.MDM.Services
                 }
                 this.m_listeners.Add(new BundleResourceInterceptor(this.m_listeners));
 
+                // Slipstream the MdmEntityProvider
+                EntitySource.Current = new EntitySource(new MdmEntityProvider());
+
                 // FTS?
                 if (ApplicationServiceContext.Current.GetService<IFreetextSearchService>() == null)
                     m_serviceManager.AddServiceProvider(new MdmFreetextSearchService());
@@ -206,6 +220,8 @@ namespace SanteDB.Persistence.MDM.Services
             return true;
         }
 
+
+
         /// <summary>
         /// Re-check relationships to ensure that they are properly in the database
         /// </summary>
@@ -215,22 +231,26 @@ namespace SanteDB.Persistence.MDM.Services
             {
                 case MdmConstants.MASTER_RECORD_RELATIONSHIP:
                     // Is the data obsoleted (removed)? If so, then ensure we don't have a hanging master
-                    if (e.Data.ObsoleteVersionSequenceId.HasValue &&
-                        this.m_entityRelationshipService.Count(r => r.TargetEntityKey == e.Data.TargetEntityKey && r.TargetEntity.StatusConceptKey != StatusKeys.Obsolete && r.SourceEntityKey != e.Data.SourceEntityKey && r.ObsoleteVersionSequenceId == null) == 0)
+                    if (e.Data.ObsoleteVersionSequenceId.HasValue)
                     {
-                        this.m_entityService.Obsolete(e.Data.TargetEntityKey.Value, e.Mode, e.Principal);
+
+                        if (this.m_entityRelationshipService.Any(r => r.TargetEntityKey == e.Data.TargetEntityKey && r.TargetEntity.StatusConceptKey != StatusKeys.Obsolete && r.SourceEntityKey != e.Data.SourceEntityKey && r.ObsoleteVersionSequenceId == null))
+                        {
+                            this.m_entityService.Obsolete(new Entity() { Key = e.Data.TargetEntityKey }, e.Mode, e.Principal);
+                        }
+                        return; // no need to de-dup check on obsoleted object
                     }
-                    
+
                     // MDM relationship should be the only active relationship between
                     // So when:
                     // A =[MDM-Master]=> B
                     // You cannot have:
                     // A =[MDM-Duplicate]=> B
                     // A =[MDM-Original]=> B
-                    foreach(var itm in this.m_entityRelationshipService.Query(q=>q.RelationshipTypeKey != MdmConstants.MasterRecordRelationship && q.SourceEntityKey == e.Data.SourceEntityKey && q.TargetEntityKey == e.Data.TargetEntityKey && q.ObsoleteVersionSequenceId == null, e.Principal))
+                    foreach (var itm in this.m_entityRelationshipService.Query(q => q.RelationshipTypeKey != MdmConstants.MasterRecordRelationship && q.SourceEntityKey == e.Data.SourceEntityKey && q.TargetEntityKey == e.Data.TargetEntityKey && q.ObsoleteVersionSequenceId == null, e.Principal))
                     {
                         itm.ObsoleteVersionSequenceId = Int32.MaxValue;
-                        this.m_entityRelationshipService.Update(itm,e.Mode, e.Principal);
+                        this.m_entityRelationshipService.Update(itm, e.Mode, e.Principal);
                     }
                     break;
                 case MdmConstants.RECORD_OF_TRUTH_RELATIONSHIP:
