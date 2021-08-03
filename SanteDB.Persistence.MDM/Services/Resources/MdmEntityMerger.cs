@@ -190,6 +190,12 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                         }
                     }
 
+                    // Sanity check
+                    if(victim.Key == survivor.Key)
+                    {
+                        throw new DetectedIssueException(DetectedIssuePriorityType.Error, MdmConstants.INVALID_MERGE_ISSUE, "Records cannot be merged into themselves", DetectedIssueKeys.FormalConstraintIssue, null);
+                    }
+
                     // MASTER>MASTER
                     if (isSurvivorMaster && isVictimMaster) // MASTER>MASTER
                     {
@@ -219,11 +225,11 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                         victim.StatusConceptKey = StatusKeys.Obsolete;
                         transactionBundle.Add(victim);
 
-                        // Copy identifiers over
+                        // Obsolete the old identifiers over
                         transactionBundle.AddRange(
                             victim.LoadCollection(o => o.Identifiers).Where(i => !survivor.LoadCollection(o => o.Identifiers).Any(e => e.SemanticEquals(i))).Select(o =>
                             {
-                                o.ObsoleteVersionSequenceId = Int32.MaxValue;
+                                o.BatchOperation = BatchOperationType.Obsolete;
                                 return o;
                             })
                         );
@@ -241,7 +247,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                         // Remove links from victim
                         foreach (var rel in this.m_dataManager.GetAllMdmAssociations(victim.Key.Value).OfType<EntityRelationship>())
                         {
-                            rel.ObsoleteVersionSequenceId = Int32.MaxValue;
+                            rel.BatchOperation = BatchOperationType.Obsolete;
                             transactionBundle.Add(rel);
                         }
 
@@ -256,7 +262,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 }).ToArray();
 
                 this.m_batchPersistence.Insert(transactionBundle, TransactionMode.Commit, AuthenticationContext.Current.Principal);
-                this.FireMerged(survivorKey, linkedDuplicates);
+                this.FireMerged(survivor.Key.Value, replaced);
                 return new RecordMergeResult(recordMergeStatus, new Guid[] { survivor.Key.Value }, replaced);
             }
             catch (Exception ex)
@@ -266,11 +272,17 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             }
         }
 
+        /// <summary>
+        /// TODO: Remove the MDM Ignore Relationships
+        /// </summary>
         public override void UnIgnore(Guid masterKey, IEnumerable<Guid> ignoredKeys)
         {
             throw new NotImplementedException();
         }
 
+        /// <summary>
+        /// TODO: Separate locals from their master
+        /// </summary>
         public override RecordMergeResult Unmerge(Guid masterKey, Guid unmergeDuplicateKey)
         {
             throw new NotImplementedException();

@@ -250,7 +250,7 @@ namespace SanteDB.Persistence.MDM.Services
                     // A =[MDM-Original]=> B
                     foreach (var itm in this.m_entityRelationshipService.Query(q => q.RelationshipTypeKey != MdmConstants.MasterRecordRelationship && q.SourceEntityKey == e.Data.SourceEntityKey && q.TargetEntityKey == e.Data.TargetEntityKey && q.ObsoleteVersionSequenceId == null, e.Principal))
                     {
-                        itm.ObsoleteVersionSequenceId = Int32.MaxValue;
+                        itm.BatchOperation = Core.Model.DataTypes.BatchOperationType.Obsolete;
                         this.m_entityRelationshipService.Update(itm, e.Mode, e.Principal);
                     }
                     break;
