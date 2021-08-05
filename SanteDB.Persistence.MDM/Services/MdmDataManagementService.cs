@@ -232,7 +232,7 @@ namespace SanteDB.Persistence.MDM.Services
             {
                 case MdmConstants.MASTER_RECORD_RELATIONSHIP:
                     // Is the data obsoleted (removed)? If so, then ensure we don't have a hanging master
-                    if (e.Data.ObsoleteVersionSequenceId.HasValue)
+                    if (e.Data.ObsoleteVersionSequenceId.HasValue || e.Data.BatchOperation == Core.Model.DataTypes.BatchOperationType.Obsolete)
                     {
 
                         if (this.m_entityRelationshipService.Count(r => r.TargetEntityKey == e.Data.TargetEntityKey && r.TargetEntity.StatusConceptKey != StatusKeys.Obsolete && r.SourceEntityKey != e.Data.SourceEntityKey && r.ObsoleteVersionSequenceId == null) == 0)
@@ -256,7 +256,7 @@ namespace SanteDB.Persistence.MDM.Services
                     break;
                 case MdmConstants.RECORD_OF_TRUTH_RELATIONSHIP:
                     // Is the ROT being assigned, and if so is there another ?
-                    if (!e.Data.ObsoleteVersionSequenceId.HasValue)
+                    if (!e.Data.ObsoleteVersionSequenceId.HasValue || e.Data.BatchOperation == Core.Model.DataTypes.BatchOperationType.Obsolete)
                     {
                         foreach (var rotRel in this.m_entityRelationshipService.Query(r => r.SourceEntityKey == e.Data.SourceEntityKey && r.TargetEntityKey != e.Data.TargetEntityKey && r.ObsoleteVersionSequenceId == null, e.Principal))
                         {
