@@ -689,8 +689,9 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                         break;
                 }
             }
+
             // Is there no master link?
-            if (!retVal.OfType<EntityRelationship>().Any(r => r.RelationshipTypeKey == MdmConstants.MasterRecordRelationship && r.ObsoleteVersionSequenceId == null))
+            if (!retVal.OfType<EntityRelationship>().Any(r => r.RelationshipTypeKey == MdmConstants.MasterRecordRelationship && r.ObsoleteVersionSequenceId == null && r.BatchOperation != BatchOperationType.Obsolete))
             {
                 // Return a master at the top of the return list
                 yield return this.EstablishMasterFor(local);
@@ -711,7 +712,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 var originalRelationships = res.Where(o => o.RelationshipTypeKey == MdmConstants.OriginalMasterRelationship).OrderByDescending(o => o.Strength);
 
                 // If all the master relationships between source and target are to be removed so remove it
-                if (masterRelationships.Any() && masterRelationships.All(o => o.ObsoleteVersionSequenceId.HasValue))
+                if (masterRelationships.Any() && masterRelationships.All(o => o.ObsoleteVersionSequenceId.HasValue || o.BatchOperation == BatchOperationType.Obsolete))
                 {
                     yield return masterRelationships.First(); // Return 
                     if (originalRelationships.Any()) // There is an original relationship so send that back
@@ -721,7 +722,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 }
                 // There is a master to be deleted but not all of them (i.e. there is an active one between L and M)
                 // so we just want to keep the current active
-                else if (masterRelationships.Any(o => o.ObsoleteVersionSequenceId.HasValue) && masterRelationships.Any(o => !o.ObsoleteVersionSequenceId.HasValue))
+                else if (masterRelationships.Any(o => o.ObsoleteVersionSequenceId.HasValue || o.BatchOperation == BatchOperationType.Obsolete) && masterRelationships.Any(o => !o.ObsoleteVersionSequenceId.HasValue || o.BatchOperation != BatchOperationType.Obsolete))
                 {
                     var masterRel = masterRelationships.First(o => o.ObsoleteVersionSequenceId.HasValue);
                     masterRel.ObsoleteVersionSequenceId = null; // Don't delete it
@@ -729,7 +730,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     masterRel.Strength = masterRelationships.First(o => !o.ObsoleteVersionSequenceId.HasValue).Strength;
                     yield return masterRel;
                 }
-                else if (masterRelationships.Any(o => !o.ObsoleteVersionSequenceId.HasValue)) // There's a master relationship which is new and not to be deleted
+                else if (masterRelationships.Any(o => !o.ObsoleteVersionSequenceId.HasValue || o.BatchOperation != BatchOperationType.Obsolete)) // There's a master relationship which is new and not to be deleted
                 {
                     yield return masterRelationships.First();
                     if (candidateRelationships.Any(r => r.ObsoleteVersionSequenceId.HasValue)) // There is a candidate 
@@ -738,7 +739,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 // If there is a candidate that is marked as to be deleted
                 // but another which is not - we take the candidate with a current
                 // key and update the strength (i.e. the candidate still is valid)
-                else if (candidateRelationships.Any(r => r.ObsoleteVersionSequenceId.HasValue) && !candidateRelationships.All(r => r.ObsoleteVersionSequenceId.HasValue))
+                else if (candidateRelationships.Any(r => r.ObsoleteVersionSequenceId.HasValue || r.BatchOperation == BatchOperationType.Obsolete) && !candidateRelationships.All(r => r.ObsoleteVersionSequenceId.HasValue || r.BatchOperation == BatchOperationType.Obsolete))
                 {
                     var existingRel = candidateRelationships.FirstOrDefault(o => o.ObsoleteVersionSequenceId.HasValue); // the obsoleted one already exists in DB
                     existingRel.Strength = candidateRelationships.First().Strength;

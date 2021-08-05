@@ -70,7 +70,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             if (this.m_notifyRepository == null)
                 throw new InvalidOperationException($"Could not find repository service for {typeof(TModel)}");
 
-            this.m_classConceptKey = typeof(TModel).GetCustomAttributes<ClassConceptKeyAttribute>(false).Select(o=>Guid.Parse(o.ClassConcept)).ToArray();
+            this.m_classConceptKey = typeof(TModel).GetCustomAttributes<ClassConceptKeyAttribute>(false).Select(o => Guid.Parse(o.ClassConcept)).ToArray();
 
             // Subscribe
             this.m_notifyRepository.Inserting += this.OnPrePersistenceValidate;
@@ -122,7 +122,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             return results.Select(o =>
             {
                 // It is a type controlled by this handler - so we want to ensure we return the master rather than a local
-                if (o is TModel tmodel && !this.m_dataManager.IsMaster(tmodel)) 
+                if (o is TModel tmodel && !this.m_dataManager.IsMaster(tmodel))
                 {
                     return this.m_dataManager.GetMasterFor(tmodel.Key.Value).GetMaster(principal);
                 }
@@ -130,11 +130,11 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 else if (o is IHasClassConcept ihcc && ihcc.ClassConceptKey == MdmConstants.MasterRecordClassification &&
                     o is IHasTypeConcept ihtc && this.m_classConceptKey.Contains(ihtc.TypeConceptKey.GetValueOrDefault()))
                 {
-                    if(o is Entity ent)
+                    if (o is Entity ent)
                     {
                         return new EntityMaster<TModel>(ent).Synthesize(principal);
                     }
-                    else if(o is Act act)
+                    else if (o is Act act)
                     {
                         return new ActMaster<TModel>(act).Synthesize(principal);
                     }
@@ -155,7 +155,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         internal virtual void OnRetrieved(object sender, DataRetrievedEventArgs<TModel> e)
         {
-            if (e.Data != null && 
+            if (e.Data != null &&
                 !this.m_dataManager.IsMaster(e.Data) &&
                 e.Principal != AuthenticationContext.SystemPrincipal
                 && !this.m_dataManager.IsOwner(e.Data, e.Principal))
@@ -190,7 +190,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 var localQuery = new NameValueCollection(query.ToDictionary(o => $"relationship[{MdmConstants.MasterRecordRelationship}].source@{typeof(TModel).Name}.{o.Key}", o => o.Value));
                 query.Add("classConcept", MdmConstants.MasterRecordClassification.ToString());
                 e.Cancel = true; // We want to cancel the callers query
-                
+
                 // We are wrapping an entity, so we query entity masters
                 e.Results = this.m_dataManager.MdmQuery(query, localQuery, e.QueryId, e.Offset, e.Count, out int tr).Select(o => o.GetMaster(e.Principal)).OfType<TModel>();
                 e.TotalResults = tr;
@@ -236,7 +236,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         internal virtual void OnSaving(object sender, DataPersistingEventArgs<TModel> e)
         {
-            
+
             try
             {
                 // Prevent duplicate processing
@@ -253,6 +253,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 }
 
                 // Is the sender a bundle?
+                e.Data.BatchOperation = Core.Model.DataTypes.BatchOperationType.InsertOrUpdate;
+
                 if (sender is Bundle bundle)
                 {
                     var transactionItems = this.PrepareTransaction(e.Data, bundle.Item);
@@ -324,6 +326,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 }
 
                 // Is the sender a bundle?
+                e.Data.BatchOperation = Core.Model.DataTypes.BatchOperationType.InsertOrUpdate;
                 if (sender is Bundle bundle)
                 {
                     bundle.Item = this.PrepareTransaction(e.Data, bundle.Item).ToList();
@@ -373,7 +376,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 }
 
                 // Remove MDM tags since this is a master
-                if(store is ITaggable taggable)
+                if (store is ITaggable taggable)
                 {
                     taggable.RemoveTag(MdmConstants.MdmTypeTag);
                     taggable.RemoveTag(MdmConstants.MdmGeneratedTag);
@@ -385,7 +388,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     versioned.VersionSequence = null;
                     versioned.VersionKey = null;
                 }
-                
+
             }
             else if (!store.Key.HasValue)
             {
@@ -462,7 +465,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// On saving non-generic version
         /// </summary>
         void IMdmResourceHandler.OnSaving(object sender, object args) => this.OnSaving(sender, (DataPersistingEventArgs<TModel>)args);
-        
+
         /// <summary>
         /// On obsoleting non-generic
         /// </summary>
