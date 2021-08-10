@@ -28,6 +28,7 @@ using SanteDB.Core.Services;
 using SanteDB.Persistence.MDM.Services.Resources;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Text;
@@ -39,6 +40,7 @@ namespace SanteDB.Persistence.MDM.Jobs
     /// Represents a match job
     /// </summary>
     /// <typeparam name="T">The type of object to match on</typeparam>
+    [DisplayName("MDM Batch Matching Job")]
     public class MdmMatchJob<T> : IReportProgressJob
         where T: IdentifiedData, new()
     {
