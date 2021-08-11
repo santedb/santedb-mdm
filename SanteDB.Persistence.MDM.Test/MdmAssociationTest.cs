@@ -32,11 +32,11 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using SanteDB.Caching.Memory.Configuration;
 using SanteDB.Core.TestFramework;
 using SanteDB.Core.Security.Claims;
 using SanteDB.Core.Services.Impl;
 using NUnit.Framework;
+using SanteDB.Caching.Memory.Configuration;
 
 namespace SanteDB.Persistence.MDM.Test
 {
