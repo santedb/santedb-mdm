@@ -905,6 +905,14 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         {
             if (this.IsMaster(hostKey))
             {
+                // Remove the candidate link
+                var candidateLink = this.GetCandidateLocals(hostKey).FirstOrDefault(o => o.SourceEntityKey == ignoreKey) as EntityRelationship;
+                if(candidateLink != null)
+                {
+                    this.m_traceSource.TraceUntestedWarning();
+                    candidateLink.BatchOperation = BatchOperationType.Obsolete;
+                    yield return candidateLink;
+                }
                 yield return new EntityRelationship()
                 {
                     BatchOperation = BatchOperationType.Insert,
@@ -916,6 +924,15 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             }
             else
             {
+                // Remove the candidate link
+                var candidateLink = this.GetCandidateLocals(ignoreKey).FirstOrDefault(o => o.SourceEntityKey == hostKey) as EntityRelationship;
+                if (candidateLink != null)
+                {
+                    this.m_traceSource.TraceUntestedWarning();
+                    candidateLink.BatchOperation = BatchOperationType.Obsolete;
+                    yield return candidateLink;
+                }
+
                 yield return new EntityRelationship()
                 {
                     BatchOperation = BatchOperationType.Insert,
@@ -1038,7 +1055,6 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 yield return rel;
                 yield return new EntityRelationship(MdmConstants.CandidateLocalRelationship, rel.SourceEntityKey, survivorKey, rel.ClassificationKey);
             }
-
 
             // Identifiers for the victim are obsoleted and migrated
             foreach (var ident in victimData.LoadCollection(o => o.Identifiers).Where(o => !survivorData.LoadCollection(s => s.Identifiers).Any(s => !s.SemanticEquals(o))))

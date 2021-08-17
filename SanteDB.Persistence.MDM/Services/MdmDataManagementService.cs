@@ -209,7 +209,7 @@ namespace SanteDB.Persistence.MDM.Services
                 this.m_listeners.Add(new BundleResourceInterceptor(this.m_listeners));
 
                 // Slipstream the MdmEntityProvider
-                EntitySource.Current = new EntitySource(new MdmEntityProvider());
+                //EntitySource.Current = new EntitySource(new MdmEntityProvider());
 
                 // FTS?
                 if (ApplicationServiceContext.Current.GetService<IFreetextSearchService>() == null)
