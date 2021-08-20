@@ -4,6 +4,7 @@ using System.Text;
 using SanteDB.Core.Diagnostics;
 using SanteDB.Core.Event;
 using SanteDB.Core.Model;
+using SanteDB.Core.Model.Interfaces;
 using SanteDB.Core.Model.Patch;
 using SanteDB.Core.Services;
 
@@ -122,5 +123,10 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             var dpe = new DataMergeEventArgs<TModel>(surviorKey, linkedKeys);
             this.UnMerged?.Invoke(this, dpe);
         }
+
+        /// <summary>
+        /// Get all global merge candidates
+        /// </summary>
+        public abstract IEnumerable<ITargetedAssociation> GetGlobalMergeCandidates();
     }
 }

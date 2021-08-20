@@ -37,7 +37,10 @@ namespace SanteDB.Persistence.MDM.Extensions
         /// </summary>
         public static Entity GetMaster(this Entity me)
         {
-
+            if(me == null)
+            {
+                return null;
+            }
             if(me.ClassConceptKey == MdmConstants.MasterRecordClassification && entityTypeMap.TryGetValue(me.TypeConceptKey.Value, out Type tMaster))
             {
                 var emaster = Activator.CreateInstance(typeof(EntityMaster<>).MakeGenericType(tMaster), me) as IMdmMaster;

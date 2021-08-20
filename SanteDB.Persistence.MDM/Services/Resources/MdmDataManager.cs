@@ -90,7 +90,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// <summary>
         /// Get all MDM candidate locals regardless of where they are attached
         /// </summary>
-        public abstract IEnumerable<IdentifiedData> GetAllMdmCandidateLocals();
+        public abstract IEnumerable<ITargetedAssociation> GetAllMdmCandidateLocals();
 
         /// <summary>
         /// Validate the MDM state

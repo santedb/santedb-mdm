@@ -61,6 +61,11 @@ namespace SanteDB.Persistence.MDM.Rest
         public ResourceCapabilityType Capabilities => ResourceCapabilityType.Search | ResourceCapabilityType.Get | ResourceCapabilityType.Delete;
 
         /// <summary>
+        /// Binding for this operation
+        /// </summary>
+        public ChildObjectScopeBinding ScopeBinding => ChildObjectScopeBinding.Instance | ChildObjectScopeBinding.Class;
+
+        /// <summary>
         /// Re-Runs the matching algorithm on the specified master
         /// </summary>
         public object Add(Type scopingType, object scopingKey, object item)
@@ -87,7 +92,16 @@ namespace SanteDB.Persistence.MDM.Rest
                 throw new InvalidOperationException("No merging service configuration");
             }
 
-            var result = merger.GetMergeCandidates((Guid)scopingKey);
+            IEnumerable<IdentifiedData> result = null;
+            if (scopingKey == null) // class call
+            {
+                result = merger.GetGlobalMergeCandidates().OfType<IdentifiedData>();
+            }
+            else
+            {
+                result = merger.GetMergeCandidates((Guid)scopingKey);
+            }
+
             totalCount = result.Count();
             return result.Skip(offset).Take(count);
         }

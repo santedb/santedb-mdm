@@ -1,5 +1,6 @@
 ﻿using SanteDB.Core.Configuration;
 using SanteDB.Core.Diagnostics;
+using SanteDB.Core.Interop;
 using SanteDB.Core.Model.Collection;
 using SanteDB.Core.Services;
 using SanteDB.Rest.Common;
@@ -22,6 +23,11 @@ namespace SanteDB.Persistence.MDM.Rest
 
         // Batch service
         protected IRepositoryService<Bundle> m_batchService;
+
+        /// <summary>
+        /// Get the binding
+        /// </summary>
+        public abstract ChildObjectScopeBinding ScopeBinding { get; }
 
         /// <summary>
         /// Gets the parents type

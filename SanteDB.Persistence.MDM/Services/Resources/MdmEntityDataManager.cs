@@ -733,7 +733,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 else if (masterRelationships.Any(o => !o.ObsoleteVersionSequenceId.HasValue || o.BatchOperation != BatchOperationType.Obsolete)) // There's a master relationship which is new and not to be deleted
                 {
                     yield return masterRelationships.First();
-                    if (candidateRelationships.Any(r => r.ObsoleteVersionSequenceId.HasValue)) // There is a candidate 
+                    if (candidateRelationships.Any(r => r.ObsoleteVersionSequenceId.HasValue || r.BatchOperation == BatchOperationType.Obsolete)) // There is a candidate 
                         yield return candidateRelationships.FirstOrDefault(o => o.ObsoleteVersionSequenceId.HasValue);
                 }
                 // If there is a candidate that is marked as to be deleted
@@ -973,7 +973,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// <summary>
         /// Get all candidate locals
         /// </summary>
-        public override IEnumerable<IdentifiedData> GetAllMdmCandidateLocals()
+        public override IEnumerable<ITargetedAssociation> GetAllMdmCandidateLocals()
         {
             return this.m_relationshipService.Query(o => o.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship && o.ObsoleteVersionSequenceId == null, AuthenticationContext.SystemPrincipal);
         }

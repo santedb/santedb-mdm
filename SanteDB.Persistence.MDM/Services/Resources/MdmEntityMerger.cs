@@ -6,6 +6,7 @@ using SanteDB.Core.Model.Collection;
 using SanteDB.Core.Model.Constants;
 using SanteDB.Core.Model.DataTypes;
 using SanteDB.Core.Model.Entities;
+using SanteDB.Core.Model.Interfaces;
 using SanteDB.Core.Security;
 using SanteDB.Core.Security.Services;
 using SanteDB.Core.Services;
@@ -78,11 +79,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         public override IEnumerable<IdentifiedData> GetMergeCandidates(Guid masterKey)
         {
-            if(masterKey == Guid.Empty)
-            {
-                return this.m_dataManager.GetAllMdmCandidateLocals();
-            }
-            else if (this.m_dataManager.IsMaster(masterKey))
+            if (this.m_dataManager.IsMaster(masterKey))
             {
                 return this.m_dataManager.GetCandidateLocals(masterKey)
                     .OfType<EntityRelationship>()
@@ -286,6 +283,14 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         public override RecordMergeResult Unmerge(Guid masterKey, Guid unmergeDuplicateKey)
         {
             throw new NotImplementedException();
+        }
+
+        /// <summary>
+        /// Get merge candidates
+        /// </summary>
+        public override IEnumerable<ITargetedAssociation> GetGlobalMergeCandidates()
+        {
+            return this.m_dataManager.GetAllMdmCandidateLocals();
         }
     }
 }

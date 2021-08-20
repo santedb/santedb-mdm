@@ -280,7 +280,6 @@ namespace SanteDB.Persistence.MDM.Services
             }
         }
 
-
         /// <summary>
         /// The subscription is executing
         /// </summary>

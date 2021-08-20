@@ -1,6 +1,7 @@
 ﻿using SanteDB.Core;
 using SanteDB.Core.Model;
 using SanteDB.Core.Model.Acts;
+using SanteDB.Core.Model.Collection;
 using SanteDB.Core.Model.DataTypes;
 using SanteDB.Core.Model.Entities;
 using SanteDB.Core.Model.Interfaces;
@@ -39,12 +40,26 @@ namespace SanteDB.Persistence.MDM.Services
         /// <summary>
         /// Existing match service
         /// </summary>
-        public MdmRecordMatchingService(IDataPersistenceService<AssigningAuthority> authorityService, IDataPersistenceService<EntityRelationship> erService, IDataPersistenceService<ActRelationship> arService, IRecordMatchingService existingMatchService = null)
+        public MdmRecordMatchingService(IDataPersistenceService<AssigningAuthority> authorityService, IDataPersistenceService<Bundle> bundleService, IDataPersistenceService<EntityRelationship> erService, IDataPersistenceService<ActRelationship> arService, IRecordMatchingService existingMatchService = null)
         {
             this.m_matchService = existingMatchService;
             this.m_erService = erService;
             this.m_arService = arService;
             this.m_uniqueAuthorities = authorityService.Query(o => o.IsUnique, AuthenticationContext.SystemPrincipal).Select(o => o.Key.Value).ToList();
+            bundleService.Inserted += (o, e) =>
+            {
+                foreach (var i in e.Data.Item.OfType<AssigningAuthority>())
+                {
+                    if (i.BatchOperation == BatchOperationType.Obsolete || i.ObsoletionTime.HasValue)
+                    {
+                        this.m_uniqueAuthorities.Remove(i.Key.Value);
+                    }
+                    else if (i.IsUnique)
+                    {
+                        this.m_uniqueAuthorities.Add(i.Key.Value);
+                    }
+                }
+            };
             authorityService.Inserted += (o, e) =>
             {
                 if (e.Data.IsUnique)
