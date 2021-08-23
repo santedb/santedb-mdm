@@ -236,7 +236,7 @@ namespace SanteDB.Persistence.MDM.Services
 
                         if (this.m_entityRelationshipService.Query(r => r.TargetEntityKey == e.Data.TargetEntityKey && r.TargetEntity.StatusConceptKey != StatusKeys.Obsolete && r.SourceEntityKey != e.Data.SourceEntityKey && r.ObsoleteVersionSequenceId == null, AuthenticationContext.SystemPrincipal).Any())
                         {
-                            this.m_entityService.Obsolete(e.Data.TargetEntityKey.Value, e.Mode, e.Principal);
+                            this.m_entityService.Obsolete( e.Data.TargetEntityKey.Value, e.Mode, e.Principal);
                         }
                         return; // no need to de-dup check on obsoleted object
                     }
