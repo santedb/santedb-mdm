@@ -64,7 +64,7 @@ namespace SanteDB.Persistence.MDM.Services
             var persistenceService = ApplicationServiceContext.Current.GetService<IDataPersistenceService<TObject>>();
             if (persistenceService != null && key.HasValue)
             {
-                var retVal = persistenceService.Get(key.Value, versionKey, true, AuthenticationContext.Current.Principal);
+                var retVal = persistenceService.Get(key.Value, versionKey, AuthenticationContext.Current.Principal);
                 if (retVal is Entity entity && entity.ClassConceptKey == MdmConstants.MasterRecordClassification)
                 {
                     if (entityTypeMap.TryGetValue(entity.TypeConceptKey.GetValueOrDefault(), out Type t))
