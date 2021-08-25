@@ -1,6 +1,27 @@
-﻿using SanteDB.Core;
+﻿/*
+ * Copyright (C) 2021 - 2021, SanteSuite Inc. and the SanteSuite Contributors (See NOTICE.md for full copyright notices)
+ * Copyright (C) 2019 - 2021, Fyfe Software Inc. and the SanteSuite Contributors
+ * Portions Copyright (C) 2015-2018 Mohawk College of Applied Arts and Technology
+ * 
+ * Licensed under the Apache License, Version 2.0 (the "License"); you 
+ * may not use this file except in compliance with the License. You may 
+ * obtain a copy of the License at 
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0 
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the 
+ * License for the specific language governing permissions and limitations under 
+ * the License.
+ * 
+ * User: fyfej
+ * Date: 2021-8-5
+ */
+using SanteDB.Core;
 using SanteDB.Core.Model;
 using SanteDB.Core.Model.Acts;
+using SanteDB.Core.Model.Collection;
 using SanteDB.Core.Model.DataTypes;
 using SanteDB.Core.Model.Entities;
 using SanteDB.Core.Model.Interfaces;
@@ -39,12 +60,26 @@ namespace SanteDB.Persistence.MDM.Services
         /// <summary>
         /// Existing match service
         /// </summary>
-        public MdmRecordMatchingService(IDataPersistenceService<AssigningAuthority> authorityService, IDataPersistenceService<EntityRelationship> erService, IDataPersistenceService<ActRelationship> arService, IRecordMatchingService existingMatchService = null)
+        public MdmRecordMatchingService(IDataPersistenceService<AssigningAuthority> authorityService, IDataPersistenceService<Bundle> bundleService, IDataPersistenceService<EntityRelationship> erService, IDataPersistenceService<ActRelationship> arService, IRecordMatchingService existingMatchService = null)
         {
             this.m_matchService = existingMatchService;
             this.m_erService = erService;
             this.m_arService = arService;
             this.m_uniqueAuthorities = authorityService.Query(o => o.IsUnique, AuthenticationContext.SystemPrincipal).Select(o => o.Key.Value).ToList();
+            bundleService.Inserted += (o, e) =>
+            {
+                foreach (var i in e.Data.Item.OfType<AssigningAuthority>())
+                {
+                    if (i.BatchOperation == BatchOperationType.Obsolete || i.ObsoletionTime.HasValue)
+                    {
+                        this.m_uniqueAuthorities.Remove(i.Key.Value);
+                    }
+                    else if (i.IsUnique)
+                    {
+                        this.m_uniqueAuthorities.Add(i.Key.Value);
+                    }
+                }
+            };
             authorityService.Inserted += (o, e) =>
             {
                 if (e.Data.IsUnique)

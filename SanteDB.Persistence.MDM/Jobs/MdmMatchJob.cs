@@ -1,5 +1,7 @@
 ﻿/*
- * Portions Copyright (C) 2019 - 2020, Fyfe Software Inc. and the SanteSuite Contributors (See NOTICE.md)
+ * Copyright (C) 2021 - 2021, SanteSuite Inc. and the SanteSuite Contributors (See NOTICE.md for full copyright notices)
+ * Copyright (C) 2019 - 2021, Fyfe Software Inc. and the SanteSuite Contributors
+ * Portions Copyright (C) 2015-2018 Mohawk College of Applied Arts and Technology
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
  * may not use this file except in compliance with the License. You may 
@@ -14,7 +16,7 @@
  * the License.
  * 
  * User: fyfej
- * Date: 2020-10-2
+ * Date: 2021-8-5
  */
 using SanteDB.Core;
 using SanteDB.Core.Diagnostics;
@@ -28,6 +30,7 @@ using SanteDB.Core.Services;
 using SanteDB.Persistence.MDM.Services.Resources;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Text;
@@ -39,6 +42,7 @@ namespace SanteDB.Persistence.MDM.Jobs
     /// Represents a match job
     /// </summary>
     /// <typeparam name="T">The type of object to match on</typeparam>
+    [DisplayName("MDM Batch Matching Job")]
     public class MdmMatchJob<T> : IReportProgressJob
         where T: IdentifiedData, new()
     {

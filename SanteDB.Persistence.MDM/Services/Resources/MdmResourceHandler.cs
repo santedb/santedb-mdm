@@ -1,4 +1,24 @@
-﻿using SanteDB.Core;
+﻿/*
+ * Copyright (C) 2021 - 2021, SanteSuite Inc. and the SanteSuite Contributors (See NOTICE.md for full copyright notices)
+ * Copyright (C) 2019 - 2021, Fyfe Software Inc. and the SanteSuite Contributors
+ * Portions Copyright (C) 2015-2018 Mohawk College of Applied Arts and Technology
+ * 
+ * Licensed under the Apache License, Version 2.0 (the "License"); you 
+ * may not use this file except in compliance with the License. You may 
+ * obtain a copy of the License at 
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0 
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the 
+ * License for the specific language governing permissions and limitations under 
+ * the License.
+ * 
+ * User: fyfej
+ * Date: 2021-8-5
+ */
+using SanteDB.Core;
 using SanteDB.Core.Configuration;
 using SanteDB.Core.Diagnostics;
 using SanteDB.Core.Event;
@@ -70,7 +90,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             if (this.m_notifyRepository == null)
                 throw new InvalidOperationException($"Could not find repository service for {typeof(TModel)}");
 
-            this.m_classConceptKey = typeof(TModel).GetCustomAttributes<ClassConceptKeyAttribute>(false).Select(o=>Guid.Parse(o.ClassConcept)).ToArray();
+            this.m_classConceptKey = typeof(TModel).GetCustomAttributes<ClassConceptKeyAttribute>(false).Select(o => Guid.Parse(o.ClassConcept)).ToArray();
 
             // Subscribe
             this.m_notifyRepository.Inserting += this.OnPrePersistenceValidate;
@@ -122,7 +142,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             return results.Select(o =>
             {
                 // It is a type controlled by this handler - so we want to ensure we return the master rather than a local
-                if (o is TModel tmodel && !this.m_dataManager.IsMaster(tmodel)) 
+                if (o is TModel tmodel && !this.m_dataManager.IsMaster(tmodel))
                 {
                     return this.m_dataManager.GetMasterFor(tmodel.Key.Value).GetMaster(principal);
                 }
@@ -130,11 +150,11 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 else if (o is IHasClassConcept ihcc && ihcc.ClassConceptKey == MdmConstants.MasterRecordClassification &&
                     o is IHasTypeConcept ihtc && this.m_classConceptKey.Contains(ihtc.TypeConceptKey.GetValueOrDefault()))
                 {
-                    if(o is Entity ent)
+                    if (o is Entity ent)
                     {
                         return new EntityMaster<TModel>(ent).Synthesize(principal);
                     }
-                    else if(o is Act act)
+                    else if (o is Act act)
                     {
                         return new ActMaster<TModel>(act).Synthesize(principal);
                     }
@@ -155,7 +175,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         internal virtual void OnRetrieved(object sender, DataRetrievedEventArgs<TModel> e)
         {
-            if (e.Data != null && 
+            if (e.Data != null &&
                 !this.m_dataManager.IsMaster(e.Data) &&
                 e.Principal != AuthenticationContext.SystemPrincipal
                 && !this.m_dataManager.IsOwner(e.Data, e.Principal))
@@ -190,7 +210,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 var localQuery = new NameValueCollection(query.ToDictionary(o => $"relationship[{MdmConstants.MasterRecordRelationship}].source@{typeof(TModel).Name}.{o.Key}", o => o.Value));
                 query.Add("classConcept", MdmConstants.MasterRecordClassification.ToString());
                 e.Cancel = true; // We want to cancel the callers query
-                
+
                 // We are wrapping an entity, so we query entity masters
                 // TODO: Ensure that the query mapping actually performs this on dataquery exhaustion rather than on
                 //       a batch observation.
@@ -237,7 +257,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         internal virtual void OnSaving(object sender, DataPersistingEventArgs<TModel> e)
         {
-            
+
             try
             {
                 // Prevent duplicate processing
@@ -254,6 +274,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 }
 
                 // Is the sender a bundle?
+                e.Data.BatchOperation = Core.Model.DataTypes.BatchOperationType.InsertOrUpdate;
+
                 if (sender is Bundle bundle)
                 {
                     var transactionItems = this.PrepareTransaction(e.Data, bundle.Item);
@@ -325,6 +347,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 }
 
                 // Is the sender a bundle?
+                e.Data.BatchOperation = Core.Model.DataTypes.BatchOperationType.InsertOrUpdate;
                 if (sender is Bundle bundle)
                 {
                     bundle.Item = this.PrepareTransaction(e.Data, bundle.Item).ToList();
@@ -374,7 +397,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 }
 
                 // Remove MDM tags since this is a master
-                if(store is ITaggable taggable)
+                if (store is ITaggable taggable)
                 {
                     taggable.RemoveTag(MdmConstants.MdmTypeTag);
                     taggable.RemoveTag(MdmConstants.MdmGeneratedTag);
@@ -386,7 +409,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     versioned.VersionSequence = null;
                     versioned.VersionKey = null;
                 }
-                
+
             }
             else if (!store.Key.HasValue)
             {
@@ -463,7 +486,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// On saving non-generic version
         /// </summary>
         void IMdmResourceHandler.OnSaving(object sender, object args) => this.OnSaving(sender, (DataPersistingEventArgs<TModel>)args);
-        
+
         /// <summary>
         /// On obsoleting non-generic
         /// </summary>

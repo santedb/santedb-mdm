@@ -1,4 +1,24 @@
-﻿using SanteDB.Core.BusinessRules;
+﻿/*
+ * Copyright (C) 2021 - 2021, SanteSuite Inc. and the SanteSuite Contributors (See NOTICE.md for full copyright notices)
+ * Copyright (C) 2019 - 2021, Fyfe Software Inc. and the SanteSuite Contributors
+ * Portions Copyright (C) 2015-2018 Mohawk College of Applied Arts and Technology
+ * 
+ * Licensed under the Apache License, Version 2.0 (the "License"); you 
+ * may not use this file except in compliance with the License. You may 
+ * obtain a copy of the License at 
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0 
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the 
+ * License for the specific language governing permissions and limitations under 
+ * the License.
+ * 
+ * User: fyfej
+ * Date: 2021-8-5
+ */
+using SanteDB.Core.BusinessRules;
 using SanteDB.Core.Event;
 using SanteDB.Core.Exceptions;
 using SanteDB.Core.Model;
@@ -6,6 +26,7 @@ using SanteDB.Core.Model.Collection;
 using SanteDB.Core.Model.Constants;
 using SanteDB.Core.Model.DataTypes;
 using SanteDB.Core.Model.Entities;
+using SanteDB.Core.Model.Interfaces;
 using SanteDB.Core.Security;
 using SanteDB.Core.Security.Services;
 using SanteDB.Core.Services;
@@ -78,11 +99,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         public override IEnumerable<IdentifiedData> GetMergeCandidates(Guid masterKey)
         {
-            if(masterKey == Guid.Empty)
-            {
-                return this.m_dataManager.GetAllMdmCandidateLocals();
-            }
-            else if (this.m_dataManager.IsMaster(masterKey))
+            if (this.m_dataManager.IsMaster(masterKey))
             {
                 return this.m_dataManager.GetCandidateLocals(masterKey)
                     .OfType<EntityRelationship>()
@@ -190,6 +207,12 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                         }
                     }
 
+                    // Sanity check
+                    if(victim.Key == survivor.Key)
+                    {
+                        throw new DetectedIssueException(DetectedIssuePriorityType.Error, MdmConstants.INVALID_MERGE_ISSUE, "Records cannot be merged into themselves", DetectedIssueKeys.FormalConstraintIssue, null);
+                    }
+
                     // MASTER>MASTER
                     if (isSurvivorMaster && isVictimMaster) // MASTER>MASTER
                     {
@@ -219,11 +242,11 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                         victim.StatusConceptKey = StatusKeys.Obsolete;
                         transactionBundle.Add(victim);
 
-                        // Copy identifiers over
+                        // Obsolete the old identifiers over
                         transactionBundle.AddRange(
                             victim.LoadCollection(o => o.Identifiers).Where(i => !survivor.LoadCollection(o => o.Identifiers).Any(e => e.SemanticEquals(i))).Select(o =>
                             {
-                                o.ObsoleteVersionSequenceId = Int32.MaxValue;
+                                o.BatchOperation = BatchOperationType.Obsolete;
                                 return o;
                             })
                         );
@@ -241,7 +264,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                         // Remove links from victim
                         foreach (var rel in this.m_dataManager.GetAllMdmAssociations(victim.Key.Value).OfType<EntityRelationship>())
                         {
-                            rel.ObsoleteVersionSequenceId = Int32.MaxValue;
+                            rel.BatchOperation = BatchOperationType.Obsolete;
                             transactionBundle.Add(rel);
                         }
 
@@ -256,7 +279,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 }).ToArray();
 
                 this.m_batchPersistence.Insert(transactionBundle, TransactionMode.Commit, AuthenticationContext.Current.Principal);
-                this.FireMerged(survivorKey, linkedDuplicates);
+                this.FireMerged(survivor.Key.Value, replaced);
                 return new RecordMergeResult(recordMergeStatus, new Guid[] { survivor.Key.Value }, replaced);
             }
             catch (Exception ex)
@@ -266,14 +289,28 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             }
         }
 
+        /// <summary>
+        /// TODO: Remove the MDM Ignore Relationships
+        /// </summary>
         public override void UnIgnore(Guid masterKey, IEnumerable<Guid> ignoredKeys)
         {
             throw new NotImplementedException();
         }
 
+        /// <summary>
+        /// TODO: Separate locals from their master
+        /// </summary>
         public override RecordMergeResult Unmerge(Guid masterKey, Guid unmergeDuplicateKey)
         {
             throw new NotImplementedException();
+        }
+
+        /// <summary>
+        /// Get merge candidates
+        /// </summary>
+        public override IEnumerable<ITargetedAssociation> GetGlobalMergeCandidates()
+        {
+            return this.m_dataManager.GetAllMdmCandidateLocals();
         }
     }
 }

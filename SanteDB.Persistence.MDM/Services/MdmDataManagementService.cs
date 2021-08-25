@@ -1,5 +1,7 @@
 ﻿/*
- * Portions Copyright (C) 2019 - 2020, Fyfe Software Inc. and the SanteSuite Contributors (See NOTICE.md)
+ * Copyright (C) 2021 - 2021, SanteSuite Inc. and the SanteSuite Contributors (See NOTICE.md for full copyright notices)
+ * Copyright (C) 2019 - 2021, Fyfe Software Inc. and the SanteSuite Contributors
+ * Portions Copyright (C) 2015-2018 Mohawk College of Applied Arts and Technology
  * 
  * Licensed under the Apache License, Version 2.0 (the "License"); you 
  * may not use this file except in compliance with the License. You may 
@@ -14,7 +16,7 @@
  * the License.
  * 
  * User: fyfej
- * Date: 2020-2-2
+ * Date: 2021-8-5
  */
 using SanteDB.Core;
 using SanteDB.Core.Configuration;
@@ -208,7 +210,7 @@ namespace SanteDB.Persistence.MDM.Services
                 this.m_listeners.Add(new BundleResourceInterceptor(this.m_listeners));
 
                 // Slipstream the MdmEntityProvider
-                EntitySource.Current = new EntitySource(new MdmEntityProvider());
+                //EntitySource.Current = new EntitySource(new MdmEntityProvider());
 
                 // FTS?
                 if (ApplicationServiceContext.Current.GetService<IFreetextSearchService>() == null)
@@ -231,7 +233,7 @@ namespace SanteDB.Persistence.MDM.Services
             {
                 case MdmConstants.MASTER_RECORD_RELATIONSHIP:
                     // Is the data obsoleted (removed)? If so, then ensure we don't have a hanging master
-                    if (e.Data.ObsoleteVersionSequenceId.HasValue)
+                    if (e.Data.ObsoleteVersionSequenceId.HasValue || e.Data.BatchOperation == Core.Model.DataTypes.BatchOperationType.Obsolete)
                     {
 
                         if (this.m_entityRelationshipService.Query(r => r.TargetEntityKey == e.Data.TargetEntityKey && r.TargetEntity.StatusConceptKey != StatusKeys.Obsolete && r.SourceEntityKey != e.Data.SourceEntityKey && r.ObsoleteVersionSequenceId == null, AuthenticationContext.SystemPrincipal).Any())
@@ -249,13 +251,13 @@ namespace SanteDB.Persistence.MDM.Services
                     // A =[MDM-Original]=> B
                     foreach (var itm in this.m_entityRelationshipService.Query(q => q.RelationshipTypeKey != MdmConstants.MasterRecordRelationship && q.SourceEntityKey == e.Data.SourceEntityKey && q.TargetEntityKey == e.Data.TargetEntityKey && q.ObsoleteVersionSequenceId == null, e.Principal))
                     {
-                        itm.ObsoleteVersionSequenceId = Int32.MaxValue;
+                        itm.BatchOperation = Core.Model.DataTypes.BatchOperationType.Obsolete;
                         this.m_entityRelationshipService.Update(itm, e.Mode, e.Principal);
                     }
                     break;
                 case MdmConstants.RECORD_OF_TRUTH_RELATIONSHIP:
                     // Is the ROT being assigned, and if so is there another ?
-                    if (!e.Data.ObsoleteVersionSequenceId.HasValue)
+                    if (!e.Data.ObsoleteVersionSequenceId.HasValue || e.Data.BatchOperation == Core.Model.DataTypes.BatchOperationType.Obsolete)
                     {
                         foreach (var rotRel in this.m_entityRelationshipService.Query(r => r.SourceEntityKey == e.Data.SourceEntityKey && r.TargetEntityKey != e.Data.TargetEntityKey && r.ObsoleteVersionSequenceId == null, e.Principal))
                         {
@@ -277,6 +279,14 @@ namespace SanteDB.Persistence.MDM.Services
             {
                 this.RecheckRelationshipTrigger(sender, new DataPersistedEventArgs<EntityRelationship>(itm, e.Mode, e.Principal));
             }
+        }
+
+        /// <summary>
+        /// The subscription is executing
+        /// </summary>
+        private void MdmSubscriptionExecuting(object sender, Core.Event.QueryRequestEventArgs<IdentifiedData> e)
+        {
+            e.UseFuzzyTotals = true;
         }
 
         /// <summary>
