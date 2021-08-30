@@ -57,13 +57,13 @@ namespace SanteDB.Persistence.MDM.Services
     /// and linking/creating master records whenever a record of that type is created.
     /// </summary>
     [ServiceProvider("MIDM Data Repository")]
-    public class MdmDataManagementService : IDaemonService, IDisposable
+    public class MdmDataManagementService : IDaemonService, IDisposable, IDataManagementPattern
     {
 
         /// <summary>
         /// Gets the service name
         /// </summary>
-        public string ServiceName => "MIDM Daemon";
+        public string ServiceName => "MDM Data Management";
 
         // Matching service
         private IRecordMatchingService m_matchingService;
