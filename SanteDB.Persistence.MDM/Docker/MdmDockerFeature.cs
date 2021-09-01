@@ -85,7 +85,6 @@ namespace SanteDB.Persistence.MDM.Docker
                     return new ResourceMergeConfiguration()
                     {
                         ResourceTypeXml = conf[0],
-                        AutoMerge = autoMerge,
                         MatchConfiguration = new List<ResourceMergeMatchConfiguration>()
                         {
                             new ResourceMergeMatchConfiguration(MdmConstants.MdmIdentityMatchConfiguration, true),

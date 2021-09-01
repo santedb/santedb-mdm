@@ -59,7 +59,7 @@ namespace SanteDB.Persistence.MDM.Services
         public IEnumerable<TEntity> Search<TEntity>(string[] term, Guid queryId, int offset, int? count, out int totalResults, ModelSort<TEntity>[] orderBy) where TEntity : IdentifiedData, new()
         {
             // Perform the queries on the terms
-            if (this.m_configuration.ResourceTypes.Any(rt => rt.ResourceType == typeof(TEntity))) // Under MDM control
+            if (this.m_configuration.ResourceTypes.Any(rt => rt.ResourceType.Type == typeof(TEntity))) // Under MDM control
             {
                 var idps = ApplicationServiceContext.Current.GetService<IUnionQueryDataPersistenceService<Entity>>();
                 if (idps == null)

@@ -143,12 +143,12 @@ namespace SanteDB.Persistence.MDM.Services
             // Pre-register types for serialization
             foreach (var itm in this.m_configuration.ResourceTypes)
             {
-                if (itm.ResourceType == typeof(Entity))
+                if (itm.ResourceType.Type == typeof(Entity))
                 {
                     throw new InvalidOperationException("Cannot bind MDM control to Entity or Act , only sub-classes");
                 }
 
-                var rt = itm.ResourceType;
+                var rt = itm.ResourceType.Type;
                 string typeName = $"{rt.Name}Master";
                 if (typeof(Entity).IsAssignableFrom(rt))
                     rt = typeof(EntityMaster<>).MakeGenericType(rt);
@@ -176,16 +176,16 @@ namespace SanteDB.Persistence.MDM.Services
                 foreach (var itm in this.m_configuration.ResourceTypes)
                 {
                    
-                    this.m_traceSource.TraceInfo("Adding MDM listener for {0}...", itm.ResourceType.Name);
+                    this.m_traceSource.TraceInfo("Adding MDM listener for {0}...", itm.ResourceType.Type.Name);
                     MdmDataManagerFactory.RegisterDataManager(itm);
-                    var idt = typeof(MdmResourceHandler<>).MakeGenericType(itm.ResourceType);
+                    var idt = typeof(MdmResourceHandler<>).MakeGenericType(itm.ResourceType.Type);
                     var ids = this.m_serviceManager.CreateInjected(idt) as IDisposable;
                     this.m_listeners.Add(ids);
                     this.m_serviceManager.AddServiceProvider(ids);
-                    this.m_serviceManager.AddServiceProvider(MdmDataManagerFactory.CreateMerger(itm.ResourceType));
+                    this.m_serviceManager.AddServiceProvider(MdmDataManagerFactory.CreateMerger(itm.ResourceType.Type));
 
                     // Add job
-                    var jobType = typeof(MdmMatchJob<>).MakeGenericType(itm.ResourceType);
+                    var jobType = typeof(MdmMatchJob<>).MakeGenericType(itm.ResourceType.Type);
                     var job = Activator.CreateInstance(jobType) as IJob;
                     this.m_jobManager?.AddJob(job, TimeSpan.MaxValue, JobStartType.Never);
                 }
@@ -303,7 +303,7 @@ namespace SanteDB.Persistence.MDM.Services
             // We have a resource type that matches
             e.Results = e.Results.AsParallel().AsOrdered().Select((res) =>
             {
-                if (!this.m_configuration.ResourceTypes.Any(o => o.ResourceType == res.GetType())) return res;
+                if (!this.m_configuration.ResourceTypes.Any(o => o.ResourceType.Type == res.GetType())) return res;
                 // Result is taggable and a tag exists for MDM
                 if (res is Entity entity)
                 {

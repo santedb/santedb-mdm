@@ -65,7 +65,7 @@ namespace SanteDB.Persistence.MDM.Rest
         public MdmOperationBase(IConfigurationManager configurationManager, IRepositoryService<Bundle> batchService)
         {
             this.m_configuration = configurationManager.GetSection<ResourceMergeConfigurationSection>();
-            this.ParentTypes = this.m_configuration?.ResourceTypes.Select(o => o.ResourceType).ToArray() ?? Type.EmptyTypes;
+            this.ParentTypes = this.m_configuration?.ResourceTypes.Select(o => o.ResourceType.Type).ToArray() ?? Type.EmptyTypes;
             this.m_batchService = batchService;
         }
 
