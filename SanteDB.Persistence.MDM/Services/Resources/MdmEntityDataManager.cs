@@ -541,6 +541,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             LinkedList<IdentifiedData> retVal = new LinkedList<IdentifiedData>();
             bool rematchMaster = false;
 
+            this.m_traceSource.TraceInfo("Fetching MDM master relationship for {0}", local);
             var existingMasterRel = this.GetMasterRelationshipFor(local, context);
             if (existingMasterRel != null)
             {
@@ -558,10 +559,13 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             }
 
             // Get the ignore list
+            this.m_traceSource.TraceInfo("Fetching MDM ignore list for {0}", local);
+
             var ignoreList = this.m_relationshipService.Query(o => o.SourceEntityKey == local.Key && o.RelationshipTypeKey == MdmConstants.IgnoreCandidateRelationship, AuthenticationContext.SystemPrincipal).Select(o => o.TargetEntityKey.Value)
                 .Union(context.OfType<EntityRelationship>().Where(o => o.RelationshipTypeKey == MdmConstants.IgnoreCandidateRelationship).Select(o => o.TargetEntityKey.Value)).ToArray();
 
             // Existing probable links and set them to obsolete for now
+            this.m_traceSource.TraceInfo("Fetching existing candidates for {0}", local);
             var existingCandidates = this.m_relationshipService.Query(o => o.SourceEntityKey == local.Key && o.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship, AuthenticationContext.SystemPrincipal);
             foreach (var pl in existingCandidates)
             {
@@ -574,6 +578,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             foreach (var cnf in this.m_resourceConfiguration.MatchConfiguration)
             {
                 // Get a list of match results
+                this.m_traceSource.TraceInfo("Applying matching {0} for {1}", cnf.MatchConfiguration, local);
+
                 var matchResults = this.m_matchingService.Match<TModel>(local, cnf.MatchConfiguration, ignoreList);
 
                 // Group the match results by their outcome
@@ -662,6 +668,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             // Is the existing master rel still in place?
             if (rematchMaster)
             {
+                this.m_traceSource.TraceInfo("Re-matching master record for {0}", local);
                 var masterDetail = this.MdmGet(existingMasterRel.TargetEntityKey.Value).GetMaster(AuthenticationContext.SystemPrincipal) as TModel;
                 var bestMatch = this.m_resourceConfiguration.MatchConfiguration.SelectMany(c => this.m_matchingService.Classify(local, new TModel[] { masterDetail }, c.MatchConfiguration)).OrderByDescending(o => o.Classification).FirstOrDefault();
                 switch (bestMatch.Classification)
@@ -726,6 +733,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             // We do this so the database doesn't become overwhelmed with churn from relationships being rewritten
             foreach (var res in retVal.OfType<EntityRelationship>().GroupBy(o => o.TargetEntityKey))
             {
+                this.m_traceSource.TraceInfo("Returning relationships between {0} and {1}", local.Key, res.Key);
                 // Definite matches to master which are not to be deleted
                 var masterRelationships = res.Where(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship).OrderByDescending(o => o.Strength);
                 var candidateRelationships = res.Where(o => o.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship).OrderByDescending(o => o.Strength);
