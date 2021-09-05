@@ -73,9 +73,9 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 };
             }
 
-            if (typeof(Entity).IsAssignableFrom(configuration.ResourceType))
+            if (typeof(Entity).IsAssignableFrom(configuration.ResourceType.Type))
             {
-                m_createdInstances.TryAdd(configuration.ResourceType, Activator.CreateInstance(typeof(MdmEntityDataManager<>).MakeGenericType(configuration.ResourceType), configuration));
+                m_createdInstances.TryAdd(configuration.ResourceType.Type, Activator.CreateInstance(typeof(MdmEntityDataManager<>).MakeGenericType(configuration.ResourceType.Type), configuration));
             }
             else
             {
