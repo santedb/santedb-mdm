@@ -78,7 +78,8 @@ namespace SanteDB.Persistence.MDM.Rest
             if (scopingKey == null)
             {
                 parameters.TryGet<bool>("clear", out bool clear);
-                this.m_jobManager.StartJob(typeof(MdmMatchJob<>).MakeGenericType(scopingType), new object[] { clear });
+                parameters.TryGet<string>("configuration", out string configuration);
+                this.m_jobManager.StartJob(typeof(MdmMatchJob<>).MakeGenericType(scopingType), new object[] { clear, configuration });
                 return null;
             }
             else if (scopingKey is Guid scopingObjectKey)

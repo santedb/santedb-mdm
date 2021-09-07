@@ -761,7 +761,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 // key and update the strength (i.e. the candidate still is valid)
                 else if (candidateRelationships.Any(r => r.ObsoleteVersionSequenceId.HasValue || r.BatchOperation == BatchOperationType.Obsolete) && !candidateRelationships.All(r => r.ObsoleteVersionSequenceId.HasValue || r.BatchOperation == BatchOperationType.Obsolete))
                 {
-                    var existingRel = candidateRelationships.FirstOrDefault(o => o.ObsoleteVersionSequenceId.HasValue); // the obsoleted one already exists in DB
+                    var existingRel = candidateRelationships.FirstOrDefault(o => o.ObsoleteVersionSequenceId.HasValue || o.BatchOperation == BatchOperationType.Obsolete); // the obsoleted one already exists in DB
                     existingRel.Strength = candidateRelationships.First().Strength;
                     existingRel.ObsoleteVersionSequenceId = null;
                     existingRel.BatchOperation = BatchOperationType.Update;

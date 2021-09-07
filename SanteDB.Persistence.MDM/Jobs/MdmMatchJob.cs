@@ -34,6 +34,7 @@ using System.ComponentModel;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace SanteDB.Persistence.MDM.Jobs
@@ -44,14 +45,33 @@ namespace SanteDB.Persistence.MDM.Jobs
     /// <typeparam name="T">The type of object to match on</typeparam>
     [DisplayName("MDM Batch Matching Job")]
     public class MdmMatchJob<T> : IReportProgressJob
-        where T: IdentifiedData, new()
+        where T : IdentifiedData, new()
     {
+
+        // Guid
+        private Guid m_id = Guid.NewGuid();
+
+        // Merge service
+        private IRecordMergingService<T> m_mergeService;
 
         // Cancel requested
         private bool m_cancelRequest = false;
 
         // Tracer
         private Tracer m_tracer = Tracer.GetTracer(typeof(MdmMatchJob<T>));
+
+        /// <summary>
+        /// Create a match job
+        /// </summary>
+        public MdmMatchJob(IRecordMergingService<T> recordMergingService)
+        {
+            this.m_mergeService = recordMergingService;
+        }
+
+        /// <summary>
+        /// Get the identifier
+        /// </summary>
+        public Guid Id => this.m_id;
 
         /// <summary>
         /// Name of the matching job
@@ -61,7 +81,7 @@ namespace SanteDB.Persistence.MDM.Jobs
         /// <summary>
         /// Can cancel the job?
         /// </summary>
-        public bool CanCancel => true;
+        public bool CanCancel => false;
 
         /// <summary>
         /// Gets the current state
@@ -73,7 +93,7 @@ namespace SanteDB.Persistence.MDM.Jobs
         /// </summary>
         public IDictionary<string, Type> Parameters => new Dictionary<String, Type>()
         {
-            { "configurationName", typeof(String) }
+            { "clear", typeof(bool) }
         };
 
         /// <summary>
@@ -113,22 +133,35 @@ namespace SanteDB.Persistence.MDM.Jobs
             {
                 this.LastStarted = DateTime.Now;
                 this.CurrentState = JobStateType.Running;
+                var clear = parameters.Length > 0 ? (bool)parameters[0] : false;
+                this.m_tracer.TraceInfo("Starting batch run of MDM Matching ");
 
-                var configName = parameters.Length == 0 ? null : parameters[0].ToString();
-                var persistenceService = ApplicationServiceContext.Current.GetService<IDataPersistenceService<T>>() as IStoredQueryDataPersistenceService<T>;
-                var mergeService = ApplicationServiceContext.Current.GetService<IRecordMergingService<T>>();
-                var queryService = ApplicationServiceContext.Current.GetService<IQueryPersistenceService>(); 
+                if (clear)
+                {
+                    this.m_tracer.TraceVerbose("Batch instruction indicates clear of all links");
+                    this.m_mergeService.Reset();
+                }
+                else
+                {
+                    this.m_mergeService.ClearGlobalMergeCanadidates();
+                }
 
-                this.m_tracer.TraceInfo("Starting batch run of MDM Matching using configuration {0}", configName);
+                // Progress change handler
+                if (this.m_mergeService is IReportProgressChanged rpt)
+                {
+                    rpt.ProgressChanged += (o, p) =>
+                    {
+                        this.Progress = p.Progress;
+                        this.StatusText = p.State.ToString();
+                    };
+                }
 
+                this.m_mergeService.DetectGlobalMergeCandidates();
 
-                // Fetch all then run
-                throw new NotImplementedException("Batch matching not supported");
-                
                 this.LastFinished = DateTime.Now;
                 this.CurrentState = JobStateType.Completed;
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 this.CurrentState = JobStateType.Aborted;
                 this.m_tracer.TraceError("Could not run MDM Matching Job: {0}", ex);

@@ -186,7 +186,7 @@ namespace SanteDB.Persistence.MDM.Services
 
                     // Add job
                     var jobType = typeof(MdmMatchJob<>).MakeGenericType(itm.ResourceType.Type);
-                    var job = Activator.CreateInstance(jobType) as IJob;
+                    var job = this.m_serviceManager.CreateInjected(jobType) as IJob;
                     this.m_jobManager?.AddJob(job, TimeSpan.MaxValue, JobStartType.Never);
                 }
 
