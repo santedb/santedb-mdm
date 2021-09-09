@@ -36,6 +36,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Security;
 using System.Text;
 
@@ -393,11 +394,126 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         }
 
         /// <summary>
+        /// Clear global merge candidates
+        /// </summary>
+        public override void ClearGlobalIgnoreFlags()
+        {
+
+            try
+            {
+                this.m_tracer.TraceInfo("Clearing MDM ignore flags...");
+
+                // TODO: When the persistence refactor is done - change this to use the bulk method
+                Guid queryId = Guid.NewGuid();
+                int offset = 0, totalResults = 1, batchSize = 50;
+                while (offset < totalResults)
+                {
+                    var results = this.m_relationshipPersistence.Query(o => o.RelationshipTypeKey == MdmConstants.IgnoreCandidateRelationship && o.ObsoleteVersionSequenceId == null, queryId, offset, batchSize, out totalResults, AuthenticationContext.SystemPrincipal); ;
+                    var batch = new Bundle(results.Select(o => { o.BatchOperation = BatchOperationType.Obsolete; return o; }));
+                    this.m_batchPersistence.Update(batch, TransactionMode.Commit, AuthenticationContext.SystemPrincipal);
+                    offset += batchSize;
+                    this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)offset / (float)totalResults, "Clearing ignore links"));
+                }
+            }
+            catch (Exception e)
+            {
+                this.m_tracer.TraceError("Error clearing MDM ignore links: {0}", e);
+                throw new MdmException("Error clearing MDM ignore links", e);
+            }
+        }
+
+        /// <summary>
         /// Reset all links and all MDM data in this database
         /// </summary>
-        public override void Reset()
+        public override void Reset(bool includeVerified, bool linksOnly)
+        {
+            throw new NotImplementedException("This function is not yet implemented");
+        }
+
+        /// <summary>
+        /// Reset the specified object of all MDM data including resetting the master links
+        /// </summary>
+        public override void Reset(Guid masterKey, bool includeVerified, bool linksOnly)
         {
             throw new NotImplementedException("This function is not yet impleented");
+        }
+
+        /// <summary>
+        /// Clear merge candidates for the specified key
+        /// </summary>
+        public override void ClearMergeCandidates(Guid masterKey)
+        {
+            try
+            {
+                this.m_tracer.TraceInfo("Clearing MDM merge candidates for {0}...", masterKey);
+
+                // Determine if the parameter is a master or a local
+                Expression<Func<EntityRelationship, bool>> expr = null;
+                if(this.m_dataManager.IsMaster(masterKey))
+                {
+                    expr = o => o.TargetEntityKey == masterKey && o.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship && o.ObsoleteVersionSequenceId == null;
+                }
+                else
+                {
+                    expr = o => o.SourceEntityKey == masterKey && o.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship && o.ObsoleteVersionSequenceId == null;
+                }
+
+                // TODO: When the persistence refactor is done - change this to use the bulk method
+                Guid queryId = Guid.NewGuid();
+                int offset = 0, totalResults = 1, batchSize = 100;
+                while (offset < totalResults)
+                {
+                    var results = this.m_relationshipPersistence.Query(expr, queryId, offset, batchSize, out totalResults, AuthenticationContext.SystemPrincipal); ;
+                    var batch = new Bundle(results.Select(o => { o.BatchOperation = BatchOperationType.Obsolete; return o; }));
+                    this.m_batchPersistence.Update(batch, TransactionMode.Commit, AuthenticationContext.SystemPrincipal);
+                    offset += batchSize;
+                    this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)offset / (float)totalResults, "Clearing candidate links"));
+                }
+            }
+            catch (Exception e)
+            {
+                this.m_tracer.TraceError("Error clearing MDM merge candidates for {0}: {1}", masterKey, e);
+                throw new MdmException($"Error clearing MDM merge candidates for {masterKey}", e);
+            }
+        }
+
+        /// <summary>
+        /// Clear all ignore flags on the specified master
+        /// </summary>
+        public override void ClearIgnoreFlags(Guid masterKey)
+        {
+            try
+            {
+                this.m_tracer.TraceInfo("Clearing MDM merignore flags for {0}...", masterKey);
+
+                // Determine if the parameter is a master or a local
+                Expression<Func<EntityRelationship, bool>> expr = null;
+                if (this.m_dataManager.IsMaster(masterKey))
+                {
+                    expr = o => o.TargetEntityKey == masterKey && o.RelationshipTypeKey == MdmConstants.IgnoreCandidateRelationship && o.ObsoleteVersionSequenceId == null;
+                }
+                else
+                {
+                    expr = o => o.SourceEntityKey == masterKey && o.RelationshipTypeKey == MdmConstants.IgnoreCandidateRelationship && o.ObsoleteVersionSequenceId == null;
+                }
+
+                // TODO: When the persistence refactor is done - change this to use the bulk method
+                Guid queryId = Guid.NewGuid();
+                int offset = 0, totalResults = 1, batchSize = 100;
+                while (offset < totalResults)
+                {
+                    var results = this.m_relationshipPersistence.Query(expr, queryId, offset, batchSize, out totalResults, AuthenticationContext.SystemPrincipal); ;
+                    var batch = new Bundle(results.Select(o => { o.BatchOperation = BatchOperationType.Obsolete; return o; }));
+                    this.m_batchPersistence.Update(batch, TransactionMode.Commit, AuthenticationContext.SystemPrincipal);
+                    offset += batchSize;
+                    this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)offset / (float)totalResults, "Clearing ignore links"));
+                }
+            }
+            catch (Exception e)
+            {
+                this.m_tracer.TraceError("Error clearing MDM merge candidates for {0}: {1}", masterKey, e);
+                throw new MdmException($"Error clearing MDM merge candidates for {masterKey}", e);
+            }
         }
     }
 }

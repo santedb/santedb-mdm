@@ -139,7 +139,7 @@ namespace SanteDB.Persistence.MDM.Jobs
                 if (clear)
                 {
                     this.m_tracer.TraceVerbose("Batch instruction indicates clear of all links");
-                    this.m_mergeService.Reset();
+                    this.m_mergeService.Reset(true, false);
                 }
                 else
                 {

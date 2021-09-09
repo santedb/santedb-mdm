@@ -54,7 +54,7 @@ namespace SanteDB.Persistence.MDM.Rest
         /// <summary>
         /// Creates a new configuration match operation
         /// </summary>
-        public MdmMatchOperation(IConfigurationManager configurationManager, IJobManagerService jobManager, IRepositoryService<Bundle> batchService) : base(configurationManager, batchService)
+        public MdmMatchOperation(IConfigurationManager configurationManager, IJobManagerService jobManager, IDataPersistenceService<Bundle> batchService) : base(configurationManager, batchService)
         {
             this.m_jobManager = jobManager;
         }
@@ -78,8 +78,7 @@ namespace SanteDB.Persistence.MDM.Rest
             if (scopingKey == null)
             {
                 parameters.TryGet<bool>("clear", out bool clear);
-                parameters.TryGet<string>("configuration", out string configuration);
-                this.m_jobManager.StartJob(typeof(MdmMatchJob<>).MakeGenericType(scopingType), new object[] { clear, configuration });
+                this.m_jobManager.StartJob(typeof(MdmMatchJob<>).MakeGenericType(scopingType), new object[] { clear });
                 return null;
             }
             else if (scopingKey is Guid scopingObjectKey)
@@ -114,17 +113,14 @@ namespace SanteDB.Persistence.MDM.Rest
                 retVal.AddRange(dataManager.MdmTxMatchMasters(dataManager.MdmGet(scopingObjectKey).GetMaster(AuthenticationContext.Current.Principal) as Entity, retVal.Item));
 
                 // Now we want to save?
-                if (parameters.TryGet<bool>("commit", out bool commit) && commit)
+                try
                 {
-                    try
-                    {
-                        retVal = this.m_batchService.Insert(retVal);
-                    }
-                    catch (Exception e)
-                    {
-                        this.m_tracer.TraceError("Error persisting re-match: {0}", e.Message);
-                        throw new MdmException("Error persisting re-match operation", e);
-                    }
+                    retVal = this.m_batchService.Insert(retVal, TransactionMode.Commit, AuthenticationContext.Current.Principal);
+                }
+                catch (Exception e)
+                {
+                    this.m_tracer.TraceError("Error persisting re-match: {0}", e.Message);
+                    throw new MdmException("Error persisting re-match operation", e);
                 }
                 return retVal;
             }

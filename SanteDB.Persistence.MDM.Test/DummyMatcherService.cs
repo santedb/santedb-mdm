@@ -59,6 +59,14 @@ namespace SanteDB.Persistence.MDM.Test
         }
 
         /// <summary>
+        /// Classify 
+        /// </summary>
+        public IEnumerable<IRecordMatchResult> Classify(IdentifiedData input, IEnumerable<IdentifiedData> blocks, String configurationName)
+        {
+            throw new NotImplementedException();
+        }
+
+        /// <summary>
         /// Perform a score
         /// </summary>
         public IRecordMatchResult<T> Score<T>(T input, Expression<Func<T, bool>> query, string configurationName) where T : IdentifiedData
@@ -112,6 +120,8 @@ namespace SanteDB.Persistence.MDM.Test
         public RecordMatchMethod Method => RecordMatchMethod.Weighted;
 
         public IEnumerable<IRecordMatchVector> Vectors => throw new NotImplementedException();
+
+        public string ConfigurationName => throw new NotImplementedException();
 
         /// <summary>
         /// Create a dummy match

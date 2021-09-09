@@ -152,7 +152,7 @@ namespace SanteDB.Persistence.MDM.Services
                 using (AuthenticationContext.EnterSystemContext())
                 {
                     var repository = ApplicationServiceContext.Current.GetService<IRepositoryService<T>>();
-                    return repository.Find(filterExpression).Select(o => new MdmIdentityMatchResult<T>(o));
+                    return repository.Find(filterExpression).Select(o => new MdmIdentityMatchResult<T>(o, "$identity"));
                 }
             }
         }
@@ -193,7 +193,7 @@ namespace SanteDB.Persistence.MDM.Services
                 throw new InvalidOperationException("Some identifiers are missing authorities, cannot perform identity match");
 
             if (uqIdentifiers?.Any() != true)
-                return blocks.Select(o => new MdmIdentityMatchResult<T>(o, RecordMatchClassification.NonMatch, 0.0f));
+                return blocks.Select(o => new MdmIdentityMatchResult<T>(o, "$identity", RecordMatchClassification.NonMatch, 0.0f));
             else
             {
                 return blocks.Select(o =>
@@ -201,11 +201,11 @@ namespace SanteDB.Persistence.MDM.Services
                     if (o is IHasIdentifiers oid)
                     {
                         var isMatch = oid.Identifiers.Any(i => uqIdentifiers.Any(u => u.Authority.Key == i.Authority.Key && i.Value == u.Value));
-                        return new MdmIdentityMatchResult<T>(o, isMatch ? RecordMatchClassification.Match : RecordMatchClassification.NonMatch, isMatch ? 1.0f : 0.0f);
+                        return new MdmIdentityMatchResult<T>(o, "$identity", isMatch ? RecordMatchClassification.Match : RecordMatchClassification.NonMatch, isMatch ? 1.0f : 0.0f);
                     }
                     else
                     {
-                        return new MdmIdentityMatchResult<T>(o, RecordMatchClassification.NonMatch, 0.0f);
+                        return new MdmIdentityMatchResult<T>(o, "$identity", RecordMatchClassification.NonMatch, 0.0f);
                     }
                 });
             }
@@ -233,6 +233,17 @@ namespace SanteDB.Persistence.MDM.Services
             // TODO: Provide a lookup list with a lambda expression to make this go faster
             var genMethod = typeof(MdmRecordMatchingService).GetGenericMethod(nameof(Match), new Type[] { input.GetType() }, new Type[] { input.GetType(), typeof(String), typeof(IEnumerable<Guid>) });
             var results = genMethod.Invoke(this, new object[] { input, configurationName, ignoreKeys }) as IEnumerable;
+            return results.OfType<IRecordMatchResult>();
+        }
+
+        /// <summary>
+        /// Classify 
+        /// </summary>
+        public IEnumerable<IRecordMatchResult> Classify(IdentifiedData input, IEnumerable<IdentifiedData> blocks, String configurationName)
+        {
+            var genMethod = typeof(MdmRecordMatchingService).GetGenericMethod(nameof(Classify), new Type[] { input.GetType() }, new Type[] { input.GetType(), typeof(IEnumerable<>).MakeGenericType(input.GetType()), typeof(String) });
+            var ofTypeMethod = typeof(Enumerable).GetGenericMethod(nameof(Enumerable.OfType), new Type[] { input.GetType() }, new Type[] { typeof(IEnumerable) });
+            var results = genMethod.Invoke(this, new object[] { input, ofTypeMethod.Invoke(null, new object[] { blocks }),  configurationName }) as IEnumerable;
             return results.OfType<IRecordMatchResult>();
         }
     }

@@ -49,6 +49,11 @@ namespace SanteDB.Persistence.MDM.Services
     {
 
         /// <summary>
+        /// Get the configuration name
+        /// </summary>
+        public string ConfigurationName { get; }
+
+        /// <summary>
         /// Gets the record that was matched
         /// </summary>
         public T Record { get; }
@@ -86,12 +91,13 @@ namespace SanteDB.Persistence.MDM.Services
         /// <summary>
         /// Create a new identity match result
         /// </summary>
-        public MdmIdentityMatchResult(T record, RecordMatchClassification classification = RecordMatchClassification.Match, float score = 1.0f)
+        public MdmIdentityMatchResult(T record, string configurationName, RecordMatchClassification classification = RecordMatchClassification.Match, float score = 1.0f)
         {
             this.Record = record;
             this.Method = RecordMatchMethod.Identifier;
             this.Score = this.Strength = score;
             this.Classification = classification;
+            this.ConfigurationName = configurationName;
         }
 
 
