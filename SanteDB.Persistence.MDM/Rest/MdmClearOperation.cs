@@ -17,7 +17,7 @@ namespace SanteDB.Persistence.MDM.Rest
         /// <summary>
         /// Clear operation
         /// </summary>
-        public MdmClearOperation(IConfigurationManager configurationManager, IRepositoryService<Bundle> batchService) : base(configurationManager, batchService)
+        public MdmClearOperation(IConfigurationManager configurationManager, IDataPersistenceService<Bundle> batchService) : base(configurationManager, batchService)
         {
         }
 
