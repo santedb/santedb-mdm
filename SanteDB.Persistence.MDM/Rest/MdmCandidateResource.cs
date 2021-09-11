@@ -136,7 +136,7 @@ namespace SanteDB.Persistence.MDM.Rest
             }
             else
             {
-                throw new ArgumentException("Arguments must be a UUID");
+                throw new ArgumentException($"This request must be scoped to a single {scopingType.Name}");
             }
         }
 
@@ -176,7 +176,14 @@ namespace SanteDB.Persistence.MDM.Rest
                 throw new InvalidOperationException("No merging service configuration");
             }
 
-            merger.Ignore((Guid)scopingKey, new Guid[] { (Guid)key });
+            if (scopingKey is Guid scopingId && key is Guid keyId)
+            {
+                merger.Ignore(scopingId, new Guid[] { keyId });
+            }
+            else
+            {
+                throw new ArgumentException($"Request must be scoped to a single {scopingType.Name}");
+            }
             return null;
         }
     }

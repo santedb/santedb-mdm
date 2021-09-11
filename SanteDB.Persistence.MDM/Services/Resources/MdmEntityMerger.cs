@@ -92,6 +92,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         public override IEnumerable<IdentifiedData> GetIgnored(Guid masterKey)
         {
+            this.m_pepService.Demand(MdmPermissionPolicyIdentifiers.ReadMdmLocals);
+
             if (this.m_dataManager.IsMaster(masterKey))
             {
                 return this.m_dataManager.GetIgnoredCandidateLocals(masterKey)
@@ -114,6 +116,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         public override IEnumerable<IdentifiedData> GetMergeCandidates(Guid masterKey)
         {
+            this.m_pepService.Demand(MdmPermissionPolicyIdentifiers.ReadMdmLocals);
+
             if (this.m_dataManager.IsMaster(masterKey))
             {
                 return this.m_dataManager.GetCandidateLocals(masterKey)
@@ -144,6 +148,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         {
             try
             {
+                this.m_pepService.Demand(MdmPermissionPolicyIdentifiers.WriteMdmMaster);
 
                 Bundle transaction = new Bundle();
                 transaction.AddRange(falsePositives.SelectMany(o => this.m_dataManager.MdmTxIgnoreCandidateMatch(masterKey, o, transaction.Item)));
@@ -190,6 +195,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                         {
                             throw new DetectedIssueException(Core.BusinessRules.DetectedIssuePriorityType.Error, MdmConstants.INVALID_MERGE_ISSUE, $"Principal has no authority to merge into {survivorKey}", DetectedIssueKeys.SecurityIssue, e);
                         }
+
                         recordMergeStatus = RecordMergeStatus.Alternate;
                         isSurvivorMaster = false;
                     }
@@ -335,6 +341,9 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         {
             try
             {
+
+                this.m_pepService.Demand(MdmPermissionPolicyIdentifiers.UnrestrictedMdm);
+
                 // Fetch all locals
                 // TODO: Update to the new persistence layer 
                 Guid queryId = Guid.NewGuid();
@@ -371,6 +380,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
 
             try
             {
+                this.m_pepService.Demand(MdmPermissionPolicyIdentifiers.UnrestrictedMdm);
+
                 this.m_tracer.TraceInfo("Clearing MDM merge candidates...");
 
                 // TODO: When the persistence refactor is done - change this to use the bulk method
@@ -401,6 +412,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
 
             try
             {
+                this.m_pepService.Demand(MdmPermissionPolicyIdentifiers.UnrestrictedMdm);
+
                 this.m_tracer.TraceInfo("Clearing MDM ignore flags...");
 
                 // TODO: When the persistence refactor is done - change this to use the bulk method
@@ -427,6 +440,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         public override void Reset(bool includeVerified, bool linksOnly)
         {
+            this.m_pepService.Demand(MdmPermissionPolicyIdentifiers.UnrestrictedMdm);
+
             throw new NotImplementedException("This function is not yet implemented");
         }
 
@@ -435,6 +450,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         public override void Reset(Guid masterKey, bool includeVerified, bool linksOnly)
         {
+            this.m_pepService.Demand(MdmPermissionPolicyIdentifiers.UnrestrictedMdm);
+
             throw new NotImplementedException("This function is not yet impleented");
         }
 
@@ -445,6 +462,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         {
             try
             {
+                this.m_pepService.Demand(MdmPermissionPolicyIdentifiers.UnrestrictedMdm);
+
                 this.m_tracer.TraceInfo("Clearing MDM merge candidates for {0}...", masterKey);
 
                 // Determine if the parameter is a master or a local
@@ -484,6 +503,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         {
             try
             {
+                this.m_pepService.Demand(MdmPermissionPolicyIdentifiers.UnrestrictedMdm);
                 this.m_tracer.TraceInfo("Clearing MDM merignore flags for {0}...", masterKey);
 
                 // Determine if the parameter is a master or a local

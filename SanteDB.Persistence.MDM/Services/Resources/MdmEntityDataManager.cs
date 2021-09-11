@@ -180,6 +180,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         public override TModel PromoteRecordOfTruth(TModel local)
         {
+
             var master = (Entity)this.GetRawMaster(local);
             if (master == null)
             {
