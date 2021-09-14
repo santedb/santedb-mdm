@@ -78,7 +78,10 @@ namespace SanteDB.Persistence.MDM.Services
         private IDataPersistenceService<EntityRelationship> m_entityRelationshipService;
         // Entity service
         private IDataPersistenceService<Entity> m_entityService;
-      
+
+        // Match configuration service
+        private IRecordMatchingConfigurationService m_matchConfigurationService;
+
         // TRace source
         private Tracer m_traceSource = new Tracer(MdmConstants.TraceSourceName);
 
@@ -111,13 +114,14 @@ namespace SanteDB.Persistence.MDM.Services
         /// <summary>
         /// Create injected service
         /// </summary>
-        public MdmDataManagementService(IServiceManager serviceManager, IConfigurationManager configuration, IRecordMatchingService matchingService = null, ISubscriptionExecutor subscriptionExecutor = null, SimDataManagementService simDataManagementService = null, IJobManagerService jobManagerService = null)
+        public MdmDataManagementService(IServiceManager serviceManager, IConfigurationManager configuration, IRecordMatchingConfigurationService matchConfigurationService, IRecordMatchingService matchingService = null, ISubscriptionExecutor subscriptionExecutor = null, SimDataManagementService simDataManagementService = null, IJobManagerService jobManagerService = null)
         {
             this.m_configuration = configuration.GetSection<ResourceManagementConfigurationSection>();
             this.m_matchingService = matchingService;
             this.m_serviceManager = serviceManager;
             this.m_subscriptionExecutor = subscriptionExecutor;
             this.m_jobManager = jobManagerService;
+            this.m_matchConfigurationService = matchConfigurationService;
             if (simDataManagementService != null)
             {
                 throw new InvalidOperationException("Cannot run MDM and SIM in same mode");
@@ -173,6 +177,10 @@ namespace SanteDB.Persistence.MDM.Services
                 if (this.m_matchingService != null)
                 {
                     this.m_serviceManager.RemoveServiceProvider(this.m_matchingService.GetType());
+                }
+                if(this.m_matchConfigurationService != null)
+                {
+                    this.m_serviceManager.RemoveServiceProvider(this.m_matchConfigurationService.GetType());
                 }
 
                 foreach (var itm in this.m_configuration.ResourceTypes)

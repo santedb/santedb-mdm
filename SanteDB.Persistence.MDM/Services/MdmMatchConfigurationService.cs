@@ -53,6 +53,7 @@ namespace SanteDB.Persistence.MDM.Services
             public MdmIdentityRecordMatchConfiguration(Type[] appliesTo)
             {
                 this.AppliesTo = appliesTo;
+                this.Metadata = new MdmIdentityRecordMatchMetadata();
             }
 
             /// <summary>
@@ -68,7 +69,7 @@ namespace SanteDB.Persistence.MDM.Services
             /// <summary>
             /// Record matching metadata
             /// </summary>
-            public IRecordMatchingConfigurationMetadata Metadata { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
+            public IRecordMatchingConfigurationMetadata Metadata { get; set; }
         }
 
         // Matching configuration service wrapped
