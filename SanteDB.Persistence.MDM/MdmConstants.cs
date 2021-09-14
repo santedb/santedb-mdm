@@ -124,5 +124,10 @@ namespace SanteDB.Persistence.MDM
         /// Detected issue code for invalid merge
         /// </summary>
         public const string INVALID_MERGE_ISSUE = "mdm-no-local-or-permission";
+
+        /// <summary>
+        /// Gets the auto-link setting
+        /// </summary>
+        public const string AutoLinkSetting = "$mdm.auto-link";
     }
 }

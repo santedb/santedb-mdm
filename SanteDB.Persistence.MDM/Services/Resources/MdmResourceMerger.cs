@@ -148,5 +148,40 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// Get all global merge candidates
         /// </summary>
         public abstract IEnumerable<ITargetedAssociation> GetGlobalMergeCandidates();
+
+        /// <summary>
+        /// Detect global merge candidates
+        /// </summary>
+        public abstract void DetectGlobalMergeCandidates();
+
+        /// <summary>
+        /// Clear global merge candidates
+        /// </summary>
+        public abstract void ClearGlobalMergeCanadidates();
+
+        /// <summary>
+        /// Clear global ignore flags
+        /// </summary>
+        public abstract void ClearGlobalIgnoreFlags();
+
+        /// <summary>
+        /// Reset the global merge candidates, MDM links, etc.
+        /// </summary>
+        public abstract void Reset(bool includeVerified, bool linksOnly);
+
+        /// <summary>
+        /// Reset the specified master key of all matching information
+        /// </summary>
+        public abstract void Reset(Guid masterKey, bool includeVerified, bool linksOnly);
+
+        /// <summary>
+        /// Clear merge candidates
+        /// </summary>
+        public abstract void ClearMergeCandidates(Guid masterKey);
+
+        /// <summary>
+        /// Clear ignore keys
+        /// </summary>
+        public abstract void ClearIgnoreFlags(Guid masterKey);
     }
 }
