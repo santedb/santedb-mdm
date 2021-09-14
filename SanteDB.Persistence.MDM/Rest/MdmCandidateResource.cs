@@ -30,6 +30,7 @@ using SanteDB.Core.Model.Interfaces;
 using SanteDB.Core.Model.Query;
 using SanteDB.Core.Security;
 using SanteDB.Core.Services;
+using SanteDB.Core.Matching;
 using SanteDB.Persistence.MDM.Exceptions;
 using SanteDB.Persistence.MDM.Services.Resources;
 using SanteDB.Rest.Common;
@@ -49,15 +50,15 @@ namespace SanteDB.Persistence.MDM.Rest
         private Tracer m_tracer = Tracer.GetTracer(typeof(MdmCandidateOperation));
 
         // Configuration
-        private ResourceMergeConfigurationSection m_configuration;
+        private ResourceManagementConfigurationSection m_configuration;
 
         /// <summary>
         /// Candidate operations manager
         /// </summary>
         public MdmCandidateOperation(IConfigurationManager configurationManager)
         {
-            this.m_configuration = configurationManager.GetSection<ResourceMergeConfigurationSection>();
-            this.ParentTypes = this.m_configuration?.ResourceTypes.Select(o => o.ResourceType.Type).ToArray() ?? Type.EmptyTypes;
+            this.m_configuration = configurationManager.GetSection<ResourceManagementConfigurationSection>();
+            this.ParentTypes = this.m_configuration?.ResourceTypes.Select(o => o.Type).ToArray() ?? Type.EmptyTypes;
         }
 
         /// <summary>
@@ -111,6 +112,13 @@ namespace SanteDB.Persistence.MDM.Rest
                 throw new InvalidOperationException("No match report factory");
             }
 
+            // Configuration provider
+            var matchConfiguration = ApplicationServiceContext.Current.GetService<IRecordMatchingConfigurationService>();
+            if(matchConfiguration == null)
+            {
+                throw new InvalidOperationException("No match configuration factory");
+            }
+
             // Validate parameters
             if (scopingKey is Guid objectAKey && key is Guid objectBKey) {
                 var repository = ApplicationServiceContext.Current.GetService(typeof(IRepositoryService<>).MakeGenericType(scopingType)) as IRepositoryService;
@@ -124,14 +132,14 @@ namespace SanteDB.Persistence.MDM.Rest
                     throw new KeyNotFoundException($"Source or target not found");
                 }
 
-                var matchConfiguration = this.m_configuration.ResourceTypes.FirstOrDefault(o => o.ResourceType.Type == scopingType);
+                var matchConfigurations = matchConfiguration.Configurations.Where(o => o.AppliesTo.Contains(scopingType) && o.Metadata.State == MatchConfigurationStatus.Active);
                 if(matchConfiguration == null)
                 {
                     throw new InvalidOperationException("No configuration for type exists");
                 }
 
                 // Match result
-                var matchResult = matchConfiguration.MatchConfiguration.SelectMany(c => matcher.Classify(recordA, new IdentifiedData[] { recordB }, c.MatchConfiguration));
+                var matchResult = matchConfigurations.SelectMany(c => matcher.Classify(recordA, new IdentifiedData[] { recordB }, c.Id));
                 return matchReportFactory.CreateMatchReport(scopingType, recordA, matchResult);
             }
             else

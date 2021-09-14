@@ -50,7 +50,7 @@ namespace SanteDB.Persistence.MDM.Rest
         private Tracer m_tracer = Tracer.GetTracer(typeof(MdmLinkResource));
 
         // Configuration
-        private ResourceMergeConfigurationSection m_configuration;
+        private ResourceManagementConfigurationSection m_configuration;
 
         // Batch service
         private IDataPersistenceService<Bundle> m_batchService;
@@ -60,8 +60,8 @@ namespace SanteDB.Persistence.MDM.Rest
         /// </summary>
         public MdmLinkResource(IConfigurationManager configurationManager, IDataPersistenceService<Bundle> batchService)
         {
-            this.m_configuration = configurationManager.GetSection<ResourceMergeConfigurationSection>();
-            this.ParentTypes = this.m_configuration?.ResourceTypes.Select(o => o.ResourceType.Type).ToArray() ?? Type.EmptyTypes;
+            this.m_configuration = configurationManager.GetSection<ResourceManagementConfigurationSection>();
+            this.ParentTypes = this.m_configuration?.ResourceTypes.Select(o => o.Type).ToArray() ?? Type.EmptyTypes;
             this.m_batchService = batchService;
         }
 

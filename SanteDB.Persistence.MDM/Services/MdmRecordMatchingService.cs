@@ -28,6 +28,7 @@ using SanteDB.Core.Model.Interfaces;
 using SanteDB.Core.Model.Query;
 using SanteDB.Core.Security;
 using SanteDB.Core.Services;
+using SanteDB.Core.Matching;
 using SanteDB.Persistence.MDM.Services.Resources;
 using System;
 using System.Collections;

@@ -4,6 +4,7 @@ using SanteDB.Core.Model;
 using SanteDB.Core.Model.Roles;
 using SanteDB.Core.Security;
 using SanteDB.Core.Services;
+using SanteDB.Core.Matching;
 using System;
 using System.Collections.Generic;
 using System.Linq;

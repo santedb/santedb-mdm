@@ -49,15 +49,15 @@ namespace SanteDB.Persistence.MDM.Rest
         private Tracer m_tracer = Tracer.GetTracer(typeof(MdmIgnoreResource));
 
         // Configuration
-        private ResourceMergeConfigurationSection m_configuration;
+        private ResourceManagementConfigurationSection m_configuration;
 
         /// <summary>
         /// Candidate operations manager
         /// </summary>
         public MdmIgnoreResource(IConfigurationManager configurationManager)
         {
-            this.m_configuration = configurationManager.GetSection<ResourceMergeConfigurationSection>();
-            this.ParentTypes = this.m_configuration?.ResourceTypes.Select(o => o.ResourceType.Type).ToArray() ?? Type.EmptyTypes;
+            this.m_configuration = configurationManager.GetSection<ResourceManagementConfigurationSection>();
+            this.ParentTypes = this.m_configuration?.ResourceTypes.Select(o => o.Type).ToArray() ?? Type.EmptyTypes;
         }
 
         /// <summary>

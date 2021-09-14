@@ -20,7 +20,7 @@
  */
 using SanteDB.Core.Model;
 using SanteDB.Core.Model.Entities;
-using SanteDB.Core.Services;
+using SanteDB.Core.Matching;
 using System.Collections.Generic;
 
 namespace SanteDB.Persistence.MDM.Services

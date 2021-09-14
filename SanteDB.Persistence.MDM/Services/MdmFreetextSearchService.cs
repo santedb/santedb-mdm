@@ -51,7 +51,7 @@ namespace SanteDB.Persistence.MDM.Services
         public string ServiceName => "Basic MDM Freetext Search Service";
 
         // Configuration
-        private ResourceMergeConfigurationSection m_configuration = ApplicationServiceContext.Current.GetService<IConfigurationManager>().GetSection<ResourceMergeConfigurationSection>();
+        private ResourceManagementConfigurationSection m_configuration = ApplicationServiceContext.Current.GetService<IConfigurationManager>().GetSection<ResourceManagementConfigurationSection>();
 
         /// <summary>
         /// Search for the specified entity
@@ -59,7 +59,7 @@ namespace SanteDB.Persistence.MDM.Services
         public IEnumerable<TEntity> Search<TEntity>(string[] term, Guid queryId, int offset, int? count, out int totalResults, ModelSort<TEntity>[] orderBy) where TEntity : IdentifiedData, new()
         {
             // Perform the queries on the terms
-            if (this.m_configuration.ResourceTypes.Any(rt => rt.ResourceType.Type == typeof(TEntity))) // Under MDM control
+            if (this.m_configuration.ResourceTypes.Any(rt => rt.Type == typeof(TEntity))) // Under MDM control
             {
                 var idps = ApplicationServiceContext.Current.GetService<IUnionQueryDataPersistenceService<Entity>>();
                 if (idps == null)
