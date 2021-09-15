@@ -30,7 +30,6 @@ using SanteDB.Core.Model.Interfaces;
 using SanteDB.Core.Model.Query;
 using SanteDB.Core.Security;
 using SanteDB.Core.Services;
-using SanteDB.Core.Matching;
 using SanteDB.Persistence.MDM.Exceptions;
 using SanteDB.Persistence.MDM.Services.Resources;
 using SanteDB.Rest.Common;
@@ -44,10 +43,10 @@ namespace SanteDB.Persistence.MDM.Rest
     /// <summary>
     /// Exposees the $mdm-candidate API onto the REST layer
     /// </summary>
-    public class MdmCandidateOperation : IApiChildResourceHandler
+    public class MdmIgnoreResource : IApiChildResourceHandler
     {
 
-        private Tracer m_tracer = Tracer.GetTracer(typeof(MdmCandidateOperation));
+        private Tracer m_tracer = Tracer.GetTracer(typeof(MdmIgnoreResource));
 
         // Configuration
         private ResourceManagementConfigurationSection m_configuration;
@@ -55,7 +54,7 @@ namespace SanteDB.Persistence.MDM.Rest
         /// <summary>
         /// Candidate operations manager
         /// </summary>
-        public MdmCandidateOperation(IConfigurationManager configurationManager)
+        public MdmIgnoreResource(IConfigurationManager configurationManager)
         {
             this.m_configuration = configurationManager.GetSection<ResourceManagementConfigurationSection>();
             this.ParentTypes = this.m_configuration?.ResourceTypes.Select(o => o.Type).ToArray() ?? Type.EmptyTypes;
@@ -69,7 +68,7 @@ namespace SanteDB.Persistence.MDM.Rest
         /// <summary>
         /// Gets the name of the resource
         /// </summary>
-        public string Name => "mdm-candidate";
+        public string Name => "mdm-ignore";
 
         /// <summary>
         /// Gets the type of properties which are returned
@@ -79,12 +78,12 @@ namespace SanteDB.Persistence.MDM.Rest
         /// <summary>
         /// Gets the capabilities of this
         /// </summary>
-        public ResourceCapabilityType Capabilities => ResourceCapabilityType.Search | ResourceCapabilityType.Get | ResourceCapabilityType.Delete;
+        public ResourceCapabilityType Capabilities => ResourceCapabilityType.Search | ResourceCapabilityType.Delete;
 
         /// <summary>
         /// Binding for this operation
         /// </summary>
-        public ChildObjectScopeBinding ScopeBinding => ChildObjectScopeBinding.Instance | ChildObjectScopeBinding.Class;
+        public ChildObjectScopeBinding ScopeBinding => ChildObjectScopeBinding.Instance ;
 
         /// <summary>
         /// Re-Runs the matching algorithm on the specified master
@@ -99,53 +98,7 @@ namespace SanteDB.Persistence.MDM.Rest
         /// </summary>
         public object Get(Type scopingType, object scopingKey, object key)
         {
-            var matcher = ApplicationServiceContext.Current.GetService<IRecordMatchingService>();
-            if (matcher == null)
-            {
-                throw new InvalidOperationException("No matching service configuration");
-            }
-
-            // Match report factory
-            var matchReportFactory = ApplicationServiceContext.Current.GetService<IMatchReportFactory>();
-            if (matchReportFactory == null)
-            {
-                throw new InvalidOperationException("No match report factory");
-            }
-
-            // Configuration provider
-            var matchConfiguration = ApplicationServiceContext.Current.GetService<IRecordMatchingConfigurationService>();
-            if(matchConfiguration == null)
-            {
-                throw new InvalidOperationException("No match configuration factory");
-            }
-
-            // Validate parameters
-            if (scopingKey is Guid objectAKey && key is Guid objectBKey) {
-                var repository = ApplicationServiceContext.Current.GetService(typeof(IRepositoryService<>).MakeGenericType(scopingType)) as IRepositoryService;
-
-                // Produce a match report
-                IdentifiedData recordA = repository.Get(objectAKey),
-                    recordB = repository.Get(objectBKey);
-
-                if(recordA == null || recordB == null)
-                {
-                    throw new KeyNotFoundException($"Source or target not found");
-                }
-
-                var matchConfigurations = matchConfiguration.Configurations.Where(o => o.AppliesTo.Contains(scopingType) && o.Metadata.State == MatchConfigurationStatus.Active);
-                if(matchConfiguration == null)
-                {
-                    throw new InvalidOperationException("No configuration for type exists");
-                }
-
-                // Match result
-                var matchResult = matchConfigurations.SelectMany(c => matcher.Classify(recordA, new IdentifiedData[] { recordB }, c.Id));
-                return matchReportFactory.CreateMatchReport(scopingType, recordA, matchResult);
-            }
-            else
-            {
-                throw new ArgumentException($"This request must be scoped to a single {scopingType.Name}");
-            }
+            throw new NotSupportedException();
         }
 
         /// <summary>
@@ -160,13 +113,13 @@ namespace SanteDB.Persistence.MDM.Rest
             }
 
             IEnumerable<IdentifiedData> result = null;
-            if (scopingKey == null) // class call
+            if (scopingKey is Guid scopeKey) // class call
             {
-                result = merger.GetGlobalMergeCandidates().OfType<IdentifiedData>();
+                result = merger.GetIgnored(scopeKey);
             }
             else
             {
-                result = merger.GetMergeCandidates((Guid)scopingKey);
+                throw new NotSupportedException();
             }
 
             totalCount = result.Count();
@@ -184,14 +137,7 @@ namespace SanteDB.Persistence.MDM.Rest
                 throw new InvalidOperationException("No merging service configuration");
             }
 
-            if (scopingKey is Guid scopingId && key is Guid keyId)
-            {
-                merger.Ignore(scopingId, new Guid[] { keyId });
-            }
-            else
-            {
-                throw new ArgumentException($"Request must be scoped to a single {scopingType.Name}");
-            }
+            merger.UnIgnore((Guid)scopingKey, new Guid[] { (Guid)key });
             return null;
         }
     }

@@ -34,6 +34,7 @@ using SanteDB.Core.Security;
 using SanteDB.Core.Security.Claims;
 using SanteDB.Core.Security.Principal;
 using SanteDB.Core.Services;
+using SanteDB.Core.Matching;
 using SanteDB.Persistence.MDM.Exceptions;
 using SanteDB.Persistence.MDM.Model;
 using System;
@@ -74,18 +75,18 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         // Matching service
         private IRecordMatchingService m_matchingService;
 
-        // Configuration
-        private ResourceMergeConfiguration m_resourceConfiguration;
+        // Matching configuration service
+        private IRecordMatchingConfigurationService m_matchingConfigurationService;
 
         /// <summary>
         /// Create entity data manager
         /// </summary>
-        public MdmEntityDataManager(ResourceMergeConfiguration configuration) : base(ApplicationServiceContext.Current.GetService<IDataPersistenceService<Entity>>() as IDataPersistenceService)
+        public MdmEntityDataManager() : base(ApplicationServiceContext.Current.GetService<IDataPersistenceService<Entity>>() as IDataPersistenceService)
         {
             ModelSerializationBinder.RegisterModelType(typeof(EntityMaster<TModel>));
             ModelSerializationBinder.RegisterModelType($"{typeof(TModel).Name}Master", typeof(EntityMaster<TModel>));
 
-            this.m_resourceConfiguration = configuration;
+            this.m_matchingConfigurationService = ApplicationServiceContext.Current.GetService<IRecordMatchingConfigurationService>(); ;
             this.m_entityPersistenceService = base.m_underlyingTypePersistence as IDataPersistenceService<Entity>;
             this.m_persistenceService = ApplicationServiceContext.Current.GetService<IDataPersistenceService<TModel>>();
             this.m_relationshipService = ApplicationServiceContext.Current.GetService<IDataPersistenceService<EntityRelationship>>();
@@ -180,6 +181,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         public override TModel PromoteRecordOfTruth(TModel local)
         {
+
             var master = (Entity)this.GetRawMaster(local);
             if (master == null)
             {
@@ -575,12 +577,12 @@ namespace SanteDB.Persistence.MDM.Services.Resources
 
             // Match configuration
             // TODO: Emit logs
-            foreach (var cnf in this.m_resourceConfiguration.MatchConfiguration)
+            foreach (var cnf in this.m_matchingConfigurationService.Configurations.Where(o => o.AppliesTo.Contains(typeof(TModel)) && o.Metadata.State == MatchConfigurationStatus.Active))
             {
                 // Get a list of match results
-                this.m_traceSource.TraceInfo("Applying matching {0} for {1}", cnf.MatchConfiguration, local);
+                var matchResults = this.m_matchingService.Match<TModel>(local, cnf.Id, ignoreList);
 
-                var matchResults = this.m_matchingService.Match<TModel>(local, cnf.MatchConfiguration, ignoreList);
+                bool autoLink = cnf.Metadata.Tags.TryGetValue(MdmConstants.AutoLinkSetting, out string autoLinkValue) && Boolean.Parse(autoLinkValue);
 
                 // Group the match results by their outcome
                 var matchResultGrouping = matchResults
@@ -602,7 +604,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
 
                 // IF MATCHES.COUNT == 1 AND AUTOLINK = TRUE
                 if (matchResultGrouping[RecordMatchClassification.Match].Count() == 1 &&
-                    cnf.AutoLink)
+                    autoLink)
                 {
                     var matchedMaster = matchResultGrouping[RecordMatchClassification.Match].Single();
                     if (existingMasterRel == null) // There is no master, so we can just like
@@ -624,7 +626,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                             retVal.AddLast(new EntityRelationship(MdmConstants.CandidateLocalRelationship, local.Key, matchedMaster.Master, MdmConstants.AutomagicClassification)
                             {
                                 Strength = matchedMaster.MatchResult.Strength,
-                                BatchOperation  = BatchOperationType.InsertOrUpdate
+                                BatchOperation = BatchOperationType.InsertOrUpdate
                             });
                         }
                         else // old master was not verified, so we re-link
@@ -647,7 +649,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     }
                 }
                 // IF MATCHES.COUNT > 1 OR AUTOLINK = FALSE
-                else if (!cnf.AutoLink || matchResultGrouping[RecordMatchClassification.Match].Count() > 1)
+                else if (!autoLink || matchResultGrouping[RecordMatchClassification.Match].Count() > 1)
                 {
                     // Create as candidates for non-existing master
                     var nonMasterLinks = matchResultGrouping[RecordMatchClassification.Match].Where(o => o.Master != existingMasterRel?.TargetEntityKey);
@@ -670,7 +672,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             {
                 this.m_traceSource.TraceInfo("Re-matching master record for {0}", local);
                 var masterDetail = this.MdmGet(existingMasterRel.TargetEntityKey.Value).GetMaster(AuthenticationContext.SystemPrincipal) as TModel;
-                var bestMatch = this.m_resourceConfiguration.MatchConfiguration.SelectMany(c => this.m_matchingService.Classify(local, new TModel[] { masterDetail }, c.MatchConfiguration)).OrderByDescending(o => o.Classification).FirstOrDefault();
+                var bestMatch = this.m_matchingConfigurationService.Configurations.Where(o => o.AppliesTo.Contains(typeof(TModel)) && o.Metadata.State == MatchConfigurationStatus.Active).SelectMany(c => this.m_matchingService.Classify(local, new TModel[] { masterDetail }, c.Id)).OrderByDescending(o => o.Classification).FirstOrDefault();
                 switch (bestMatch.Classification)
                 // No longer a match
                 {
@@ -769,7 +771,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 // key and update the strength (i.e. the candidate still is valid)
                 else if (candidateRelationships.Any(r => r.ObsoleteVersionSequenceId.HasValue || r.BatchOperation == BatchOperationType.Obsolete) && !candidateRelationships.All(r => r.ObsoleteVersionSequenceId.HasValue || r.BatchOperation == BatchOperationType.Obsolete))
                 {
-                    var existingRel = candidateRelationships.FirstOrDefault(o => o.ObsoleteVersionSequenceId.HasValue); // the obsoleted one already exists in DB
+                    var existingRel = candidateRelationships.FirstOrDefault(o => o.ObsoleteVersionSequenceId.HasValue || o.BatchOperation == BatchOperationType.Obsolete); // the obsoleted one already exists in DB
                     existingRel.Strength = candidateRelationships.First().Strength;
                     existingRel.ObsoleteVersionSequenceId = null;
                     existingRel.BatchOperation = BatchOperationType.Update;
@@ -935,7 +937,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             {
                 // Remove the candidate link
                 var candidateLink = this.GetCandidateLocals(hostKey).FirstOrDefault(o => o.SourceEntityKey == ignoreKey) as EntityRelationship;
-                if(candidateLink != null)
+                if (candidateLink != null)
                 {
                     this.m_traceSource.TraceUntestedWarning();
                     candidateLink.BatchOperation = BatchOperationType.Obsolete;

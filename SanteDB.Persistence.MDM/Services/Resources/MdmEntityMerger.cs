@@ -32,9 +32,11 @@ using SanteDB.Core.Security.Services;
 using SanteDB.Core.Services;
 using SanteDB.Persistence.MDM.Exceptions;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Security;
 using System.Text;
 
@@ -44,7 +46,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
     /// An MDM merger that operates on Entities
     /// </summary>
     /// <remarks>This class exists to allow callers to interact with the operations in the underlying infrastructure.</remarks>
-    public class MdmEntityMerger<TEntity> : MdmResourceMerger<TEntity>
+    public class MdmEntityMerger<TEntity> : MdmResourceMerger<TEntity>, IReportProgressChanged
         where TEntity : Entity, new()
     {
 
@@ -54,17 +56,30 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         // Batch persistence
         private IDataPersistenceService<Bundle> m_batchPersistence;
 
+        // Entity persistence service
+        private IStoredQueryDataPersistenceService<TEntity> m_entityPersistence;
+        
+        // Relationship persistence
+        private IStoredQueryDataPersistenceService<EntityRelationship> m_relationshipPersistence;
+
         // Pep service
         private IPolicyEnforcementService m_pepService;
 
         /// <summary>
+        /// Fired when progress of this object changes
+        /// </summary>
+        public event EventHandler<ProgressChangedEventArgs> ProgressChanged;
+
+        /// <summary>
         /// Creates a new entity merger service 
         /// </summary>
-        public MdmEntityMerger(IDataPersistenceService<Bundle> batchService, IPolicyEnforcementService policyEnforcement)
+        public MdmEntityMerger(IDataPersistenceService<Bundle> batchService, IPolicyEnforcementService policyEnforcement, IStoredQueryDataPersistenceService<TEntity> persistenceService, IStoredQueryDataPersistenceService<EntityRelationship> relationshipPersistence)
         {
             this.m_dataManager = MdmDataManagerFactory.GetDataManager<TEntity>();
             this.m_batchPersistence = batchService;
             this.m_pepService = policyEnforcement;
+            this.m_entityPersistence = persistenceService;
+            this.m_relationshipPersistence = relationshipPersistence;
         }
 
         /// <summary>
@@ -77,6 +92,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         public override IEnumerable<IdentifiedData> GetIgnored(Guid masterKey)
         {
+            this.m_pepService.Demand(MdmPermissionPolicyIdentifiers.ReadMdmLocals);
+
             if (this.m_dataManager.IsMaster(masterKey))
             {
                 return this.m_dataManager.GetIgnoredCandidateLocals(masterKey)
@@ -99,6 +116,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         public override IEnumerable<IdentifiedData> GetMergeCandidates(Guid masterKey)
         {
+            this.m_pepService.Demand(MdmPermissionPolicyIdentifiers.ReadMdmLocals);
+
             if (this.m_dataManager.IsMaster(masterKey))
             {
                 return this.m_dataManager.GetCandidateLocals(masterKey)
@@ -129,6 +148,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         {
             try
             {
+                this.m_pepService.Demand(MdmPermissionPolicyIdentifiers.WriteMdmMaster);
 
                 Bundle transaction = new Bundle();
                 transaction.AddRange(falsePositives.SelectMany(o => this.m_dataManager.MdmTxIgnoreCandidateMatch(masterKey, o, transaction.Item)));
@@ -175,6 +195,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                         {
                             throw new DetectedIssueException(Core.BusinessRules.DetectedIssuePriorityType.Error, MdmConstants.INVALID_MERGE_ISSUE, $"Principal has no authority to merge into {survivorKey}", DetectedIssueKeys.SecurityIssue, e);
                         }
+
                         recordMergeStatus = RecordMergeStatus.Alternate;
                         isSurvivorMaster = false;
                     }
@@ -311,6 +332,208 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         public override IEnumerable<ITargetedAssociation> GetGlobalMergeCandidates()
         {
             return this.m_dataManager.GetAllMdmCandidateLocals();
+        }
+
+        /// <summary>
+        /// Detect global merge candidates
+        /// </summary>
+        public override void DetectGlobalMergeCandidates()
+        {
+            try
+            {
+
+                this.m_pepService.Demand(MdmPermissionPolicyIdentifiers.UnrestrictedMdm);
+
+                // Fetch all locals
+                // TODO: Update to the new persistence layer 
+                Guid queryId = Guid.NewGuid();
+                int offset = 0, totalResults = 1, batchSize = 50;
+
+                var processStack = new ConcurrentStack<TEntity>();
+
+                while (offset < totalResults) {
+                    var results = this.m_entityPersistence.Query(o => o.StatusConceptKey != StatusKeys.Obsolete && o.DeterminerConceptKey != MdmConstants.RecordOfTruthDeterminer, queryId, offset, batchSize, out totalResults, AuthenticationContext.SystemPrincipal);
+
+                    results.ToList().ForEach(itm =>
+                    {
+                        this.m_tracer.TraceVerbose("Re-match {0}", itm);
+                        var batchMatch = new Bundle(this.m_dataManager.MdmTxMatchMasters(itm, new IdentifiedData[0]));
+                        this.m_batchPersistence.Insert(batchMatch, TransactionMode.Commit, AuthenticationContext.SystemPrincipal);
+                    });
+
+                    offset += batchSize;
+                    this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)offset / (float)totalResults, "Rematching local data"));
+
+                }
+            }
+            catch(Exception e)
+            {
+
+            }
+        }
+
+        /// <summary>
+        /// Clear global merge candidates
+        /// </summary>
+        public override void ClearGlobalMergeCanadidates()
+        {
+
+            try
+            {
+                this.m_pepService.Demand(MdmPermissionPolicyIdentifiers.UnrestrictedMdm);
+
+                this.m_tracer.TraceInfo("Clearing MDM merge candidates...");
+
+                // TODO: When the persistence refactor is done - change this to use the bulk method
+                Guid queryId = Guid.NewGuid();
+                int offset = 0, totalResults = 1, batchSize = 50;
+                while(offset < totalResults)
+                {
+                    var results = this.m_relationshipPersistence.Query(o => o.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship && o.ObsoleteVersionSequenceId == null, queryId, offset, batchSize, out totalResults, AuthenticationContext.SystemPrincipal); ;
+                    var batch = new Bundle(results.Select(o => { o.BatchOperation = BatchOperationType.Obsolete; return o; }));
+                    this.m_batchPersistence.Update(batch, TransactionMode.Commit, AuthenticationContext.SystemPrincipal);
+                    offset += batchSize;
+                    this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)offset / (float)totalResults, "Clearing candidate links"));
+
+                }
+            }
+            catch (Exception e)
+            {
+                this.m_tracer.TraceError("Error clearing MDM merge candidates: {0}", e);
+                throw new MdmException("Error clearing MDM merge candidates", e);
+            }
+        }
+
+        /// <summary>
+        /// Clear global merge candidates
+        /// </summary>
+        public override void ClearGlobalIgnoreFlags()
+        {
+
+            try
+            {
+                this.m_pepService.Demand(MdmPermissionPolicyIdentifiers.UnrestrictedMdm);
+
+                this.m_tracer.TraceInfo("Clearing MDM ignore flags...");
+
+                // TODO: When the persistence refactor is done - change this to use the bulk method
+                Guid queryId = Guid.NewGuid();
+                int offset = 0, totalResults = 1, batchSize = 50;
+                while (offset < totalResults)
+                {
+                    var results = this.m_relationshipPersistence.Query(o => o.RelationshipTypeKey == MdmConstants.IgnoreCandidateRelationship && o.ObsoleteVersionSequenceId == null, queryId, offset, batchSize, out totalResults, AuthenticationContext.SystemPrincipal); ;
+                    var batch = new Bundle(results.Select(o => { o.BatchOperation = BatchOperationType.Obsolete; return o; }));
+                    this.m_batchPersistence.Update(batch, TransactionMode.Commit, AuthenticationContext.SystemPrincipal);
+                    offset += batchSize;
+                    this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)offset / (float)totalResults, "Clearing ignore links"));
+                }
+            }
+            catch (Exception e)
+            {
+                this.m_tracer.TraceError("Error clearing MDM ignore links: {0}", e);
+                throw new MdmException("Error clearing MDM ignore links", e);
+            }
+        }
+
+        /// <summary>
+        /// Reset all links and all MDM data in this database
+        /// </summary>
+        public override void Reset(bool includeVerified, bool linksOnly)
+        {
+            this.m_pepService.Demand(MdmPermissionPolicyIdentifiers.UnrestrictedMdm);
+
+            throw new NotImplementedException("This function is not yet implemented");
+        }
+
+        /// <summary>
+        /// Reset the specified object of all MDM data including resetting the master links
+        /// </summary>
+        public override void Reset(Guid masterKey, bool includeVerified, bool linksOnly)
+        {
+            this.m_pepService.Demand(MdmPermissionPolicyIdentifiers.UnrestrictedMdm);
+
+            throw new NotImplementedException("This function is not yet impleented");
+        }
+
+        /// <summary>
+        /// Clear merge candidates for the specified key
+        /// </summary>
+        public override void ClearMergeCandidates(Guid masterKey)
+        {
+            try
+            {
+                this.m_pepService.Demand(MdmPermissionPolicyIdentifiers.UnrestrictedMdm);
+
+                this.m_tracer.TraceInfo("Clearing MDM merge candidates for {0}...", masterKey);
+
+                // Determine if the parameter is a master or a local
+                Expression<Func<EntityRelationship, bool>> expr = null;
+                if(this.m_dataManager.IsMaster(masterKey))
+                {
+                    expr = o => o.TargetEntityKey == masterKey && o.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship && o.ObsoleteVersionSequenceId == null;
+                }
+                else
+                {
+                    expr = o => o.SourceEntityKey == masterKey && o.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship && o.ObsoleteVersionSequenceId == null;
+                }
+
+                // TODO: When the persistence refactor is done - change this to use the bulk method
+                Guid queryId = Guid.NewGuid();
+                int offset = 0, totalResults = 1, batchSize = 100;
+                while (offset < totalResults)
+                {
+                    var results = this.m_relationshipPersistence.Query(expr, queryId, offset, batchSize, out totalResults, AuthenticationContext.SystemPrincipal); ;
+                    var batch = new Bundle(results.Select(o => { o.BatchOperation = BatchOperationType.Obsolete; return o; }));
+                    this.m_batchPersistence.Update(batch, TransactionMode.Commit, AuthenticationContext.SystemPrincipal);
+                    offset += batchSize;
+                    this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)offset / (float)totalResults, "Clearing candidate links"));
+                }
+            }
+            catch (Exception e)
+            {
+                this.m_tracer.TraceError("Error clearing MDM merge candidates for {0}: {1}", masterKey, e);
+                throw new MdmException($"Error clearing MDM merge candidates for {masterKey}", e);
+            }
+        }
+
+        /// <summary>
+        /// Clear all ignore flags on the specified master
+        /// </summary>
+        public override void ClearIgnoreFlags(Guid masterKey)
+        {
+            try
+            {
+                this.m_pepService.Demand(MdmPermissionPolicyIdentifiers.UnrestrictedMdm);
+                this.m_tracer.TraceInfo("Clearing MDM merignore flags for {0}...", masterKey);
+
+                // Determine if the parameter is a master or a local
+                Expression<Func<EntityRelationship, bool>> expr = null;
+                if (this.m_dataManager.IsMaster(masterKey))
+                {
+                    expr = o => o.TargetEntityKey == masterKey && o.RelationshipTypeKey == MdmConstants.IgnoreCandidateRelationship && o.ObsoleteVersionSequenceId == null;
+                }
+                else
+                {
+                    expr = o => o.SourceEntityKey == masterKey && o.RelationshipTypeKey == MdmConstants.IgnoreCandidateRelationship && o.ObsoleteVersionSequenceId == null;
+                }
+
+                // TODO: When the persistence refactor is done - change this to use the bulk method
+                Guid queryId = Guid.NewGuid();
+                int offset = 0, totalResults = 1, batchSize = 100;
+                while (offset < totalResults)
+                {
+                    var results = this.m_relationshipPersistence.Query(expr, queryId, offset, batchSize, out totalResults, AuthenticationContext.SystemPrincipal); ;
+                    var batch = new Bundle(results.Select(o => { o.BatchOperation = BatchOperationType.Obsolete; return o; }));
+                    this.m_batchPersistence.Update(batch, TransactionMode.Commit, AuthenticationContext.SystemPrincipal);
+                    offset += batchSize;
+                    this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)offset / (float)totalResults, "Clearing ignore links"));
+                }
+            }
+            catch (Exception e)
+            {
+                this.m_tracer.TraceError("Error clearing MDM merge candidates for {0}: {1}", masterKey, e);
+                throw new MdmException($"Error clearing MDM merge candidates for {masterKey}", e);
+            }
         }
     }
 }

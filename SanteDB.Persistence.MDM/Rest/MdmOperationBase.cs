@@ -39,10 +39,10 @@ namespace SanteDB.Persistence.MDM.Rest
         protected Tracer m_tracer = Tracer.GetTracer(typeof(MdmOperationBase));
 
         // Configuration
-        protected ResourceMergeConfigurationSection m_configuration;
+        protected ResourceManagementConfigurationSection m_configuration;
 
         // Batch service
-        protected IRepositoryService<Bundle> m_batchService;
+        protected IDataPersistenceService<Bundle> m_batchService;
 
         /// <summary>
         /// Get the binding
@@ -62,10 +62,10 @@ namespace SanteDB.Persistence.MDM.Rest
         /// <summary>
         /// Candidate operations manager
         /// </summary>
-        public MdmOperationBase(IConfigurationManager configurationManager, IRepositoryService<Bundle> batchService)
+        public MdmOperationBase(IConfigurationManager configurationManager, IDataPersistenceService<Bundle> batchService)
         {
-            this.m_configuration = configurationManager.GetSection<ResourceMergeConfigurationSection>();
-            this.ParentTypes = this.m_configuration?.ResourceTypes.Select(o => o.ResourceType.Type).ToArray() ?? Type.EmptyTypes;
+            this.m_configuration = configurationManager.GetSection<ResourceManagementConfigurationSection>();
+            this.ParentTypes = this.m_configuration?.ResourceTypes.Select(o => o.Type).ToArray() ?? Type.EmptyTypes;
             this.m_batchService = batchService;
         }
 

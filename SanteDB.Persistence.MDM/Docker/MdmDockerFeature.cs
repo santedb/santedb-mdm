@@ -23,6 +23,7 @@ using SanteDB.Docker.Core;
 using SanteDB.Persistence.MDM.Services;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -60,10 +61,10 @@ namespace SanteDB.Persistence.MDM.Docker
         /// </summary>
         public void Configure(SanteDBConfiguration configuration, IDictionary<string, string> settings)
         {
-            var resourceConf = configuration.GetSection<ResourceMergeConfigurationSection>();
+            var resourceConf = configuration.GetSection<ResourceManagementConfigurationSection>();
             if (resourceConf == null)
             {
-                resourceConf = new ResourceMergeConfigurationSection();
+                resourceConf = new ResourceManagementConfigurationSection();
                 configuration.AddSection(resourceConf);
             }
 
@@ -82,14 +83,14 @@ namespace SanteDB.Persistence.MDM.Docker
                 resourceConf.ResourceTypes = resources.Split(';').Select(o => {
                     var conf = o.Split('=');
 
-                    return new ResourceMergeConfiguration()
+                    if(conf.Length >1)
                     {
-                        ResourceTypeXml = conf[0],
-                        MatchConfiguration = new List<ResourceMergeMatchConfiguration>()
-                        {
-                            new ResourceMergeMatchConfiguration(MdmConstants.MdmIdentityMatchConfiguration, true),
-                            new ResourceMergeMatchConfiguration(conf[1], autoMerge)
-                        }
+                        Trace.TraceWarning("OLD SETTING DETECTED - Since 2.1.65 the of match configurations ({0}) should be moved to the match definition - THIS SETTING WILL BE IGNORED", conf[1]);
+                    }
+
+                    return new ResourceTypeReferenceConfiguration()
+                    {
+                        TypeXml = conf[0]
                     };
                 }).ToList();
             }
