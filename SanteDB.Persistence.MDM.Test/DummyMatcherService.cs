@@ -4,6 +4,7 @@ using SanteDB.Core.Model;
 using SanteDB.Core.Model.Roles;
 using SanteDB.Core.Security;
 using SanteDB.Core.Services;
+using SanteDB.Core.Matching;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -54,6 +55,14 @@ namespace SanteDB.Persistence.MDM.Test
         /// Match
         /// </summary>
         public IEnumerable<IRecordMatchResult> Match(IdentifiedData input, string configurationName, IEnumerable<Guid> ignoreList)
+        {
+            throw new NotImplementedException();
+        }
+
+        /// <summary>
+        /// Classify 
+        /// </summary>
+        public IEnumerable<IRecordMatchResult> Classify(IdentifiedData input, IEnumerable<IdentifiedData> blocks, String configurationName)
         {
             throw new NotImplementedException();
         }
@@ -112,6 +121,8 @@ namespace SanteDB.Persistence.MDM.Test
         public RecordMatchMethod Method => RecordMatchMethod.Weighted;
 
         public IEnumerable<IRecordMatchVector> Vectors => throw new NotImplementedException();
+
+        public string ConfigurationName => throw new NotImplementedException();
 
         /// <summary>
         /// Create a dummy match

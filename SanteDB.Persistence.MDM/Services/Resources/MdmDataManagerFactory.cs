@@ -63,19 +63,13 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// <summary>
         /// Register data manager
         /// </summary>
-        internal static void RegisterDataManager(ResourceMergeConfiguration configuration)
+        internal static void RegisterDataManager(Type resourceType)
         {
-            if (configuration.MatchConfiguration == null || !configuration.MatchConfiguration.Any())
-            {
-                configuration.MatchConfiguration = new List<ResourceMergeMatchConfiguration>()
-                {
-                    new ResourceMergeMatchConfiguration(MdmConstants.MdmIdentityMatchConfiguration, true)
-                };
-            }
+            
 
-            if (typeof(Entity).IsAssignableFrom(configuration.ResourceType.Type))
+            if (typeof(Entity).IsAssignableFrom(resourceType))
             {
-                m_createdInstances.TryAdd(configuration.ResourceType.Type, Activator.CreateInstance(typeof(MdmEntityDataManager<>).MakeGenericType(configuration.ResourceType.Type), configuration));
+                m_createdInstances.TryAdd(resourceType, Activator.CreateInstance(typeof(MdmEntityDataManager<>).MakeGenericType(resourceType)));
             }
             else
             {
