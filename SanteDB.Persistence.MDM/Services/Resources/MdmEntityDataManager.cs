@@ -344,7 +344,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         public override IEnumerable<IMdmMaster> MdmQuery(NameValueCollection masterQuery, NameValueCollection localQuery, Guid? queryId, int offset, int? count, out int totalResults, IEnumerable<ModelSort<TModel>> orderBy)
         {
             var localEntityLinq = QueryExpressionParser.BuildLinqExpression<Entity>(localQuery, null, false);
-            var newOrderBy = orderBy.Select(o =>
+            var newOrderBy = orderBy?.Select(o =>
             {
                 var property = o.SortProperty.Body;
                 while(!(property is MemberExpression))
@@ -376,14 +376,14 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             {
                 var masterLinq = QueryExpressionParser.BuildLinqExpression<Entity>(masterQuery, null, false);
                 
-                return unionQuery.Union(new Expression<Func<Entity, bool>>[] { localEntityLinq, masterLinq }, queryId.GetValueOrDefault(), offset, count, out totalResults, AuthenticationContext.SystemPrincipal, newOrderBy.ToArray()).Select(this.Synthesize);
+                return unionQuery.Union(new Expression<Func<Entity, bool>>[] { localEntityLinq, masterLinq }, queryId.GetValueOrDefault(), offset, count, out totalResults, AuthenticationContext.SystemPrincipal, newOrderBy?.ToArray()).Select(this.Synthesize);
             }
             else if (this.m_entityPersistenceService is IStoredQueryDataPersistenceService<Entity> storedQuery)
             {
-                return storedQuery.Query(localEntityLinq, queryId.GetValueOrDefault(), offset, count ?? 100, out totalResults, AuthenticationContext.SystemPrincipal, newOrderBy.ToArray()).Select(this.Synthesize);
+                return storedQuery.Query(localEntityLinq, queryId.GetValueOrDefault(), offset, count ?? 100, out totalResults, AuthenticationContext.SystemPrincipal, newOrderBy?.ToArray()).Select(this.Synthesize);
             }
             else
-                return this.m_entityPersistenceService.Query(localEntityLinq, offset, count ?? 100, out totalResults, AuthenticationContext.SystemPrincipal, newOrderBy.ToArray()).Select(this.Synthesize);
+                return this.m_entityPersistenceService.Query(localEntityLinq, offset, count ?? 100, out totalResults, AuthenticationContext.SystemPrincipal, newOrderBy?.ToArray()).Select(this.Synthesize);
         }
 
         /// <summary>

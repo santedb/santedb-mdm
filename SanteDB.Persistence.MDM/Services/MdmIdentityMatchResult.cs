@@ -31,6 +31,15 @@ namespace SanteDB.Persistence.MDM.Services
     /// </summary>
     internal class MdmIdentityMatchAttribute : IRecordMatchVector
     {
+
+        /// <summary>
+        /// Create MDM match attribute
+        /// </summary>
+        public MdmIdentityMatchAttribute(RecordMatchClassification classification)
+        {
+            this.Score = classification == RecordMatchClassification.Match ? 1.0f : 0.0f;
+        }
+
         /// <summary>
         /// Gets the name
         /// </summary>
@@ -39,7 +48,7 @@ namespace SanteDB.Persistence.MDM.Services
         /// <summary>
         /// Gets the score
         /// </summary>
-        public double Score => 1.0d;
+        public double Score { get; }
     }
 
     /// <summary>
@@ -86,7 +95,7 @@ namespace SanteDB.Persistence.MDM.Services
         /// <summary>
         /// Get the attributes for this match result
         /// </summary>
-        public IEnumerable<IRecordMatchVector> Vectors => new IRecordMatchVector[] { new MdmIdentityMatchAttribute() };
+        public IEnumerable<IRecordMatchVector> Vectors => new IRecordMatchVector[] { new MdmIdentityMatchAttribute(this.Classification) };
 
         /// <summary>
         /// Create a new identity match result
