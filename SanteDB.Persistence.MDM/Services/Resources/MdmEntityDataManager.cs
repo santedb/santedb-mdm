@@ -169,7 +169,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             retVal.Relationships.Add(new EntityRelationship(MdmConstants.MasterRecordRelationship, masterRecord.Key)
             {
                 SourceEntityKey = retVal.Key,
-                ClassificationKey = MdmConstants.VerifiedClassification
+                ClassificationKey = MdmConstants.SystemClassification
             });
             // Rewrite all master relationships
             //retVal.Relationships.Where(o => o.SourceEntityKey == masterRecord.Key).ToList().ForEach(r => r.SourceEntityKey = retVal.Key);
@@ -341,23 +341,49 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// <summary>
         /// Synthesize the specified query
         /// </summary>
-        public override IEnumerable<IMdmMaster> MdmQuery(NameValueCollection masterQuery, NameValueCollection localQuery, Guid? queryId, int offset, int? count, out int totalResults)
+        public override IEnumerable<IMdmMaster> MdmQuery(NameValueCollection masterQuery, NameValueCollection localQuery, Guid? queryId, int offset, int? count, out int totalResults, IEnumerable<ModelSort<TModel>> orderBy)
         {
-            var localLinq = QueryExpressionParser.BuildLinqExpression<Entity>(localQuery, null, false);
+            var localEntityLinq = QueryExpressionParser.BuildLinqExpression<Entity>(localQuery, null, false);
+            var newOrderBy = orderBy.Select(o =>
+            {
+                var property = o.SortProperty.Body;
+                while(!(property is MemberExpression))
+                {
+                    if(property is UnaryExpression ue)
+                    {
+                        property = ue.Operand;
+                    }
+                    else
+                    {
+                        throw new InvalidOperationException("Cannot map sort expression");
+                    }
+                }
+                var newProperty = typeof(Entity).GetProperty((property as MemberExpression).Member.Name);
+                if (newProperty != null)
+                {
+                    var newParm = Expression.Parameter(typeof(Entity));
+                    return new ModelSort<Entity>(Expression.Lambda<Func<Entity, dynamic>>(Expression.Convert(Expression.MakeMemberAccess(newParm, newProperty), typeof(Object)), newParm), o.SortOrder);
+                }
+                else
+                {
+                    throw new InvalidOperationException($"When MDM is enabled, sorting by {property} is not permitted");
+                }
+            });
 
             // Try to do a linked query (unless the query is on a special local filter value)
             // TODO: Make it configurable which properties trigger a master query
             if (masterQuery.Keys.Any(o => o.StartsWith("identifier") || o == "id") && this.m_entityPersistenceService is IUnionQueryDataPersistenceService<Entity> unionQuery)
             {
                 var masterLinq = QueryExpressionParser.BuildLinqExpression<Entity>(masterQuery, null, false);
-                return unionQuery.Union(new Expression<Func<Entity, bool>>[] { localLinq, masterLinq }, queryId.GetValueOrDefault(), offset, count, out totalResults, AuthenticationContext.SystemPrincipal).Select(this.Synthesize);
+                
+                return unionQuery.Union(new Expression<Func<Entity, bool>>[] { localEntityLinq, masterLinq }, queryId.GetValueOrDefault(), offset, count, out totalResults, AuthenticationContext.SystemPrincipal, newOrderBy.ToArray()).Select(this.Synthesize);
             }
             else if (this.m_entityPersistenceService is IStoredQueryDataPersistenceService<Entity> storedQuery)
             {
-                return storedQuery.Query(localLinq, queryId.GetValueOrDefault(), offset, count ?? 100, out totalResults, AuthenticationContext.SystemPrincipal).Select(this.Synthesize);
+                return storedQuery.Query(localEntityLinq, queryId.GetValueOrDefault(), offset, count ?? 100, out totalResults, AuthenticationContext.SystemPrincipal, newOrderBy.ToArray()).Select(this.Synthesize);
             }
             else
-                return this.m_entityPersistenceService.Query(localLinq, offset, count ?? 100, out totalResults, AuthenticationContext.SystemPrincipal).Select(this.Synthesize);
+                return this.m_entityPersistenceService.Query(localEntityLinq, offset, count ?? 100, out totalResults, AuthenticationContext.SystemPrincipal, newOrderBy.ToArray()).Select(this.Synthesize);
         }
 
         /// <summary>
@@ -415,7 +441,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 DeterminerConceptKey = DeterminerKeys.Specific,
                 TypeConceptKey = local.ClassConceptKey
             };
-            local.Relationships.Add(new EntityRelationship(MdmConstants.MasterRecordRelationship, local.Key, retVal.Key, MdmConstants.AutomagicClassification));
+            local.Relationships.Add(new EntityRelationship(MdmConstants.MasterRecordRelationship, local.Key, retVal.Key, MdmConstants.SystemClassification));
             return retVal;
         }
 

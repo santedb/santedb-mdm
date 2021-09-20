@@ -120,7 +120,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// <summary>
         /// Synthesize the query 
         /// </summary>
-        public abstract IEnumerable<IMdmMaster> MdmQuery(NameValueCollection query, NameValueCollection localQuery, Guid? queryId, int offset, int? count, out int totalResults);
+        public abstract IEnumerable<IMdmMaster> MdmQuery(NameValueCollection query, NameValueCollection localQuery, Guid? queryId, int offset, int? count, out int totalResults, IEnumerable<ModelSort<TModel>> orderBy);
 
         /// <summary>
         /// Gets the raw object from the underlying persistence service identified by the key (whether it is MASTER ENTITY or LOCAL or SYNTH)
