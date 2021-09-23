@@ -62,6 +62,11 @@ namespace SanteDB.Persistence.MDM.Services
         /// Get the B value
         /// </summary>
         public object B { get; }
+
+        /// <summary>
+        /// Evaluated
+        /// </summary>
+        public bool Evaluated => true;
     }
 
     /// <summary>
@@ -120,7 +125,6 @@ namespace SanteDB.Persistence.MDM.Services
             this.Score = this.Strength = score;
             this.Classification = classification;
             this.ConfigurationName = configurationName;
-
             if (input is IHasIdentifiers aIdentity && record is IHasIdentifiers bIdentity)
             {
                 this.Vectors = new IRecordMatchVector[] { new MdmIdentityMatchAttribute(classification, string.Join(",", aIdentity.Identifiers), string.Join(",", bIdentity.Identifiers)) };
