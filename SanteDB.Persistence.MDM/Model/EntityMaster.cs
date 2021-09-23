@@ -70,6 +70,7 @@ namespace SanteDB.Persistence.MDM.Model
             this.ClassificationKey = relationship.ClassificationKey;
             this.SourceEntityKey = relationship.SourceEntityKey;
             this.TargetEntityKey = relationship.TargetEntityKey;
+            this.Strength = relationship.Strength;
 
             if (this.SourceEntityKey == local.Key &&
                 this.RelationshipTypeKey != MdmConstants.OriginalMasterRelationship &&

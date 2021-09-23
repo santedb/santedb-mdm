@@ -131,35 +131,38 @@ namespace SanteDB.Persistence.MDM.Jobs
         {
             try
             {
-                this.LastStarted = DateTime.Now;
-                this.CurrentState = JobStateType.Running;
-                var clear = parameters.Length > 0 ? (bool)parameters[0] : false;
-                this.m_tracer.TraceInfo("Starting batch run of MDM Matching ");
+                using (AuthenticationContext.EnterSystemContext())
+                {
+                    this.LastStarted = DateTime.Now;
+                    this.CurrentState = JobStateType.Running;
+                    var clear = parameters.Length > 0 ? (bool)parameters[0] : false;
+                    this.m_tracer.TraceInfo("Starting batch run of MDM Matching ");
 
-                if (clear)
-                {
-                    this.m_tracer.TraceVerbose("Batch instruction indicates clear of all links");
-                    this.m_mergeService.Reset(true, false);
-                }
-                else
-                {
-                    this.m_mergeService.ClearGlobalMergeCanadidates();
-                }
-
-                // Progress change handler
-                if (this.m_mergeService is IReportProgressChanged rpt)
-                {
-                    rpt.ProgressChanged += (o, p) =>
+                    if (clear)
                     {
-                        this.Progress = p.Progress;
-                        this.StatusText = p.State.ToString();
-                    };
+                        this.m_tracer.TraceVerbose("Batch instruction indicates clear of all links");
+                        this.m_mergeService.Reset(true, false);
+                    }
+                    else
+                    {
+                        this.m_mergeService.ClearGlobalMergeCanadidates();
+                    }
+
+                    // Progress change handler
+                    if (this.m_mergeService is IReportProgressChanged rpt)
+                    {
+                        rpt.ProgressChanged += (o, p) =>
+                        {
+                            this.Progress = p.Progress;
+                            this.StatusText = p.State.ToString();
+                        };
+                    }
+
+                    this.m_mergeService.DetectGlobalMergeCandidates();
+
+                    this.LastFinished = DateTime.Now;
+                    this.CurrentState = JobStateType.Completed;
                 }
-
-                this.m_mergeService.DetectGlobalMergeCandidates();
-
-                this.LastFinished = DateTime.Now;
-                this.CurrentState = JobStateType.Completed;
             }
             catch (Exception ex)
             {

@@ -153,7 +153,7 @@ namespace SanteDB.Persistence.MDM.Services
                 using (AuthenticationContext.EnterSystemContext())
                 {
                     var repository = ApplicationServiceContext.Current.GetService<IRepositoryService<T>>();
-                    return repository.Find(filterExpression).Select(o => new MdmIdentityMatchResult<T>(o, "$identity"));
+                    return repository.Find(filterExpression).Select(o => new MdmIdentityMatchResult<T>(entity, o, "$identity"));
                 }
             }
         }
@@ -194,7 +194,7 @@ namespace SanteDB.Persistence.MDM.Services
                 throw new InvalidOperationException("Some identifiers are missing authorities, cannot perform identity match");
 
             if (uqIdentifiers?.Any() != true)
-                return blocks.Select(o => new MdmIdentityMatchResult<T>(o, "$identity", RecordMatchClassification.NonMatch, 0.0f));
+                return blocks.Select(o => new MdmIdentityMatchResult<T>(input, o, "$identity", RecordMatchClassification.NonMatch, 0.0f));
             else
             {
                 return blocks.Select(o =>
@@ -202,11 +202,11 @@ namespace SanteDB.Persistence.MDM.Services
                     if (o is IHasIdentifiers oid)
                     {
                         var isMatch = oid.Identifiers.Any(i => uqIdentifiers.Any(u => u.Authority.Key == i.Authority.Key && i.Value == u.Value));
-                        return new MdmIdentityMatchResult<T>(o, "$identity", isMatch ? RecordMatchClassification.Match : RecordMatchClassification.NonMatch, isMatch ? 1.0f : 0.0f);
+                        return new MdmIdentityMatchResult<T>(input, o, "$identity", isMatch ? RecordMatchClassification.Match : RecordMatchClassification.NonMatch, isMatch ? 1.0f : 0.0f);
                     }
                     else
                     {
-                        return new MdmIdentityMatchResult<T>(o, "$identity", RecordMatchClassification.NonMatch, 0.0f);
+                        return new MdmIdentityMatchResult<T>(input, o, "$identity", RecordMatchClassification.NonMatch, 0.0f);
                     }
                 });
             }
