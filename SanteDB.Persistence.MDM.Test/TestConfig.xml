@@ -7,7 +7,7 @@
     <add type="SanteDB.Server.Core.Configuration.SecurityConfigurationSection, SanteDB.Server.Core" />
     <add type="SanteDB.Persistence.Data.ADO.Configuration.AdoPersistenceConfigurationSection, SanteDB.Persistence.Data.ADO" />
     <add type="SanteDB.OrmLite.Configuration.OrmConfigurationSection, SanteDB.OrmLite" />
-    <add type="SanteDB.Core.Configuration.ResourceMergeConfigurationSection, SanteDB.Core.Api, Version=2.0.0.0"/>
+    <add type="SanteDB.Core.Configuration.ResourceManagementConfigurationSection, SanteDB.Core.Api, Version=2.0.0.0"/>
   </sections>
   <section xsi:type="OrmConfigurationSection">
     <providers>
@@ -42,7 +42,7 @@
            prepareStatements="true">
   </section>
   <!-- Master Data Management Configuration -->
-  <section xsi:type="ResourceMergeConfigurationSection">
+  <section xsi:type="ResourceManagementConfigurationSection">
     <resources>
       <add type="Patient">
         <matching>
@@ -52,7 +52,7 @@
       </add>
     </resources>
   </section>
-  <section xsi:type="ApplicationServiceContextConfigurationSection" threadPoolSize="4">
+  <section xsi:type="ApplicationServiceContextConfigurationSection" allowUnsignedAssemblies="true" threadPoolSize="4">
     <serviceProviders>
       <add type="SanteDB.Persistence.Data.ADO.Services.AdoPersistenceService, SanteDB.Persistence.Data.ADO, Version=0.6.0.0" />
       <add type="SanteDB.Persistence.Data.ADO.Services.AdoPolicyInformationService, SanteDB.Persistence.Data.ADO, Version=0.6.0.0" />
