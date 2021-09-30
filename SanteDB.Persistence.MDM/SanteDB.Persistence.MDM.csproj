@@ -91,6 +91,8 @@
         </ProjectReference>
     <ProjectReference Include="..\..\restsrvr\RestSrvr\RestSrvr.csproj" />
     <ProjectReference Include="..\..\santedb-restsvc\SanteDB.Rest.Common\SanteDB.Rest.Common.csproj" />
+        <ProjectReference Include="..\..\santedb-fhir\SanteDB.Messaging.FHIR\SanteDB.Messaging.FHIR.csproj" />
+
       </ItemGroup>
     </When>
     <Otherwise>
@@ -99,6 +101,7 @@
         <PackageReference Include="SanteDB.Core.Model" Version="$(VersionNumber)" />
         <PackageReference Include="SanteDB.Docker.Core" Version="$(VersionNumber)" />
         <PackageReference Include="SanteDB.Rest.Common" Version="$(VersionNumber)" />
+        <PackageReference Include="SanteDB.MEssaging.FHIR" Version="$(VersionNumber)" />
       </ItemGroup>
     </Otherwise>
   </Choose>
@@ -109,6 +112,8 @@
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Properties\" />
+  </ItemGroup>
+  <ItemGroup>
   </ItemGroup>
   <ItemGroup>
     <None Update="data\004-MDMRelationshipClasses.dataset">
