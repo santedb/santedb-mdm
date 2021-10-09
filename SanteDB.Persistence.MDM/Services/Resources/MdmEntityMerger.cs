@@ -2,22 +2,23 @@
  * Copyright (C) 2021 - 2021, SanteSuite Inc. and the SanteSuite Contributors (See NOTICE.md for full copyright notices)
  * Copyright (C) 2019 - 2021, Fyfe Software Inc. and the SanteSuite Contributors
  * Portions Copyright (C) 2015-2018 Mohawk College of Applied Arts and Technology
- * 
- * Licensed under the Apache License, Version 2.0 (the "License"); you 
- * may not use this file except in compliance with the License. You may 
- * obtain a copy of the License at 
- * 
- * http://www.apache.org/licenses/LICENSE-2.0 
- * 
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you
+ * may not use this file except in compliance with the License. You may
+ * obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the 
- * License for the specific language governing permissions and limitations under 
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations under
  * the License.
- * 
+ *
  * User: fyfej
  * Date: 2021-8-5
  */
+
 using SanteDB.Core.BusinessRules;
 using SanteDB.Core.Event;
 using SanteDB.Core.Exceptions;
@@ -49,7 +50,6 @@ namespace SanteDB.Persistence.MDM.Services.Resources
     public class MdmEntityMerger<TEntity> : MdmResourceMerger<TEntity>, IReportProgressChanged
         where TEntity : Entity, new()
     {
-
         // Data manager
         private MdmDataManager<TEntity> m_dataManager;
 
@@ -58,7 +58,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
 
         // Entity persistence service
         private IStoredQueryDataPersistenceService<TEntity> m_entityPersistence;
-        
+
         // Relationship persistence
         private IStoredQueryDataPersistenceService<EntityRelationship> m_relationshipPersistence;
 
@@ -71,7 +71,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         public event EventHandler<ProgressChangedEventArgs> ProgressChanged;
 
         /// <summary>
-        /// Creates a new entity merger service 
+        /// Creates a new entity merger service
         /// </summary>
         public MdmEntityMerger(IDataPersistenceService<Bundle> batchService, IPolicyEnforcementService policyEnforcement, IStoredQueryDataPersistenceService<TEntity> persistenceService, IStoredQueryDataPersistenceService<EntityRelationship> relationshipPersistence)
         {
@@ -122,8 +122,9 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             {
                 return this.m_dataManager.GetCandidateLocals(masterKey)
                     .OfType<EntityRelationship>()
-                    .Select(o => {
-                       var retVal = o.LoadProperty(p => p.SourceEntity) as Entity;
+                    .Select(o =>
+                    {
+                        var retVal = o.LoadProperty(p => p.SourceEntity) as Entity;
                         retVal.AddTag("$match.score", $"{o.Strength:%%.%%}");
                         return retVal;
                     });
@@ -166,10 +167,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         public override RecordMergeResult Merge(Guid survivorKey, IEnumerable<Guid> linkedDuplicates)
         {
-
             try
             {
-
                 // Merging
                 if (this.FireMerging(survivorKey, linkedDuplicates))
                 {
@@ -206,7 +205,6 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 // For each linked duplicate
                 var replaced = linkedDuplicates.Select(itm =>
                 {
-
                     var victim = this.m_dataManager.GetRaw(itm) as Entity;
                     var isVictimMaster = this.m_dataManager.IsMaster(itm);
                     if (isVictimMaster)
@@ -229,7 +227,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     }
 
                     // Sanity check
-                    if(victim.Key == survivor.Key)
+                    if (victim.Key == survivor.Key)
                     {
                         throw new DetectedIssueException(DetectedIssuePriorityType.Error, MdmConstants.INVALID_MERGE_ISSUE, "Records cannot be merged into themselves", DetectedIssueKeys.FormalConstraintIssue, null);
                     }
@@ -288,7 +286,6 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                             rel.BatchOperation = BatchOperationType.Obsolete;
                             transactionBundle.Add(rel);
                         }
-
                     }
                     else
                     {
@@ -296,7 +293,6 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     }
 
                     return victim.Key.Value;
-
                 }).ToArray();
 
                 this.m_batchPersistence.Insert(transactionBundle, TransactionMode.Commit, AuthenticationContext.Current.Principal);
@@ -341,17 +337,17 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         {
             try
             {
-
                 this.m_pepService.Demand(MdmPermissionPolicyIdentifiers.UnrestrictedMdm);
 
                 // Fetch all locals
-                // TODO: Update to the new persistence layer 
+                // TODO: Update to the new persistence layer
                 Guid queryId = Guid.NewGuid();
                 int offset = 0, totalResults = 1, batchSize = 50;
 
                 var processStack = new ConcurrentStack<TEntity>();
 
-                while (offset < totalResults) {
+                while (offset < totalResults)
+                {
                     var results = this.m_entityPersistence.Query(o => o.StatusConceptKey != StatusKeys.Obsolete && o.DeterminerConceptKey != MdmConstants.RecordOfTruthDeterminer, queryId, offset, batchSize, out totalResults, AuthenticationContext.SystemPrincipal);
 
                     results.ToList().ForEach(itm =>
@@ -362,13 +358,11 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     });
 
                     offset += batchSize;
-                    this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)offset / (float)totalResults, "Rematching local data"));
-
+                    this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)offset / (float)totalResults, "Rematching"));
                 }
             }
-            catch(Exception e)
+            catch (Exception e)
             {
-
             }
         }
 
@@ -377,7 +371,6 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         public override void ClearGlobalMergeCanadidates()
         {
-
             try
             {
                 this.m_pepService.Demand(MdmPermissionPolicyIdentifiers.UnrestrictedMdm);
@@ -387,14 +380,13 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 // TODO: When the persistence refactor is done - change this to use the bulk method
                 Guid queryId = Guid.NewGuid();
                 int offset = 0, totalResults = 1, batchSize = 50;
-                while(offset < totalResults)
+                while (offset < totalResults)
                 {
                     var results = this.m_relationshipPersistence.Query(o => o.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship && o.ObsoleteVersionSequenceId == null, queryId, offset, batchSize, out totalResults, AuthenticationContext.SystemPrincipal); ;
                     var batch = new Bundle(results.Select(o => { o.BatchOperation = BatchOperationType.Obsolete; return o; }));
                     this.m_batchPersistence.Update(batch, TransactionMode.Commit, AuthenticationContext.SystemPrincipal);
                     offset += batchSize;
-                    this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)offset / (float)totalResults, "Clearing candidate links"));
-
+                    this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)offset / (float)totalResults, "Clearing Candidates"));
                 }
             }
             catch (Exception e)
@@ -409,7 +401,6 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         public override void ClearGlobalIgnoreFlags()
         {
-
             try
             {
                 this.m_pepService.Demand(MdmPermissionPolicyIdentifiers.UnrestrictedMdm);
@@ -468,7 +459,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
 
                 // Determine if the parameter is a master or a local
                 Expression<Func<EntityRelationship, bool>> expr = null;
-                if(this.m_dataManager.IsMaster(masterKey))
+                if (this.m_dataManager.IsMaster(masterKey))
                 {
                     expr = o => o.TargetEntityKey == masterKey && o.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship && o.ObsoleteVersionSequenceId == null;
                 }
