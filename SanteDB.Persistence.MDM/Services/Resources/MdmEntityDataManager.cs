@@ -2,19 +2,19 @@
  * Copyright (C) 2021 - 2021, SanteSuite Inc. and the SanteSuite Contributors (See NOTICE.md for full copyright notices)
  * Copyright (C) 2019 - 2021, Fyfe Software Inc. and the SanteSuite Contributors
  * Portions Copyright (C) 2015-2018 Mohawk College of Applied Arts and Technology
- * 
- * Licensed under the Apache License, Version 2.0 (the "License"); you 
- * may not use this file except in compliance with the License. You may 
- * obtain a copy of the License at 
- * 
- * http://www.apache.org/licenses/LICENSE-2.0 
- * 
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you
+ * may not use this file except in compliance with the License. You may
+ * obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the 
- * License for the specific language governing permissions and limitations under 
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations under
  * the License.
- * 
+ *
  * User: fyfej
  * Date: 2021-8-5
  */
@@ -52,7 +52,6 @@ namespace SanteDB.Persistence.MDM.Services.Resources
     public class MdmEntityDataManager<TModel> : MdmDataManager<TModel>
         where TModel : Entity, new()
     {
-
         private readonly Guid[] m_mdmRelationshipTypes = new Guid[]
         {
             MdmConstants.MasterRecordRelationship,
@@ -91,10 +90,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             this.m_persistenceService = ApplicationServiceContext.Current.GetService<IDataPersistenceService<TModel>>();
             this.m_relationshipService = ApplicationServiceContext.Current.GetService<IDataPersistenceService<EntityRelationship>>();
             this.m_matchingService = ApplicationServiceContext.Current.GetService<IRecordMatchingService>();
-
-
         }
-
 
         /// <summary>
         /// Determine is the specified data is a master key
@@ -154,7 +150,6 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 return null;
         }
 
-
         /// <summary>
         /// Create a new local record for <paramref name="masterRecord"/>
         /// </summary>
@@ -169,7 +164,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             retVal.Relationships.Add(new EntityRelationship(MdmConstants.MasterRecordRelationship, masterRecord.Key)
             {
                 SourceEntityKey = retVal.Key,
-                ClassificationKey = MdmConstants.VerifiedClassification
+                ClassificationKey = MdmConstants.SystemClassification
             });
             // Rewrite all master relationships
             //retVal.Relationships.Where(o => o.SourceEntityKey == masterRecord.Key).ToList().ForEach(r => r.SourceEntityKey = retVal.Key);
@@ -181,7 +176,6 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         public override TModel PromoteRecordOfTruth(TModel local)
         {
-
             var master = (Entity)this.GetRawMaster(local);
             if (master == null)
             {
@@ -334,7 +328,6 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 {
                     yield return new DetectedIssue(DetectedIssuePriorityType.Error, "MDM-ORPHAN", $"{data} appears to be an MDM Orphan", DetectedIssueKeys.FormalConstraintIssue);
                 }
-
             }
         }
 
@@ -358,7 +351,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
 
             return new MdmEntityResultSet<TModel>(resultSet);
         }
-        
+
         /// <summary>
         /// Synthesize a master
         /// </summary>
@@ -414,7 +407,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 DeterminerConceptKey = DeterminerKeys.Specific,
                 TypeConceptKey = local.ClassConceptKey
             };
-            local.Relationships.Add(new EntityRelationship(MdmConstants.MasterRecordRelationship, local.Key, retVal.Key, MdmConstants.AutomagicClassification));
+            local.Relationships.Add(new EntityRelationship(MdmConstants.MasterRecordRelationship, local.Key, retVal.Key, MdmConstants.SystemClassification));
             return retVal;
         }
 
@@ -484,18 +477,17 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         }
 
         /// <summary>
-        /// Save local 
+        /// Save local
         /// </summary>
         public override IEnumerable<IdentifiedData> MdmTxSaveLocal(TModel data, IEnumerable<IdentifiedData> context)
         {
-
             // Return value
             var retVal = new LinkedList<IdentifiedData>(context);
 
             // Validate that we can store this in context
             data.Tags.RemoveAll(t => t.TagKey == MdmConstants.MdmTypeTag);
 
-            // First, we want to perform a match 
+            // First, we want to perform a match
             var matchInstructions = this.MdmTxMatchMasters(data, context).ToArray();
 
             // Persist master in the transaction?
@@ -509,9 +501,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     o.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship);
                 // Add them from the match instructions
                 data.Relationships.AddRange(matchInstructions.OfType<EntityRelationship>().Where(o => o.SourceEntityKey == data.Key));
-
             }
-
 
             // Match instructions
             foreach (var rv in matchInstructions)
@@ -527,13 +517,13 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         /// <remarks>
         /// This procedure will reach out to the matching engine configured and will perform
-        /// matching. This matching is done via identifier or fuzzy match. The function will 
+        /// matching. This matching is done via identifier or fuzzy match. The function will
         /// then prepare a series of steps which need to be performed so that the persistence
         /// layer can update the relationships to match the master.
-        /// 
+        ///
         /// If <paramref name="context"/> is passed, it indicates that the match is happening in the context
         /// of a transaction and that the <paramref name="context"/> data should be taken into consideration.
-        /// 
+        ///
         /// The <paramref name="context"/> are not add back into the result.
         /// </remarks>
         public override IEnumerable<IdentifiedData> MdmTxMatchMasters(TModel local, IEnumerable<IdentifiedData> context)
@@ -635,7 +625,6 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                                     existingMasterRel.SemanticCopy(itm);
                                 }
                             }
-
                         }
                     }
                     else
@@ -704,10 +693,12 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                             retVal.AddLast(new EntityRelationship(MdmConstants.OriginalMasterRelationship, local.Key, existingMasterRel.TargetEntityKey, MdmConstants.AutomagicClassification) { Strength = bestMatch.Strength, BatchOperation = BatchOperationType.Insert });
                         }
                         break;
+
                     case RecordMatchClassification.NonMatch:
                         existingMasterRel.BatchOperation = BatchOperationType.Obsolete;
                         retVal.AddLast(new EntityRelationship(MdmConstants.OriginalMasterRelationship, local.Key, existingMasterRel.TargetEntityKey, MdmConstants.AutomagicClassification) { Strength = bestMatch.Strength });
                         break;
+
                     case RecordMatchClassification.Match:
                         break;
                 }
@@ -725,7 +716,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             // Clean up entities by their target so that :
             // 1. Only one relationship between LOCAL and TARGET exist
             // 2. The most strong link is the persisted link
-            // 3. If an obsolete was overwritten it is taken as the 
+            // 3. If an obsolete was overwritten it is taken as the
             // We do this so the database doesn't become overwhelmed with churn from relationships being rewritten
             foreach (var res in retVal.OfType<EntityRelationship>().GroupBy(o => o.TargetEntityKey))
             {
@@ -737,7 +728,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 // If all the master relationships between source and target are to be removed so remove it
                 if (masterRelationships.Any() && masterRelationships.All(o => o.ObsoleteVersionSequenceId.HasValue || o.BatchOperation == BatchOperationType.Obsolete))
                 {
-                    yield return masterRelationships.First(); // Return 
+                    yield return masterRelationships.First(); // Return
                     if (originalRelationships.Any()) // There is an original relationship so send that back
                         yield return originalRelationships.First();
                     if (candidateRelationships.Any(r => !r.ObsoleteVersionSequenceId.HasValue)) // There is a candidate which is active so send that back
@@ -756,7 +747,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 else if (masterRelationships.Any(o => !o.ObsoleteVersionSequenceId.HasValue || o.BatchOperation != BatchOperationType.Obsolete)) // There's a master relationship which is new and not to be deleted
                 {
                     yield return masterRelationships.First();
-                    if (candidateRelationships.Any(r => r.ObsoleteVersionSequenceId.HasValue || r.BatchOperation == BatchOperationType.Obsolete)) // There is a candidate 
+                    if (candidateRelationships.Any(r => r.ObsoleteVersionSequenceId.HasValue || r.BatchOperation == BatchOperationType.Obsolete)) // There is a candidate
                         yield return candidateRelationships.FirstOrDefault(o => o.ObsoleteVersionSequenceId.HasValue);
                 }
                 // If there is a candidate that is marked as to be deleted
@@ -790,7 +781,6 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     yield return itm;
                 }
             }
-
         }
 
         /// <summary>
@@ -837,7 +827,6 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                                 BatchOperation = BatchOperationType.Insert
                             };
                         }
-
                     }
                     else
                     {
@@ -880,7 +869,6 @@ namespace SanteDB.Persistence.MDM.Services.Resources
 
             if (this.IsMaster(fromKey))
             {
-
                 var existingRelationship = this.GetMasterRelationshipFor(toKey, null);
                 if (existingRelationship == null || existingRelationship.TargetEntityKey != fromKey)
                 {
@@ -901,7 +889,6 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             }
             else
             {
-
                 var existingRelationship = this.GetMasterRelationshipFor(fromKey, null);
                 if (existingRelationship == null || existingRelationship.TargetEntityKey != toKey)
                 {
@@ -1071,7 +1058,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 yield return new EntityRelationship(MdmConstants.IgnoreCandidateRelationship, rel.SourceEntityKey, survivorKey, rel.ClassificationKey);
             }
 
-            // Associated matches are mapped 
+            // Associated matches are mapped
             foreach (var rel in this.GetCandidateLocals(victimKey).OfType<EntityRelationship>())
             {
                 rel.BatchOperation = BatchOperationType.Obsolete;
@@ -1090,11 +1077,10 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     SourceEntityKey = survivorKey
                 };
             }
-
         }
 
         /// <summary>
-        /// Get all associations related to MDM 
+        /// Get all associations related to MDM
         /// </summary>
         public override IEnumerable<ITargetedAssociation> GetAllMdmAssociations(Guid localKey)
         {

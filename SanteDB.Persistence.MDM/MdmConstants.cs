@@ -91,6 +91,11 @@ namespace SanteDB.Persistence.MDM
         public static readonly Guid VerifiedClassification = Guid.Parse("3B9365BA-C229-44C4-95AE-6489809A33F0");
 
         /// <summary>
+        /// Verified classification 
+        /// </summary>
+        public static readonly Guid SystemClassification = Guid.Parse("253BED89-1C83-4723-AF14-71CD83F4B249");
+
+        /// <summary>
         /// MDM Type tag
         /// </summary>
         public const string MdmTypeTag = "$mdm.type";

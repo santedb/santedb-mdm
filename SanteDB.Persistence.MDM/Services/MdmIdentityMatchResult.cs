@@ -22,6 +22,7 @@ using SanteDB.Core.Model;
 using SanteDB.Core.Model.Entities;
 using SanteDB.Core.Matching;
 using System.Collections.Generic;
+using SanteDB.Core.Model.Interfaces;
 
 namespace SanteDB.Persistence.MDM.Services
 {
@@ -31,6 +32,17 @@ namespace SanteDB.Persistence.MDM.Services
     /// </summary>
     internal class MdmIdentityMatchAttribute : IRecordMatchVector
     {
+
+        /// <summary>
+        /// Create MDM match attribute
+        /// </summary>
+        public MdmIdentityMatchAttribute(RecordMatchClassification classification, object aValue, object bValue)
+        {
+            this.Score = classification == RecordMatchClassification.Match ? 1.0f : 0.0f;
+            this.A = aValue;
+            this.B = bValue;
+        }
+
         /// <summary>
         /// Gets the name
         /// </summary>
@@ -39,7 +51,22 @@ namespace SanteDB.Persistence.MDM.Services
         /// <summary>
         /// Gets the score
         /// </summary>
-        public double Score => 1.0d;
+        public double Score { get; }
+
+        /// <summary>
+        /// Get the A value
+        /// </summary>
+        public object A { get; }
+
+        /// <summary>
+        /// Get the B value
+        /// </summary>
+        public object B { get; }
+
+        /// <summary>
+        /// Evaluated
+        /// </summary>
+        public bool Evaluated => true;
     }
 
     /// <summary>
@@ -86,18 +113,22 @@ namespace SanteDB.Persistence.MDM.Services
         /// <summary>
         /// Get the attributes for this match result
         /// </summary>
-        public IEnumerable<IRecordMatchVector> Vectors => new IRecordMatchVector[] { new MdmIdentityMatchAttribute() };
+        public IEnumerable<IRecordMatchVector> Vectors { get; }
 
         /// <summary>
         /// Create a new identity match result
         /// </summary>
-        public MdmIdentityMatchResult(T record, string configurationName, RecordMatchClassification classification = RecordMatchClassification.Match, float score = 1.0f)
+        public MdmIdentityMatchResult(T input, T record, string configurationName, RecordMatchClassification classification = RecordMatchClassification.Match, float score = 1.0f)
         {
             this.Record = record;
             this.Method = RecordMatchMethod.Identifier;
             this.Score = this.Strength = score;
             this.Classification = classification;
             this.ConfigurationName = configurationName;
+            if (input is IHasIdentifiers aIdentity && record is IHasIdentifiers bIdentity)
+            {
+                this.Vectors = new IRecordMatchVector[] { new MdmIdentityMatchAttribute(classification, string.Join(",", aIdentity.Identifiers), string.Join(",", bIdentity.Identifiers)) };
+            }
         }
 
 

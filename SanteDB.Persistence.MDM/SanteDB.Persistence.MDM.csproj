@@ -19,12 +19,12 @@
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <IncludeSymbols>true</IncludeSymbols>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
-	    <Product>SanteDB</Product>
+    <Product>SanteDB</Product>
     <Copyright>Copyright (C) 2015-2021 SanteSuite Contributors (See: NOTICES)</Copyright>
     <Company>SanteSuite Contributors</Company>
     <PackageIconUrl>http://santesuite.org/assets/img/logo.png</PackageIconUrl>
     <PackageProjectUrl>http://santesuite.org</PackageProjectUrl>
-  </PropertyGroup>   
+  </PropertyGroup>
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
@@ -56,7 +56,7 @@
     <Compile Remove="Services\BundleResourceListener.cs" />
     <Compile Remove="Services\MdmResourceListener.cs" />
   </ItemGroup>
-  
+
   <ItemGroup>
     <None Include="..\SanteDB.licenseheader">
       <Link>SanteDB.licenseheader</Link>
@@ -89,8 +89,9 @@
           <Project>{284CE885-78E0-48EA-A2E4-6957AD66EAB5}</Project>
           <Name>SanteDB.Docker.Core</Name>
         </ProjectReference>
-    <ProjectReference Include="..\..\restsrvr\RestSrvr\RestSrvr.csproj" />
-    <ProjectReference Include="..\..\santedb-restsvc\SanteDB.Rest.Common\SanteDB.Rest.Common.csproj" />
+        <ProjectReference Include="..\..\restsrvr\RestSrvr\RestSrvr.csproj" />
+        <ProjectReference Include="..\..\santedb-restsvc\SanteDB.Rest.Common\SanteDB.Rest.Common.csproj" />
+        <ProjectReference Include="..\..\santedb-fhir\SanteDB.Messaging.FHIR\SanteDB.Messaging.FHIR.csproj" />
       </ItemGroup>
     </When>
     <Otherwise>
@@ -99,6 +100,7 @@
         <PackageReference Include="SanteDB.Core.Model" Version="$(VersionNumber)" />
         <PackageReference Include="SanteDB.Docker.Core" Version="$(VersionNumber)" />
         <PackageReference Include="SanteDB.Rest.Common" Version="$(VersionNumber)" />
+        <PackageReference Include="SanteDB.Messaging.FHIR" Version="$(VersionNumber)" />
       </ItemGroup>
     </Otherwise>
   </Choose>
@@ -119,5 +121,4 @@
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
   </ItemGroup>
-  
 </Project>
