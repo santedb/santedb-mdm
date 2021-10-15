@@ -145,7 +145,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// <summary>
         /// Adds an ignore clause to either the master or the targets
         /// </summary>
-        public override void Ignore(Guid masterKey, IEnumerable<Guid> falsePositives)
+        public override IdentifiedData Ignore(Guid masterKey, IEnumerable<Guid> falsePositives)
         {
             try
             {
@@ -154,7 +154,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 Bundle transaction = new Bundle();
                 transaction.AddRange(falsePositives.SelectMany(o => this.m_dataManager.MdmTxIgnoreCandidateMatch(masterKey, o, transaction.Item)));
                 // Commit the transaction
-                this.m_batchPersistence.Insert(transaction, TransactionMode.Commit, AuthenticationContext.Current.Principal);
+                return this.m_batchPersistence.Insert(transaction, TransactionMode.Commit, AuthenticationContext.Current.Principal);
             }
             catch (Exception ex)
             {
@@ -309,7 +309,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// <summary>
         /// TODO: Remove the MDM Ignore Relationships
         /// </summary>
-        public override void UnIgnore(Guid masterKey, IEnumerable<Guid> ignoredKeys)
+        public override IdentifiedData UnIgnore(Guid masterKey, IEnumerable<Guid> ignoredKeys)
         {
             throw new NotImplementedException();
         }
