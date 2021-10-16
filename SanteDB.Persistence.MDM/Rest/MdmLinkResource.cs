@@ -2,22 +2,23 @@
  * Copyright (C) 2021 - 2021, SanteSuite Inc. and the SanteSuite Contributors (See NOTICE.md for full copyright notices)
  * Copyright (C) 2019 - 2021, Fyfe Software Inc. and the SanteSuite Contributors
  * Portions Copyright (C) 2015-2018 Mohawk College of Applied Arts and Technology
- * 
- * Licensed under the Apache License, Version 2.0 (the "License"); you 
- * may not use this file except in compliance with the License. You may 
- * obtain a copy of the License at 
- * 
- * http://www.apache.org/licenses/LICENSE-2.0 
- * 
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you
+ * may not use this file except in compliance with the License. You may
+ * obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the 
- * License for the specific language governing permissions and limitations under 
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations under
  * the License.
- * 
+ *
  * User: fyfej
  * Date: 2021-8-5
  */
+
 using SanteDB.Core;
 using SanteDB.Core.Configuration;
 using SanteDB.Core.Diagnostics;
@@ -46,7 +47,6 @@ namespace SanteDB.Persistence.MDM.Rest
     /// </summary>
     public class MdmLinkResource : IApiChildResourceHandler
     {
-
         private Tracer m_tracer = Tracer.GetTracer(typeof(MdmLinkResource));
 
         // Configuration
@@ -95,7 +95,7 @@ namespace SanteDB.Persistence.MDM.Rest
         /// </summary>
         public object Add(Type scopingType, object scopingKey, object item)
         {
-            var dataManager = MdmDataManagerFactory.GetDataManager<Entity>(scopingType);
+            var dataManager = MdmDataManagerFactory.GetDataManager(scopingType);
             if (dataManager == null)
             {
                 throw new NotSupportedException($"MDM is not configured for {scopingType}");
@@ -107,6 +107,7 @@ namespace SanteDB.Persistence.MDM.Rest
                 try
                 {
                     var transaction = new Bundle(dataManager.MdmTxMasterLink(scopedKey, childObject.Key.Value, new IdentifiedData[0], true));
+
                     return this.m_batchService.Insert(transaction, TransactionMode.Commit, AuthenticationContext.Current.Principal);
                 }
                 catch (Exception e)
@@ -158,7 +159,7 @@ namespace SanteDB.Persistence.MDM.Rest
                         return new object[] { dataManager.GetMasterFor(scopedKey) };
                     }
                 }
-                catch(Exception e)
+                catch (Exception e)
                 {
                     this.m_tracer.TraceError("Error querying for locals on {0} - {1}", scopedKey, e);
                     throw new MdmException($"Error querying for locals for {scopedKey}", e);
@@ -182,14 +183,14 @@ namespace SanteDB.Persistence.MDM.Rest
             }
 
             // Detach
-            if(scopingKey is Guid scopedKey && key is Guid childKey)
+            if (scopingKey is Guid scopedKey && key is Guid childKey)
             {
                 try
                 {
                     var transaction = new Bundle(dataManager.MdmTxMasterUnlink(scopedKey, childKey, new IdentifiedData[0]));
                     return this.m_batchService.Insert(transaction, TransactionMode.Commit, AuthenticationContext.Current.Principal);
                 }
-                catch(Exception e)
+                catch (Exception e)
                 {
                     this.m_tracer.TraceError("Error detaching master- {0}", e);
                     throw new MdmException($"Error detaching {scopingKey} from {childKey}", e);
