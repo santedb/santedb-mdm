@@ -18,6 +18,7 @@
  * User: fyfej
  * Date: 2021-8-5
  */
+
 using SanteDB.Core;
 using SanteDB.Core.Configuration;
 using SanteDB.Core.Diagnostics;
@@ -208,8 +209,17 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             else
             {
                 var localQuery = new NameValueCollection(query.ToDictionary(o => $"relationship[{MdmConstants.MasterRecordRelationship}].source@{typeof(TModel).Name}.{o.Key}", o => o.Value));
-                query.Add("classConcept", MdmConstants.MasterRecordClassification.ToString());
                 e.Cancel = true; // We want to cancel the callers query
+
+                // Trim the local query
+                foreach (var itm in query.ToArray())
+                {
+                    if (!itm.Key.StartsWith("identifier") && !itm.Key.StartsWith("name") && !itm.Key.StartsWith("address"))
+                    {
+                        query.Remove(itm.Key);
+                    }
+                }
+                query.Add("classConcept", MdmConstants.MasterRecordClassification.ToString());
 
                 // We are wrapping an entity, so we query entity masters
                 // TODO: Ensure that the query mapping actually performs this on dataquery exhaustion rather than on

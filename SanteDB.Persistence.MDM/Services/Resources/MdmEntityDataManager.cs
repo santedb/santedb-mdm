@@ -18,6 +18,7 @@
  * User: fyfej
  * Date: 2021-8-5
  */
+
 using SanteDB.Core;
 using SanteDB.Core.BusinessRules;
 using SanteDB.Core.Configuration;
@@ -268,6 +269,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 return this.m_relationshipService.Query(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship && o.SourceEntityKey == localKey && o.ObsoleteVersionSequenceId == null, 0, 1, out int _, AuthenticationContext.SystemPrincipal).FirstOrDefault();
             }
         }
+
         /// <summary>
         /// Get master relationship for specified local
         /// </summary>
@@ -341,7 +343,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
 
             // Try to do a linked query (unless the query is on a special local filter value)
             // TODO: Make it configurable which properties trigger a master query
-            if (masterQuery.Keys.Any(o => o.StartsWith("identifier") || o == "id"))
+            if (masterQuery.Keys.Any())
             {
                 var masterLinq = QueryExpressionParser.BuildLinqExpression<TModel>(masterQuery, null, false);
                 resultSet = this.m_persistenceService.Query(localLinq, AuthenticationContext.SystemPrincipal).AsResultSet().Union(masterLinq);
@@ -549,9 +551,12 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             }
 
             // Get the ignore list
+            // We ignore any candidate where:
+            // 1. The LOCAL under consideration has an explicit ignore key to a MASTER, or
             var ignoreList = this.m_relationshipService.Query(o => o.SourceEntityKey == local.Key && o.RelationshipTypeKey == MdmConstants.IgnoreCandidateRelationship, AuthenticationContext.SystemPrincipal).Select(o => o.TargetEntityKey.Value)
-                .Union(context.OfType<EntityRelationship>().Where(o => o.RelationshipTypeKey == MdmConstants.IgnoreCandidateRelationship).Select(o => o.TargetEntityKey.Value)).ToArray();
-
+                .Union(context.OfType<EntityRelationship>().Where(o => o.RelationshipTypeKey == MdmConstants.IgnoreCandidateRelationship).Select(o => o.TargetEntityKey.Value));
+            // 2. The LOCAL's MASTER is the target of an IGNORE of another local - then those LOCAL MASTERs are ignored or there is an ACTIVE CANDIDIATE
+            ignoreList = ignoreList.Union(this.m_relationshipService.Query(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship && o.SourceEntity.Relationships.Where(s => s.RelationshipTypeKey == MdmConstants.IgnoreCandidateRelationship || s.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship).Any(s => s.TargetEntityKey == existingMasterRel.TargetEntityKey), AuthenticationContext.SystemPrincipal).Select(o => o.TargetEntityKey.Value));
             // Existing probable links and set them to obsolete for now
             var existingCandidates = this.m_relationshipService.Query(o => o.SourceEntityKey == local.Key && o.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship, AuthenticationContext.SystemPrincipal);
             foreach (var pl in existingCandidates)
@@ -839,6 +844,15 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                         yield break;
                     }
                 }
+
+                // Is there an existing candidate link between the two ? If so resolve that
+                var existingCandidateRel = this.m_relationshipService.Query(o => o.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship && o.SourceEntityKey == localKey && o.TargetEntityKey == masterKey && o.ObsoleteVersionSequenceId == null, 0, 1, out _, AuthenticationContext.SystemPrincipal).FirstOrDefault();
+                if (existingCandidateRel != null)
+                {
+                    existingCandidateRel.BatchOperation = BatchOperationType.Obsolete;
+                    yield return existingCandidateRel;
+                }
+
                 yield return new EntityRelationship(MdmConstants.MasterRecordRelationship, localKey, masterKey, verified ? MdmConstants.VerifiedClassification : MdmConstants.AutomagicClassification)
                 {
                     BatchOperation = BatchOperationType.Insert
@@ -908,6 +922,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 }
             }
         }
+
         /// <summary>
         /// Create transaction instructions to ignore future matches between <paramref name="hostKey"/> and <paramref name="ignoreKey"/>
         /// </summary>
@@ -931,26 +946,39 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     ClassificationKey = MdmConstants.VerifiedClassification,
                     RelationshipTypeKey = MdmConstants.IgnoreCandidateRelationship
                 };
-            }
-            else
-            {
-                // Remove the candidate link
-                var candidateLink = this.GetCandidateLocals(ignoreKey).FirstOrDefault(o => o.SourceEntityKey == hostKey) as EntityRelationship;
-                if (candidateLink != null)
-                {
-                    this.m_traceSource.TraceUntestedWarning();
-                    candidateLink.BatchOperation = BatchOperationType.Obsolete;
-                    yield return candidateLink;
-                }
 
-                yield return new EntityRelationship()
+                /**
+                 * Not needed since detect only now uses ONE WAY matching
+                // Add reverse ignores on the master
+                // This covers A(LOC)--[IGNORE]-->B(MAS) however if that is true then
+                // B(LOC)--[IGNORE]-->A(MAS)
+                var existingIgnoreMaster = this.GetMasterRelationshipFor(ignoreKey, context);
+                var otherHostLocals = this.GetAssociatedLocals(hostKey);
+                // Get all candidate locals for the ignore master
+                foreach (var reverseCandidate in this.GetCandidateLocals(existingIgnoreMaster.TargetEntityKey.Value).OfType<EntityRelationship>())
                 {
-                    BatchOperation = BatchOperationType.Insert,
-                    SourceEntityKey = hostKey,
-                    TargetEntityKey = ignoreKey,
-                    ClassificationKey = MdmConstants.VerifiedClassification,
-                    RelationshipTypeKey = MdmConstants.IgnoreCandidateRelationship
-                };
+                    // Were any of those reverse candidates in the host locals?
+                    if (otherHostLocals.Any(l => l.SourceEntityKey == reverseCandidate.SourceEntityKey))
+                    {
+                        reverseCandidate.BatchOperation = BatchOperationType.Obsolete;
+                        yield return new EntityRelationship()
+                        {
+                            BatchOperation = BatchOperationType.Insert,
+                            SourceEntityKey = reverseCandidate.SourceEntityKey,
+                            TargetEntityKey = reverseCandidate.TargetEntityKey,
+                            Classification = MdmConstants.AutomagicClassification,
+                            RelationshipTypeKey = MdmConstants.IgnoreCandidateRelationship
+                        }
+                    }
+                }
+                */
+            }
+            else if (this.IsMaster(ignoreKey))
+            {
+                foreach (var itm in this.MdmTxIgnoreCandidateMatch(ignoreKey, hostKey, context))
+                {
+                    yield return itm;
+                }
             }
         }
 

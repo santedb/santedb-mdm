@@ -2,22 +2,23 @@
  * Copyright (C) 2021 - 2021, SanteSuite Inc. and the SanteSuite Contributors (See NOTICE.md for full copyright notices)
  * Copyright (C) 2019 - 2021, Fyfe Software Inc. and the SanteSuite Contributors
  * Portions Copyright (C) 2015-2018 Mohawk College of Applied Arts and Technology
- * 
- * Licensed under the Apache License, Version 2.0 (the "License"); you 
- * may not use this file except in compliance with the License. You may 
- * obtain a copy of the License at 
- * 
- * http://www.apache.org/licenses/LICENSE-2.0 
- * 
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you
+ * may not use this file except in compliance with the License. You may
+ * obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the 
- * License for the specific language governing permissions and limitations under 
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations under
  * the License.
- * 
+ *
  * User: fyfej
  * Date: 2021-8-5
  */
+
 using SanteDB.Core;
 using SanteDB.Core.BusinessRules;
 using SanteDB.Core.Configuration;
@@ -40,12 +41,87 @@ using System.Text;
 namespace SanteDB.Persistence.MDM.Services.Resources
 {
     /// <summary>
+    /// A non-generic data manager
+    /// </summary>
+    public abstract class MdmDataManager
+    {
+        /// <summary>
+        /// Determine if the object is a master
+        /// </summary>
+        public abstract bool IsMaster(Guid dataKey);
+
+        /// <summary>
+        /// Refactor relationships
+        /// </summary>
+        public abstract void RefactorRelationships(List<IdentifiedData> item, Guid fromEntityKey, Guid toEntityKey);
+
+        /// <summary>
+        /// Get all MDM candidate locals regardless of where they are attached
+        /// </summary>
+        public abstract IQueryResultSet<ITargetedAssociation> GetAllMdmCandidateLocals();
+
+        /// <summary>
+        /// Gets all local associations between <paramref name="masterKey"/> and its master
+        /// </summary>
+        public abstract IQueryResultSet<ITargetedAssociation> GetAssociatedLocals(Guid masterKey);
+
+        /// <summary>
+        /// Get all candidate associations between <paramref name="masterKey"/>
+        /// </summary>
+        public abstract IQueryResultSet<ITargetedAssociation> GetCandidateLocals(Guid masterKey);
+
+        /// <summary>
+        /// Get ignore associations
+        /// </summary>
+        public abstract IQueryResultSet<ITargetedAssociation> GetIgnoredCandidateLocals(Guid masterKey);
+
+        /// <summary>
+        /// Get all associations for which this is a candidate to another master
+        /// </summary>
+        public abstract IQueryResultSet<ITargetedAssociation> GetEstablishedCandidateMasters(Guid localKey);
+
+        /// <summary>
+        /// Get ignore associations
+        /// </summary>
+        public abstract IQueryResultSet<ITargetedAssociation> GetIgnoredMasters(Guid localKey);
+
+        /// <summary>
+        /// Get the master entity
+        /// </summary>
+        public abstract IMdmMaster MdmGet(Guid masterKey);
+
+        /// <summary>
+        /// Get a MDM Master for the specified local key
+        /// </summary>
+        public abstract IMdmMaster GetMasterFor(Guid localKey);
+
+        /// <summary>
+        /// Merge two master records together
+        /// </summary>
+        public abstract IEnumerable<IdentifiedData> MdmTxMergeMasters(Guid survivorKey, Guid victimKey, IEnumerable<IdentifiedData> context);
+
+        /// <summary>
+        /// Create transaction instructions to ignore candidate matches
+        /// </summary>
+        public abstract IEnumerable<IdentifiedData> MdmTxIgnoreCandidateMatch(Guid hostKey, Guid ignoreKey, IEnumerable<IdentifiedData> context);
+
+        /// <summary>
+        /// Create transaction instructions to establish MDM master link
+        /// </summary>
+        public abstract IEnumerable<IdentifiedData> MdmTxMasterLink(Guid fromKey, Guid toKey, IEnumerable<IdentifiedData> context, bool verified);
+
+        /// <summary>
+        /// Create transaction instructions to unlink a master
+        /// </summary>
+        public abstract IEnumerable<IdentifiedData> MdmTxMasterUnlink(Guid fromKey, Guid toKey, IEnumerable<IdentifiedData> context);
+    }
+
+    /// <summary>
     /// Represents a data manager which actually interacts with the underlying repository
     /// </summary>
-    public abstract class MdmDataManager<TModel>
+    public abstract class MdmDataManager<TModel> : MdmDataManager
         where TModel : IdentifiedData
     {
-
         /// <summary>
         /// Persistence service
         /// </summary>
@@ -66,11 +142,10 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         public abstract TModel GetLocalFor(Guid dataKey, IPrincipal principal);
 
-
         /// <summary>
-        /// Determine if the object is a master
+        /// Determine if the record is a ROT
         /// </summary>
-        public abstract bool IsMaster(Guid dataKey);
+        public abstract bool IsRecordOfTruth(TModel data);
 
         /// <summary>
         /// Determine if the object is a master
@@ -81,11 +156,6 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// Create local for the specified principal
         /// </summary>
         public abstract TModel CreateLocalFor(TModel masterRecord);
-
-        /// <summary>
-        /// Determine if the record is a ROT
-        /// </summary>
-        public abstract bool IsRecordOfTruth(TModel data);
 
         /// <summary>
         /// Converts the <paramref name="local"/> to a ROT local
@@ -103,22 +173,12 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         public abstract IEnumerable<ISimpleAssociation> ExtractRelationships(TModel store);
 
         /// <summary>
-        /// Refactor relationships
-        /// </summary>
-        public abstract void RefactorRelationships(List<IdentifiedData> item, Guid fromEntityKey, Guid toEntityKey);
-
-        /// <summary>
-        /// Get all MDM candidate locals regardless of where they are attached
-        /// </summary>
-        public abstract IEnumerable<ITargetedAssociation> GetAllMdmCandidateLocals();
-
-        /// <summary>
         /// Validate the MDM state
         /// </summary>
         public abstract IEnumerable<DetectedIssue> ValidateMdmState(TModel data);
 
         /// <summary>
-        /// Synthesize the query 
+        /// Synthesize the query
         /// </summary>
         public abstract IQueryResultSet<IMdmMaster> MdmQuery(NameValueCollection query, NameValueCollection localQuery);
 
@@ -129,41 +189,6 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         {
             return this.m_underlyingTypePersistence.Get(key);
         }
-
-        /// <summary>
-        /// Gets all local associations between <paramref name="masterKey"/> and its master
-        /// </summary>
-        public abstract IEnumerable<ITargetedAssociation> GetAssociatedLocals(Guid masterKey);
-
-        /// <summary>
-        /// Get all candidate associations between <paramref name="masterKey"/> 
-        /// </summary>
-        public abstract IEnumerable<ITargetedAssociation> GetCandidateLocals(Guid masterKey);
-
-        /// <summary>
-        /// Get ignore associations
-        /// </summary>
-        public abstract IEnumerable<ITargetedAssociation> GetIgnoredCandidateLocals(Guid masterKey);
-
-        /// <summary>
-        /// Get all associations for which this is a candidate to another master
-        /// </summary>
-        public abstract IEnumerable<ITargetedAssociation> GetEstablishedCandidateMasters(Guid localKey);
-
-        /// <summary>
-        /// Get ignore associations
-        /// </summary>
-        public abstract IEnumerable<ITargetedAssociation> GetIgnoredMasters(Guid localKey);
-
-        /// <summary>
-        /// Get the master entity
-        /// </summary>
-        public abstract IMdmMaster MdmGet(Guid masterKey);
-
-        /// <summary>
-        /// Get a MDM Master for the specified local key
-        /// </summary>
-        public abstract IMdmMaster GetMasterFor(Guid localKey);
 
         /// <summary>
         /// Ensures that <paramref name="principal"/> has access to a local <paramref name="data"/>
@@ -182,7 +207,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         public abstract IEnumerable<IdentifiedData> MdmTxSaveRecordOfTruth(TModel data, IEnumerable<IdentifiedData> context);
 
         /// <summary>
-        /// Create transaction instructions which update the <paramref name="data"/> as a local 
+        /// Create transaction instructions which update the <paramref name="data"/> as a local
         /// </summary>
         public abstract IEnumerable<IdentifiedData> MdmTxSaveLocal(TModel data, IEnumerable<IdentifiedData> context);
 
@@ -192,26 +217,6 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         public abstract IEnumerable<IdentifiedData> MdmTxMatchMasters(TModel local, IEnumerable<IdentifiedData> context);
 
         /// <summary>
-        /// Merge two master records together 
-        /// </summary>
-        public abstract IEnumerable<IdentifiedData> MdmTxMergeMasters(Guid survivorKey, Guid victimKey, IEnumerable<IdentifiedData> context);
-
-        /// <summary>
-        /// Create transaction instructions to ignore candidate matches
-        /// </summary>
-        public abstract IEnumerable<IdentifiedData> MdmTxIgnoreCandidateMatch(Guid hostKey, Guid ignoreKey, IEnumerable<IdentifiedData> context);
-
-        /// <summary>
-        /// Create transaction instructions to establish MDM master link
-        /// </summary>
-        public abstract IEnumerable<IdentifiedData> MdmTxMasterLink(Guid fromKey, Guid toKey, IEnumerable<IdentifiedData> context, bool verified);
-
-        /// <summary>
-        /// Create transaction instructions to unlink a master
-        /// </summary>
-        public abstract IEnumerable<IdentifiedData> MdmTxMasterUnlink(Guid fromKey, Guid toKey, IEnumerable<IdentifiedData> context);
-
-        /// <summary>
         /// Create a new master for the local
         /// </summary>
         public abstract IdentifiedData EstablishMasterFor(TModel local);
@@ -219,6 +224,6 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// <summary>
         /// Get all MDM associations for this local
         /// </summary>
-        public abstract IEnumerable<ITargetedAssociation> GetAllMdmAssociations(Guid localKey);
+        public abstract IQueryResultSet<ITargetedAssociation> GetAllMdmAssociations(Guid localKey);
     }
 }

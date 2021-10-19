@@ -2,22 +2,23 @@
  * Copyright (C) 2021 - 2021, SanteSuite Inc. and the SanteSuite Contributors (See NOTICE.md for full copyright notices)
  * Copyright (C) 2019 - 2021, Fyfe Software Inc. and the SanteSuite Contributors
  * Portions Copyright (C) 2015-2018 Mohawk College of Applied Arts and Technology
- * 
- * Licensed under the Apache License, Version 2.0 (the "License"); you 
- * may not use this file except in compliance with the License. You may 
- * obtain a copy of the License at 
- * 
- * http://www.apache.org/licenses/LICENSE-2.0 
- * 
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you
+ * may not use this file except in compliance with the License. You may
+ * obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the 
- * License for the specific language governing permissions and limitations under 
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations under
  * the License.
- * 
+ *
  * User: fyfej
  * Date: 2021-8-5
  */
+
 using SanteDB.Core;
 using SanteDB.Core.Configuration;
 using SanteDB.Core.Diagnostics;
@@ -46,7 +47,6 @@ namespace SanteDB.Persistence.MDM.Rest
     /// </summary>
     public class MdmCandidateOperation : IApiChildResourceHandler
     {
-
         private Tracer m_tracer = Tracer.GetTracer(typeof(MdmCandidateOperation));
 
         // Configuration
@@ -114,26 +114,27 @@ namespace SanteDB.Persistence.MDM.Rest
 
             // Configuration provider
             var matchConfiguration = ApplicationServiceContext.Current.GetService<IRecordMatchingConfigurationService>();
-            if(matchConfiguration == null)
+            if (matchConfiguration == null)
             {
                 throw new InvalidOperationException("No match configuration factory");
             }
 
             // Validate parameters
-            if (scopingKey is Guid objectAKey && key is Guid objectBKey) {
+            if (scopingKey is Guid objectAKey && key is Guid objectBKey)
+            {
                 var repository = ApplicationServiceContext.Current.GetService(typeof(IRepositoryService<>).MakeGenericType(scopingType)) as IRepositoryService;
 
                 // Produce a match report
                 IdentifiedData recordA = repository.Get(objectAKey),
                     recordB = repository.Get(objectBKey);
 
-                if(recordA == null || recordB == null)
+                if (recordA == null || recordB == null)
                 {
                     throw new KeyNotFoundException($"Source or target not found");
                 }
 
                 var matchConfigurations = matchConfiguration.Configurations.Where(o => o.AppliesTo.Contains(scopingType) && o.Metadata.State == MatchConfigurationStatus.Active);
-                if(matchConfiguration == null)
+                if (matchConfiguration == null)
                 {
                     throw new InvalidOperationException("No configuration for type exists");
                 }
@@ -179,20 +180,19 @@ namespace SanteDB.Persistence.MDM.Rest
         public object Remove(Type scopingType, object scopingKey, object key)
         {
             var merger = ApplicationServiceContext.Current.GetService(typeof(IRecordMergingService<>).MakeGenericType(scopingType)) as IRecordMergingService;
-            if(merger == null)
+            if (merger == null)
             {
                 throw new InvalidOperationException("No merging service configuration");
             }
 
             if (scopingKey is Guid scopingId && key is Guid keyId)
             {
-                merger.Ignore(scopingId, new Guid[] { keyId });
+                return merger.Ignore(scopingId, new Guid[] { keyId });
             }
             else
             {
                 throw new ArgumentException($"Request must be scoped to a single {scopingType.Name}");
             }
-            return null;
         }
     }
 }

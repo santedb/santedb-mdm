@@ -2,22 +2,23 @@
  * Copyright (C) 2021 - 2021, SanteSuite Inc. and the SanteSuite Contributors (See NOTICE.md for full copyright notices)
  * Copyright (C) 2019 - 2021, Fyfe Software Inc. and the SanteSuite Contributors
  * Portions Copyright (C) 2015-2018 Mohawk College of Applied Arts and Technology
- * 
- * Licensed under the Apache License, Version 2.0 (the "License"); you 
- * may not use this file except in compliance with the License. You may 
- * obtain a copy of the License at 
- * 
- * http://www.apache.org/licenses/LICENSE-2.0 
- * 
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you
+ * may not use this file except in compliance with the License. You may
+ * obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the 
- * License for the specific language governing permissions and limitations under 
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations under
  * the License.
- * 
+ *
  * User: fyfej
  * Date: 2021-8-5
  */
+
 using Newtonsoft.Json;
 using SanteDB.Core;
 using SanteDB.Core.Model;
@@ -40,20 +41,17 @@ using SanteDB.Core.Model.Attributes;
 
 namespace SanteDB.Persistence.MDM.Model
 {
-
     /// <summary>
-    /// Represents a relationship 
+    /// Represents a relationship
     /// </summary>
     [XmlType(Namespace = "http://santedb.org/model")]
     public class EntityRelationshipMaster : EntityRelationship
     {
-
         /// <summary>
         /// Default ctor for serialization
         /// </summary>
         public EntityRelationshipMaster()
         {
-
         }
 
         /// <summary>
@@ -61,7 +59,6 @@ namespace SanteDB.Persistence.MDM.Model
         /// </summary>
         public EntityRelationshipMaster(Entity master, Entity local, EntityRelationship relationship)
         {
-
             this.OriginalHolderKey = relationship.HolderKey;
             this.OriginalTargetKey = relationship.TargetEntityKey;
             this.Key = relationship.Key; // HACK: This is just for the FHIR layer to track RP
@@ -81,7 +78,7 @@ namespace SanteDB.Persistence.MDM.Model
                 this.RelationshipTypeKey != MdmConstants.MasterRecordOfTruthRelationship)
                 this.TargetEntityKey = master.Key;
 
-            // Does the target point at a local which has a master? If so, we want to synthesize the 
+            // Does the target point at a local which has a master? If so, we want to synthesize the
             var targetMaster = this.GetTargetAs<Entity>().GetRelationships().FirstOrDefault(mr => mr.RelationshipTypeKey == MdmConstants.MasterRecordRelationship);
             if (targetMaster != null)
                 this.TargetEntityKey = targetMaster.TargetEntityKey;
@@ -105,23 +102,21 @@ namespace SanteDB.Persistence.MDM.Model
         /// </summary>
         [SerializationMetadata, XmlElement("originalTarget"), JsonProperty("originalTarget")]
         public Guid? OriginalTargetKey { get; set; }
-
     }
+
     /*
      * This is an alternate in which MASTER is the sub
     /// <summary>
-    /// Represents a relationship 
+    /// Represents a relationship
     /// </summary>
     [XmlType(Namespace = "http://santedb.org/model")]
     public class EntityRelationshipMaster : EntityRelationship
     {
-
         /// <summary>
         /// Construct an ER master
         /// </summary>
         public EntityRelationshipMaster(Entity master, Entity local, EntityRelationship relationship)
         {
-
             this.CopyObjectData(relationship);
 
             this.MasterRelationship = new EntityRelationship()
@@ -132,12 +127,11 @@ namespace SanteDB.Persistence.MDM.Model
                 SourceEntityKey = relationship.SourceEntityKey == local.Key ? master.Key : relationship.SourceEntityKey,
                 TargetEntityKey = relationship.TargetEntityKey== local.Key ? master.Key : relationship.TargetEntityKey
             };
-           
-            // Does the target point at a local which has a master? If so, we want to synthesize the 
+
+            // Does the target point at a local which has a master? If so, we want to synthesize the
             var targetMaster = this.MasterRelationship.GetTargetAs<Entity>().GetRelationships().FirstOrDefault(mr => mr.RelationshipTypeKey == MdmConstants.MasterRecordRelationship);
             if (targetMaster != null)
                 this.MasterRelationship.TargetEntityKey = targetMaster.TargetEntityKey;
-           
         }
 
         /// <summary>
@@ -151,8 +145,6 @@ namespace SanteDB.Persistence.MDM.Model
         /// </summary>
         [DataIgnore, XmlElement("master"), JsonProperty("master")]
         public EntityRelationship MasterRelationship { get; set; }
-
-
     }*/
 
     /// <summary>
@@ -163,7 +155,6 @@ namespace SanteDB.Persistence.MDM.Model
     public class EntityMaster<T> : Entity, IMdmMaster<T>
         where T : IdentifiedData, new()
     {
-
         /// <summary>
         /// Get the type name
         /// </summary>
@@ -196,8 +187,7 @@ namespace SanteDB.Persistence.MDM.Model
         {
             this.CopyObjectData(master, false, true);
             this.m_masterRecord = master;
-            this.m_recordOfTruth = this.LoadCollection<EntityRelationship>("Relationships").FirstOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordOfTruthRelationship)?.LoadProperty(o=>o.TargetEntity);
-
+            this.m_recordOfTruth = this.LoadCollection<EntityRelationship>("Relationships").FirstOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordOfTruthRelationship)?.LoadProperty(o => o.TargetEntity);
         }
 
         /// <summary>
@@ -214,8 +204,8 @@ namespace SanteDB.Persistence.MDM.Model
             var locals = this.LocalRecords.Select(o => pep != null ? pep.Apply(o, principal) : o).OfType<T>().ToArray();
 
             if (locals.Length == 0) // Not a single local can be viewed
-                return null;
-            else if (this.m_recordOfTruth == null) // We have to create a synthetic record 
+                return master;
+            else if (this.m_recordOfTruth == null) // We have to create a synthetic record
             {
                 master.SemanticCopy(locals);
             }
@@ -228,7 +218,7 @@ namespace SanteDB.Persistence.MDM.Model
 
             // HACK: Copy targets for relationships and refactor them - Find a cleaner way to do this
             var relationships = new List<EntityRelationship>();
-            foreach(var rel in entityMaster.LoadCollection(o => o.Relationships).Where(r => r.SourceEntityKey == entityMaster.Key)
+            foreach (var rel in entityMaster.LoadCollection(o => o.Relationships).Where(r => r.SourceEntityKey == entityMaster.Key)
                 .Union(
                     // Rewrite local record regular relationships
                     this.LocalRecords.OfType<Entity>().SelectMany(
@@ -236,7 +226,7 @@ namespace SanteDB.Persistence.MDM.Model
                             .Select(r => new EntityRelationshipMaster(this.m_masterRecord, o, r))
                     ))
                 .Union(
-                        // Select MDM relationships conveyed on the locals 
+                        // Select MDM relationships conveyed on the locals
                         this.LocalRecords.OfType<Entity>().SelectMany(o => o.Relationships.Where(r => r.TargetEntityKey == this.m_masterRecord.Key || r.SourceEntityKey == this.m_masterRecord.Key))
                     ))
             {
@@ -244,8 +234,6 @@ namespace SanteDB.Persistence.MDM.Model
                     relationships.Add(rel);
             }
             entityMaster.Relationships = relationships;
-
-            
 
             entityMaster.Policies = this.LocalRecords.SelectMany(o => (o as Entity).Policies).Distinct().ToList();
             entityMaster.Tags.RemoveAll(o => o.TagKey == "$mdm.type");
@@ -266,7 +254,7 @@ namespace SanteDB.Persistence.MDM.Model
         public override DateTimeOffset ModifiedOn => this.m_recordOfTruth?.ModifiedOn ?? this.m_localRecords?.OrderByDescending(o => o.ModifiedOn).OfType<BaseEntityData>().FirstOrDefault().ModifiedOn ?? this.ModifiedOn;
 
         /// <summary>
-        /// Get the version tag 
+        /// Get the version tag
         /// </summary>
         public override string Tag => this.m_recordOfTruth?.Tag ?? this.m_localRecords?.OrderByDescending(o => o.ModifiedOn).OfType<BaseEntityData>().FirstOrDefault().Tag ?? base.Tag;
 
@@ -297,7 +285,6 @@ namespace SanteDB.Persistence.MDM.Model
                             place.LoadCollection<PlaceService>(nameof(Place.Services));
                         if (o is Person person)
                             person.LoadCollection<PersonLanguageCommunication>(nameof(Person.LanguageCommunication));
-
                     });
                 }
                 return this.m_localRecords;

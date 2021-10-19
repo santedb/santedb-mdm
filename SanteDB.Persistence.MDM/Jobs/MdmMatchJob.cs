@@ -54,9 +54,6 @@ namespace SanteDB.Persistence.MDM.Jobs
         // Merge service
         private IRecordMergingService<T> m_mergeService;
 
-        // Cancel requested
-        private bool m_cancelRequest = false;
-
         // Tracer
         private Tracer m_tracer = Tracer.GetTracer(typeof(MdmMatchJob<T>));
 
@@ -66,6 +63,16 @@ namespace SanteDB.Persistence.MDM.Jobs
         public MdmMatchJob(IRecordMergingService<T> recordMergingService)
         {
             this.m_mergeService = recordMergingService;
+            // Progress change handler
+            if (this.m_mergeService is IReportProgressChanged rpt)
+            {
+                rpt.ProgressChanged += (o, p) =>
+                {
+                    this.Progress = p.Progress;
+                    this.StatusText = p.State.ToString();
+                };
+            }
+
         }
 
         /// <summary>
@@ -121,7 +128,7 @@ namespace SanteDB.Persistence.MDM.Jobs
         /// </summary>
         public void Cancel()
         {
-            this.m_cancelRequest = true;
+            throw new NotSupportedException();
         }
 
         /// <summary>
@@ -137,7 +144,7 @@ namespace SanteDB.Persistence.MDM.Jobs
                     this.CurrentState = JobStateType.Running;
                     var clear = parameters.Length > 0 ? (bool)parameters[0] : false;
                     this.m_tracer.TraceInfo("Starting batch run of MDM Matching ");
-
+                   
                     if (clear)
                     {
                         this.m_tracer.TraceVerbose("Batch instruction indicates clear of all links");
@@ -146,16 +153,6 @@ namespace SanteDB.Persistence.MDM.Jobs
                     else
                     {
                         this.m_mergeService.ClearGlobalMergeCanadidates();
-                    }
-
-                    // Progress change handler
-                    if (this.m_mergeService is IReportProgressChanged rpt)
-                    {
-                        rpt.ProgressChanged += (o, p) =>
-                        {
-                            this.Progress = p.Progress;
-                            this.StatusText = p.State.ToString();
-                        };
                     }
 
                     this.m_mergeService.DetectGlobalMergeCandidates();
