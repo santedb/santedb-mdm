@@ -2,22 +2,23 @@
  * Copyright (C) 2021 - 2021, SanteSuite Inc. and the SanteSuite Contributors (See NOTICE.md for full copyright notices)
  * Copyright (C) 2019 - 2021, Fyfe Software Inc. and the SanteSuite Contributors
  * Portions Copyright (C) 2015-2018 Mohawk College of Applied Arts and Technology
- * 
- * Licensed under the Apache License, Version 2.0 (the "License"); you 
- * may not use this file except in compliance with the License. You may 
- * obtain a copy of the License at 
- * 
- * http://www.apache.org/licenses/LICENSE-2.0 
- * 
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you
+ * may not use this file except in compliance with the License. You may
+ * obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the 
- * License for the specific language governing permissions and limitations under 
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations under
  * the License.
- * 
+ *
  * User: fyfej
  * Date: 2021-8-5
  */
+
 using SanteDB.Core;
 using SanteDB.Core.Model;
 using SanteDB.Core.Model.Acts;
@@ -45,7 +46,6 @@ namespace SanteDB.Persistence.MDM.Services
     /// </summary>
     public class MdmRecordMatchingService : IRecordMatchingService
     {
-
         // Match service
         private IRecordMatchingService m_matchService;
 
@@ -102,8 +102,8 @@ namespace SanteDB.Persistence.MDM.Services
         /// <summary>
         /// Get the ignore list
         /// </summary>
-        private IEnumerable<Guid> GetIgnoreList<T>(IEnumerable<Guid> userProvidedList, T input) 
-            where T: IdentifiedData
+        private IEnumerable<Guid> GetIgnoreList<T>(IEnumerable<Guid> userProvidedList, T input)
+            where T : IdentifiedData
         {
             userProvidedList = userProvidedList ?? new Guid[0];
 
@@ -130,7 +130,7 @@ namespace SanteDB.Persistence.MDM.Services
                 throw new InvalidOperationException($"Cannot perform identity match on {typeof(T)}");
 
             // Identifiers in which entity has the unique authority
-            var uqIdentifiers = identifiers.Identifiers.OfType<IExternalIdentifier>().Where(o => this.m_uniqueAuthorities.Contains(o.Authority?.Key ?? Guid.Empty));
+            var uqIdentifiers = identifiers.Identifiers.OfType<IExternalIdentifier>().Where(o => this.m_uniqueAuthorities.Contains(o.Authority.Key ?? Guid.Empty));
             if (uqIdentifiers?.Any(i => i.Authority == null) == true)
                 throw new InvalidOperationException("Some identifiers are missing authorities, cannot perform identity match");
 
@@ -164,7 +164,7 @@ namespace SanteDB.Persistence.MDM.Services
         public IEnumerable<T> Block<T>(T input, string configurationName, IEnumerable<Guid> ignoreKeys) where T : IdentifiedData
         {
             if (MdmConstants.MdmIdentityMatchConfiguration.Equals(configurationName))
-                return this.PerformIdentityMatch(input, this.GetIgnoreList(ignoreKeys, input)).Select(o=>o.Record);
+                return this.PerformIdentityMatch(input, this.GetIgnoreList(ignoreKeys, input)).Select(o => o.Record);
             else
                 return this.m_matchService?.Block<T>(input, configurationName, this.GetIgnoreList(ignoreKeys, input));
         }
@@ -189,8 +189,8 @@ namespace SanteDB.Persistence.MDM.Services
                 throw new InvalidOperationException($"Cannot perform identity match on {typeof(T)}");
 
             // Identifiers in which entity has the unique authority
-            var uqIdentifiers = identifiers.Identifiers.OfType<IExternalIdentifier>().Where(o => this.m_uniqueAuthorities.Contains(o.Authority?.Key ?? Guid.Empty));
-            if (uqIdentifiers?.Any(i => i.Authority == null) == true)
+            var uqIdentifiers = identifiers.Identifiers.OfType<IExternalIdentifier>().Where(o => this.m_uniqueAuthorities.Contains(o.Authority.Key ?? Guid.Empty));
+            if (uqIdentifiers?.Any(i => i.Authority.Key == null) == true)
                 throw new InvalidOperationException("Some identifiers are missing authorities, cannot perform identity match");
 
             if (uqIdentifiers?.Any() != true)
@@ -217,9 +217,8 @@ namespace SanteDB.Persistence.MDM.Services
         /// </summary>
         public IEnumerable<IRecordMatchResult<T>> Match<T>(T input, string configurationName, IEnumerable<Guid> ignoreKeys) where T : IdentifiedData
         {
-
             // Fetch ignore keys if none provided
-            
+
             if (MdmConstants.MdmIdentityMatchConfiguration.Equals(configurationName))
                 return this.PerformIdentityMatch(input, this.GetIgnoreList(ignoreKeys, input));
             else
@@ -227,7 +226,7 @@ namespace SanteDB.Persistence.MDM.Services
         }
 
         /// <summary>
-        /// Match 
+        /// Match
         /// </summary>
         public IEnumerable<IRecordMatchResult> Match(IdentifiedData input, string configurationName, IEnumerable<Guid> ignoreKeys)
         {
@@ -238,13 +237,13 @@ namespace SanteDB.Persistence.MDM.Services
         }
 
         /// <summary>
-        /// Classify 
+        /// Classify
         /// </summary>
         public IEnumerable<IRecordMatchResult> Classify(IdentifiedData input, IEnumerable<IdentifiedData> blocks, String configurationName)
         {
             var genMethod = typeof(MdmRecordMatchingService).GetGenericMethod(nameof(Classify), new Type[] { input.GetType() }, new Type[] { input.GetType(), typeof(IEnumerable<>).MakeGenericType(input.GetType()), typeof(String) });
             var ofTypeMethod = typeof(Enumerable).GetGenericMethod(nameof(Enumerable.OfType), new Type[] { input.GetType() }, new Type[] { typeof(IEnumerable) });
-            var results = genMethod.Invoke(this, new object[] { input, ofTypeMethod.Invoke(null, new object[] { blocks }),  configurationName }) as IEnumerable;
+            var results = genMethod.Invoke(this, new object[] { input, ofTypeMethod.Invoke(null, new object[] { blocks }), configurationName }) as IEnumerable;
             return results.OfType<IRecordMatchResult>();
         }
     }

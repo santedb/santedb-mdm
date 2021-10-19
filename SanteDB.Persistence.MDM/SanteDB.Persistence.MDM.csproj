@@ -1,7 +1,7 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup Condition="'$(VersionNumber)' == ''">
-    <VersionNumber>2.1.0-debug</VersionNumber>
+    <VersionNumber>2.4.0-debug</VersionNumber>
   </PropertyGroup>
   <PropertyGroup>
     <TargetFrameworks>netstandard2.0</TargetFrameworks>
