@@ -2,22 +2,23 @@
  * Copyright (C) 2021 - 2021, SanteSuite Inc. and the SanteSuite Contributors (See NOTICE.md for full copyright notices)
  * Copyright (C) 2019 - 2021, Fyfe Software Inc. and the SanteSuite Contributors
  * Portions Copyright (C) 2015-2018 Mohawk College of Applied Arts and Technology
- * 
- * Licensed under the Apache License, Version 2.0 (the "License"); you 
- * may not use this file except in compliance with the License. You may 
- * obtain a copy of the License at 
- * 
- * http://www.apache.org/licenses/LICENSE-2.0 
- * 
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you
+ * may not use this file except in compliance with the License. You may
+ * obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the 
- * License for the specific language governing permissions and limitations under 
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations under
  * the License.
- * 
+ *
  * User: fyfej
  * Date: 2021-8-5
  */
+
 using SanteDB.Core;
 using SanteDB.Core.Configuration;
 using SanteDB.Core.Diagnostics;
@@ -55,7 +56,6 @@ namespace SanteDB.Persistence.MDM.Services.Resources
     public class MdmResourceHandler<TModel> : IDisposable, IMdmResourceHandler
         where TModel : IdentifiedData, new()
     {
-
         // Class concept key
         private Guid[] m_classConceptKey;
 
@@ -79,7 +79,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         public MdmResourceHandler()
         {
-            // Register the master 
+            // Register the master
             this.m_dataManager = MdmDataManagerFactory.GetDataManager<TModel>();
             this.m_policyEnforcement = ApplicationServiceContext.Current.GetService<IPolicyEnforcementService>();
             this.m_batchRepository = ApplicationServiceContext.Current.GetService<IDataPersistenceService<Bundle>>();
@@ -147,7 +147,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 {
                     return this.m_dataManager.GetMasterFor(tmodel.Key.Value).GetMaster(principal);
                 }
-                // It is a type which is classified as a master and has a type concept 
+                // It is a type which is classified as a master and has a type concept
                 else if (o is IHasClassConcept ihcc && ihcc.ClassConceptKey == MdmConstants.MasterRecordClassification &&
                     o is IHasTypeConcept ihtc && this.m_classConceptKey.Contains(ihtc.TypeConceptKey.GetValueOrDefault()))
                 {
@@ -201,7 +201,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     this.m_policyEnforcement.Demand(MdmPermissionPolicyIdentifiers.ReadMdmLocals, e.Principal);
                     mdmFilter.Remove("L"); // Just allow the repo to be queried
                 }
-                else if (mdmFilter.Contains("M")) // pure master query 
+                else if (mdmFilter.Contains("M")) // pure master query
                 {
                     throw new NotImplementedException("Msater queries not supported yet");
                 }
@@ -209,8 +209,17 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             else
             {
                 var localQuery = new NameValueCollection(query.ToDictionary(o => $"relationship[{MdmConstants.MasterRecordRelationship}].source@{typeof(TModel).Name}.{o.Key}", o => o.Value));
-                query.Add("classConcept", MdmConstants.MasterRecordClassification.ToString());
                 e.Cancel = true; // We want to cancel the callers query
+
+                // Trim the local query
+                foreach (var itm in query.ToArray())
+                {
+                    if (!itm.Key.StartsWith("identifier") && !itm.Key.StartsWith("name") && !itm.Key.StartsWith("address"))
+                    {
+                        query.Remove(itm.Key);
+                    }
+                }
+                query.Add("classConcept", MdmConstants.MasterRecordClassification.ToString());
 
                 // We are wrapping an entity, so we query entity masters
                 e.Results = this.m_dataManager.MdmQuery(query, localQuery, e.QueryId, e.Offset, e.Count, out int tr, e.OrderBy).Select(o => o.GetMaster(e.Principal)).OfType<TModel>();
@@ -223,7 +232,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         internal virtual void OnRetrieving(object sender, DataRetrievingEventArgs<TModel> e)
         {
-            if (this.m_dataManager.IsMaster(e.Id.Value)) // object is a master 
+            if (this.m_dataManager.IsMaster(e.Id.Value)) // object is a master
             {
                 e.Cancel = true;
                 e.Result = (TModel)this.m_dataManager.MdmGet(e.Id.Value).GetMaster(e.Principal);
@@ -233,7 +242,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// <summary>
         /// Fired before a record is obsoleted
         /// </summary>
-        /// <remarks>We don't want a MASTER record to be obsoleted under any condition. MASTER records require special permission to 
+        /// <remarks>We don't want a MASTER record to be obsoleted under any condition. MASTER records require special permission to
         /// obsolete and also require that all LOCAL records be either re-assigned or obsoleted as well.</remarks>
         internal virtual void OnObsoleting(object sender, DataPersistingEventArgs<TModel> e)
         {
@@ -257,7 +266,6 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         internal virtual void OnSaving(object sender, DataPersistingEventArgs<TModel> e)
         {
-
             try
             {
                 // Prevent duplicate processing
@@ -290,7 +298,6 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     bundle = this.m_batchRepository.Update(bundle, TransactionMode.Commit, e.Principal);
                     bundle = (Bundle)bre?.AfterUpdate(bundle) ?? bundle;
                     e.Data = bundle.Item.Find(o => o.Key == e.Data.Key) as TModel; // copy to get key data
-
                 }
 
                 e.Cancel = true;
@@ -307,13 +314,12 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         internal virtual IEnumerable<IdentifiedData> PrepareTransaction(TModel data, IEnumerable<IdentifiedData> context)
         {
-
             if (context == null)
             {
                 context = new List<IdentifiedData>();
             }
 
-            // The data being updated as a ROT - 
+            // The data being updated as a ROT -
             if (this.m_dataManager.IsRecordOfTruth(data))
             {
                 return this.m_dataManager.MdmTxSaveRecordOfTruth(data, context);
@@ -322,7 +328,6 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             {
                 return this.m_dataManager.MdmTxSaveLocal(data, context);
             }
-
         }
 
         /// <summary>
@@ -330,7 +335,6 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         internal virtual void OnInserting(object sender, DataPersistingEventArgs<TModel> e)
         {
-
             try
             {
                 // Prevent duplicate processing
@@ -373,13 +377,12 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         }
 
         /// <summary>
-        /// Called prior to persisting 
+        /// Called prior to persisting
         /// </summary>
-        /// <remarks>This method seeks to establish whether the caller is attempting to 
+        /// <remarks>This method seeks to establish whether the caller is attempting to
         /// create/update a master</remarks>
         internal virtual void OnPrePersistenceValidate(object sender, DataPersistingEventArgs<TModel> e)
         {
-
             var store = e.Data;
             // Is the existing object a master?
             if (this.m_dataManager.IsMaster(e.Data))
@@ -409,7 +412,6 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     versioned.VersionSequence = null;
                     versioned.VersionKey = null;
                 }
-
             }
             else if (!store.Key.HasValue)
             {
@@ -428,10 +430,10 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             // Rewrite any relationships we need to
             if (sender is Bundle bundle)
             {
-                if (e.Data != store) // storage has changed 
+                if (e.Data != store) // storage has changed
                 {
                     bundle.Item.Insert(bundle.Item.IndexOf(e.Data), store);
-                    bundle.Item.Remove(e.Data); // Remove 
+                    bundle.Item.Remove(e.Data); // Remove
                 }
                 bundle.Item.AddRange(this.m_dataManager.ExtractRelationships(store).OfType<IdentifiedData>());
                 this.m_dataManager.RefactorRelationships(bundle.Item, e.Data.Key.Value, store.Key.Value);

@@ -349,6 +349,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 while (offset < totalResults)
                 {
                     var results = this.m_entityPersistence.Query(o => o.StatusConceptKey != StatusKeys.Obsolete && o.DeterminerConceptKey != MdmConstants.RecordOfTruthDeterminer, queryId, offset, batchSize, out totalResults, AuthenticationContext.SystemPrincipal);
+                    this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)offset / (float)totalResults, "Rematching"));
 
                     results.ToList().ForEach(itm =>
                     {
@@ -358,7 +359,6 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     });
 
                     offset += batchSize;
-                    this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)offset / (float)totalResults, "Rematching"));
                 }
             }
             catch (Exception e)
@@ -382,11 +382,11 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 int offset = 0, totalResults = 1, batchSize = 50;
                 while (offset < totalResults)
                 {
+                    this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)offset / (float)totalResults, "Clearing Candidates"));
                     var results = this.m_relationshipPersistence.Query(o => o.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship && o.ObsoleteVersionSequenceId == null, queryId, offset, batchSize, out totalResults, AuthenticationContext.SystemPrincipal); ;
                     var batch = new Bundle(results.Select(o => { o.BatchOperation = BatchOperationType.Obsolete; return o; }));
                     this.m_batchPersistence.Update(batch, TransactionMode.Commit, AuthenticationContext.SystemPrincipal);
                     offset += batchSize;
-                    this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)offset / (float)totalResults, "Clearing Candidates"));
                 }
             }
             catch (Exception e)
