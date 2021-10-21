@@ -125,7 +125,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     .Select(o =>
                     {
                         var retVal = o.LoadProperty(p => p.SourceEntity) as Entity;
-                        retVal.AddTag("$match.score", $"{o.Strength:%%.%%}");
+                        retVal.AddTag("$match.score", $"{o.Strength:0#%}");
                         return retVal;
                     });
             }
@@ -136,7 +136,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     .Select(o =>
                     {
                         var retVal = o.LoadProperty(p => p.TargetEntity) as Entity;
-                        retVal.AddTag("$match.score", $"{o.Strength:%%.%%}");
+                        retVal.AddTag("$match.score", $"{o.Strength:#0%}");
                         return retVal;
                     });
             }
@@ -311,7 +311,19 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         public override IdentifiedData UnIgnore(Guid masterKey, IEnumerable<Guid> ignoredKeys)
         {
-            throw new NotImplementedException();
+            try
+            {
+                this.m_pepService.Demand(MdmPermissionPolicyIdentifiers.WriteMdmMaster);
+
+                Bundle transaction = new Bundle();
+                transaction.AddRange(ignoredKeys.SelectMany(o => this.m_dataManager.MdmTxUnIgnoreCandidateMatch(masterKey, o, transaction.Item)));
+                // Commit the transaction
+                return this.m_batchPersistence.Insert(transaction, TransactionMode.Commit, AuthenticationContext.Current.Principal);
+            }
+            catch (Exception ex)
+            {
+                throw new MdmException("Error performing ignore", ex);
+            }
         }
 
         /// <summary>

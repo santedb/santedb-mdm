@@ -251,7 +251,7 @@ namespace SanteDB.Persistence.MDM.Model
         /// <summary>
         /// Modified on
         /// </summary>
-        public override DateTimeOffset ModifiedOn => this.m_recordOfTruth?.ModifiedOn ?? this.m_localRecords?.OrderByDescending(o => o.ModifiedOn).OfType<BaseEntityData>().FirstOrDefault().ModifiedOn ?? this.ModifiedOn;
+        public override DateTimeOffset ModifiedOn => this.m_recordOfTruth?.ModifiedOn ?? this.m_localRecords?.OrderByDescending(o => o.ModifiedOn).OfType<BaseEntityData>().FirstOrDefault().ModifiedOn ?? DateTime.Now;
 
         /// <summary>
         /// Get the version tag

@@ -214,12 +214,27 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 // Trim the local query
                 foreach (var itm in query.ToArray())
                 {
-                    if (!itm.Key.StartsWith("identifier") && !itm.Key.StartsWith("name") && !itm.Key.StartsWith("address"))
+                    var keyField = itm.Key.Split('[', '.');
+                    switch (keyField[0])
                     {
-                        query.Remove(itm.Key);
+                        case "identifier":
+                        case "name":
+                        case "address":
+                        case "telecom":
+                        case "statusConcept":
+                        case "modifiedOn":
+                            break;
+
+                        default:
+                            query.Remove(itm.Key);
+                            break;
                     }
                 }
-                query.Add("classConcept", MdmConstants.MasterRecordClassification.ToString());
+
+                if (query.Any())
+                {
+                    query.Add("classConcept", MdmConstants.MasterRecordClassification.ToString());
+                }
 
                 // We are wrapping an entity, so we query entity masters
                 e.Results = this.m_dataManager.MdmQuery(query, localQuery, e.QueryId, e.Offset, e.Count, out int tr, e.OrderBy).Select(o => o.GetMaster(e.Principal)).OfType<TModel>();
