@@ -211,18 +211,13 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 var localQuery = new NameValueCollection(query.ToDictionary(o => $"relationship[{MdmConstants.MasterRecordRelationship}].source@{typeof(TModel).Name}.{o.Key}", o => o.Value));
                 e.Cancel = true; // We want to cancel the callers query
 
-                // Trim the local query
+                //// Trim the local query
                 foreach (var itm in query.ToArray())
                 {
                     var keyField = itm.Key.Split('[', '.');
                     switch (keyField[0])
                     {
                         case "identifier":
-                        case "name":
-                        case "address":
-                        case "telecom":
-                        case "statusConcept":
-                        case "modifiedOn":
                             break;
 
                         default:
