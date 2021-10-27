@@ -637,7 +637,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     autoLink)
                 {
                     var matchedMaster = matchResultGrouping[RecordMatchClassification.Match].Single();
-                    if (existingMasterRel == null) // There is no master, so we can just like
+                    if (existingMasterRel == null) // There is no master, so we can just like create one
                     {
                         retVal.AddLast(new EntityRelationship(MdmConstants.MasterRecordRelationship, local.Key, matchedMaster.Master, MdmConstants.AutomagicClassification)
                         {
@@ -650,7 +650,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     else if (matchedMaster.Master != existingMasterRel.TargetEntityKey)
                     {
                         // Old master was verified, so we don't touch it we just suggest a link
-                        if (existingMasterRel.ClassificationKey == MdmConstants.VerifiedClassification)
+                        if (existingMasterRel.ClassificationKey != MdmConstants.AutomagicClassification)
                         {
                             rematchMaster = false;
                             retVal.AddLast(new EntityRelationship(MdmConstants.CandidateLocalRelationship, local.Key, matchedMaster.Master, MdmConstants.AutomagicClassification)

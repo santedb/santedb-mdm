@@ -29,6 +29,21 @@ namespace SanteDB.Persistence.MDM.Services
             public DateTimeOffset CreationTime => DateTimeOffset.Now;
 
             /// <summary>
+            /// True if the configuration is read only
+            /// </summary>
+            public bool IsReadonly => true;
+
+            /// <summary>
+            /// Updated time
+            /// </summary>
+            public DateTimeOffset? UpdatedTime => null;
+
+            /// <summary>
+            /// Updated by
+            /// </summary>
+            public string UpdatedBy => null;
+
+            /// <summary>
             /// Gets the state
             /// </summary>
             public MatchConfigurationStatus State => MatchConfigurationStatus.Active;
