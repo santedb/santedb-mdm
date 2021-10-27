@@ -106,6 +106,11 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         public abstract IEnumerable<IdentifiedData> MdmTxIgnoreCandidateMatch(Guid hostKey, Guid ignoreKey, IEnumerable<IdentifiedData> context);
 
         /// <summary>
+        /// Un-ignore a candidiate match
+        /// </summary>
+        public abstract IEnumerable<IdentifiedData> MdmTxUnIgnoreCandidateMatch(Guid hostKey, Guid ignoreKey, List<IdentifiedData> context);
+
+        /// <summary>
         /// Create transaction instructions to establish MDM master link
         /// </summary>
         public abstract IEnumerable<IdentifiedData> MdmTxMasterLink(Guid fromKey, Guid toKey, IEnumerable<IdentifiedData> context, bool verified);
@@ -114,6 +119,16 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// Create transaction instructions to unlink a master
         /// </summary>
         public abstract IEnumerable<IdentifiedData> MdmTxMasterUnlink(Guid fromKey, Guid toKey, IEnumerable<IdentifiedData> context);
+
+        /// <summary>
+        /// Given a LOCAL match MASTER records that might be candidates
+        /// </summary>
+        public abstract IEnumerable<IdentifiedData> MdmTxMatchMasters(IdentifiedData local, List<IdentifiedData> context);
+
+        /// <summary>
+        /// Given a MASTER detect LOCALS which might be candidates
+        /// </summary>
+        public abstract IEnumerable<IdentifiedData> MdmTxDetectCandidates(IdentifiedData master, List<IdentifiedData> context);
     }
 
     /// <summary>
@@ -225,5 +240,11 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// Get all MDM associations for this local
         /// </summary>
         public abstract IEnumerable<ITargetedAssociation> GetAllMdmAssociations(Guid localKey);
+
+        /// <summary>
+        /// Match masters
+        /// </summary>
+        public override IEnumerable<IdentifiedData> MdmTxMatchMasters(IdentifiedData data, List<IdentifiedData> context) =>
+            this.MdmTxMatchMasters((TModel)data, context);
     }
 }

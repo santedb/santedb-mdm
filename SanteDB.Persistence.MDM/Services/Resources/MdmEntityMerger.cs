@@ -125,7 +125,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     .Select(o =>
                     {
                         var retVal = o.LoadProperty(p => p.SourceEntity) as Entity;
-                        retVal.AddTag("$match.score", $"{o.Strength:%%.%%}");
+                        retVal.AddTag("$match.score", $"{o.Strength:0#%}");
                         return retVal;
                     });
             }
@@ -136,7 +136,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     .Select(o =>
                     {
                         var retVal = o.LoadProperty(p => p.TargetEntity) as Entity;
-                        retVal.AddTag("$match.score", $"{o.Strength:%%.%%}");
+                        retVal.AddTag("$match.score", $"{o.Strength:#0%}");
                         return retVal;
                     });
             }
@@ -311,7 +311,19 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         public override IdentifiedData UnIgnore(Guid masterKey, IEnumerable<Guid> ignoredKeys)
         {
-            throw new NotImplementedException();
+            try
+            {
+                this.m_pepService.Demand(MdmPermissionPolicyIdentifiers.WriteMdmMaster);
+
+                Bundle transaction = new Bundle();
+                transaction.AddRange(ignoredKeys.SelectMany(o => this.m_dataManager.MdmTxUnIgnoreCandidateMatch(masterKey, o, transaction.Item)));
+                // Commit the transaction
+                return this.m_batchPersistence.Insert(transaction, TransactionMode.Commit, AuthenticationContext.Current.Principal);
+            }
+            catch (Exception ex)
+            {
+                throw new MdmException("Error performing ignore", ex);
+            }
         }
 
         /// <summary>
@@ -349,6 +361,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 while (offset < totalResults)
                 {
                     var results = this.m_entityPersistence.Query(o => o.StatusConceptKey != StatusKeys.Obsolete && o.DeterminerConceptKey != MdmConstants.RecordOfTruthDeterminer, queryId, offset, batchSize, out totalResults, AuthenticationContext.SystemPrincipal);
+                    this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)offset / (float)totalResults, "Rematching"));
 
                     results.ToList().ForEach(itm =>
                     {
@@ -358,7 +371,6 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     });
 
                     offset += batchSize;
-                    this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)offset / (float)totalResults, "Rematching"));
                 }
             }
             catch (Exception e)
@@ -382,11 +394,11 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 int offset = 0, totalResults = 1, batchSize = 50;
                 while (offset < totalResults)
                 {
+                    this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)offset / (float)totalResults, "Clearing Candidates"));
                     var results = this.m_relationshipPersistence.Query(o => o.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship && o.ObsoleteVersionSequenceId == null, queryId, offset, batchSize, out totalResults, AuthenticationContext.SystemPrincipal); ;
                     var batch = new Bundle(results.Select(o => { o.BatchOperation = BatchOperationType.Obsolete; return o; }));
                     this.m_batchPersistence.Update(batch, TransactionMode.Commit, AuthenticationContext.SystemPrincipal);
                     offset += batchSize;
-                    this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)offset / (float)totalResults, "Clearing Candidates"));
                 }
             }
             catch (Exception e)
