@@ -363,12 +363,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     var results = this.m_entityPersistence.Query(o => o.StatusConceptKey != StatusKeys.Obsolete && o.DeterminerConceptKey != MdmConstants.RecordOfTruthDeterminer, queryId, offset, batchSize, out totalResults, AuthenticationContext.SystemPrincipal);
                     this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)offset / (float)totalResults, "Rematching"));
 
-                    results.ToList().ForEach(itm =>
-                    {
-                        this.m_tracer.TraceVerbose("Re-match {0}", itm);
-                        var batchMatch = new Bundle(this.m_dataManager.MdmTxMatchMasters(itm, new IdentifiedData[0]));
-                        this.m_batchPersistence.Insert(batchMatch, TransactionMode.Commit, AuthenticationContext.SystemPrincipal);
-                    });
+                    var batchMatch = new Bundle(results.AsParallel().SelectMany(itm => this.m_dataManager.MdmTxMatchMasters(itm, new IdentifiedData[0])));
+                    this.m_batchPersistence.Insert(batchMatch, TransactionMode.Commit, AuthenticationContext.SystemPrincipal);
 
                     offset += batchSize;
                 }

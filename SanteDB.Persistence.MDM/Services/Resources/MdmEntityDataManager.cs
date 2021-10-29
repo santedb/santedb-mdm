@@ -594,7 +594,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             ignoreList = ignoreList.Union(this.m_relationshipService.Query(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship && o.SourceEntity.Relationships.Where(s => s.RelationshipTypeKey == MdmConstants.IgnoreCandidateRelationship || s.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship).Any(s => s.TargetEntityKey == existingMasterRel.TargetEntityKey), AuthenticationContext.SystemPrincipal).Select(o => o.TargetEntityKey.Value));
 
             // It may be possible the ignore was un-ignored
-            ignoreList = ignoreList.Where(i => !context.OfType<EntityRelationship>().Any(c => c.TargetEntityKey == i && c.BatchOperation == BatchOperationType.Obsolete));
+            ignoreList = ignoreList.Where(i => !context.OfType<EntityRelationship>().Any(c => c.RelationshipTypeKey == MdmConstants.IgnoreCandidateRelationship && c.TargetEntityKey == i && c.BatchOperation == BatchOperationType.Obsolete)).ToList();
 
             // Existing probable links and set them to obsolete for now
             this.m_traceSource.TraceInfo("Fetching existing candidates for {0}", local);
