@@ -153,7 +153,24 @@ namespace SanteDB.Persistence.MDM.Rest
                         // TODO: Filtering and sorting for the associated locals call
                         var associatedLocals = dataManager.GetAssociatedLocals(scopedKey);
                         totalCount = associatedLocals.Count();
-                        return associatedLocals.Skip(offset).Take(count).ToArray().Select(o => o.LoadProperty(p => p.SourceEntity));
+                        return associatedLocals.Skip(offset).Take(count).ToArray().Select(o =>
+                        {
+                            var tag = o.LoadProperty(p => p.SourceEntity) as ITaggable;
+                            if (o.ClassificationKey == MdmConstants.AutomagicClassification)
+                            {
+                                tag.AddTag(MdmConstants.MdmClassificationTag, "Auto");
+                            }
+                            else if (o.ClassificationKey == MdmConstants.SystemClassification)
+                            {
+                                tag.AddTag(MdmConstants.MdmClassificationTag, "System");
+                            }
+                            else
+                            {
+                                tag.AddTag(MdmConstants.MdmClassificationTag, "Verified");
+                            }
+
+                            return o.SourceEntity;
+                        });
                     }
                     else
                     {
