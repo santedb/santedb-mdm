@@ -32,6 +32,12 @@ namespace SanteDB.Persistence.MDM
         public const string CANDIDATE_RECORD_RELATIONSHIP = "56cfb115-8207-4f89-b52e-d20dbad8f8cc";
         public const string IGNORE_CANDIDATE_RELATIONSHIP = "decfb115-8207-4f89-b52e-d20dbad8f8cc";
         public const string RECORD_OF_TRUTH_RELATIONSHIP = "1C778948-2CB6-4696-BC04-4A6ECA140C20";
+        public const string IDENTITY_MATCH_UUID = "3B819029-E149-4765-AFE4-2989E2791D45";
+
+        /// <summary>
+        /// Identity match UUID
+        /// </summary>
+        public static readonly Guid IdentityMatchUuid = Guid.Parse(IDENTITY_MATCH_UUID);
 
         /// <summary>
         /// Relationship used to represents a local/master relationship
