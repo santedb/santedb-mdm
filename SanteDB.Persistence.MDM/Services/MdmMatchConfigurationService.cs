@@ -72,6 +72,11 @@ namespace SanteDB.Persistence.MDM.Services
             }
 
             /// <summary>
+            /// Get the identity match uuid
+            /// </summary>
+            public Guid Uuid => MdmConstants.IdentityMatchUuid;
+
+            /// <summary>
             /// Gets the name of this matching configuration
             /// </summary>
             public string Id => MdmConstants.MdmIdentityMatchConfiguration;
@@ -117,12 +122,12 @@ namespace SanteDB.Persistence.MDM.Services
         /// <summary>
         /// Delete a configuration
         /// </summary>
-        public IRecordMatchingConfiguration DeleteConfiguration(string name) => this.m_matchingConfigurationService.DeleteConfiguration(name);
+        public IRecordMatchingConfiguration DeleteConfiguration(String id) => this.m_matchingConfigurationService.DeleteConfiguration(id);
 
         /// <summary>
         /// Get configuration
         /// </summary>
-        public IRecordMatchingConfiguration GetConfiguration(string name) => this.m_matchingConfigurationService.GetConfiguration(name);
+        public IRecordMatchingConfiguration GetConfiguration(String id) => this.m_matchingConfigurationService.GetConfiguration(id);
 
         /// <summary>
         /// Save configuration
