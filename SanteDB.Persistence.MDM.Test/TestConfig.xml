@@ -72,6 +72,7 @@
       <add type="SanteDB.Persistence.Data.ADO.Services.AdoIdentityProvider, SanteDB.Persistence.Data.ADO, Version=1.9.0.31831, Culture=neutral, PublicKeyToken=null" />
       <add type="SanteDB.Core.Applets.Services.Impl.AppletLocalizationService, SanteDB.Core.Applets"/>
       <add type="SanteDB.Server.Core.Services.Impl.LocalAppletManagerService, SanteDB.Server.Core" />
+      <add type="SanteDB.Persistence.Data.ADO.Services.AdoServiceFactory, SanteDB.Persistence.Data.ADO" />
 
     </serviceProviders>
   </section>
