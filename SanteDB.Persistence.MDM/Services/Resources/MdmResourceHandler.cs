@@ -145,7 +145,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 // It is a type controlled by this handler - so we want to ensure we return the master rather than a local
                 if (o is TModel tmodel && !this.m_dataManager.IsMaster(tmodel))
                 {
-                    return this.m_dataManager.GetMasterFor(tmodel.Key.Value).GetMaster(principal);
+                    return this.m_dataManager.GetMasterContainerForMasterEntity(tmodel.Key.Value).GetMaster(principal);
                 }
                 // It is a type which is classified as a master and has a type concept
                 else if (o is IHasClassConcept ihcc && ihcc.ClassConceptKey == MdmConstants.MasterRecordClassification &&

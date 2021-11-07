@@ -175,7 +175,7 @@ namespace SanteDB.Persistence.MDM.Rest
                     else
                     {
                         totalCount = 1; // there will only be one
-                        return new object[] { dataManager.GetMasterFor(scopedKey) };
+                        return new object[] { dataManager.GetMasterRelationshipFor(scopedKey).LoadProperty(o => o.TargetEntity) };
                     }
                 }
                 catch (Exception e)
