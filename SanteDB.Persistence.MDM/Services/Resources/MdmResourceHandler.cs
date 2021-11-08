@@ -63,7 +63,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         private IPolicyEnforcementService m_policyEnforcement;
 
         // Tracer
-        private Tracer m_traceSource = new Tracer(MdmConstants.TraceSourceName);
+        private readonly Tracer m_traceSource = new Tracer(MdmConstants.TraceSourceName);
 
         // The notification repository
         private INotifyRepositoryService<TModel> m_notifyRepository;

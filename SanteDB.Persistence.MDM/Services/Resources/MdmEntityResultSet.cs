@@ -1,7 +1,9 @@
-﻿using SanteDB.Core.i18n;
+﻿using SanteDB.Core;
+using SanteDB.Core.i18n;
 using SanteDB.Core.Model;
 using SanteDB.Core.Model.Entities;
 using SanteDB.Core.Model.Query;
+using SanteDB.Core.Services;
 using SanteDB.Persistence.MDM.Model;
 using System;
 using System.Collections;
@@ -11,17 +13,14 @@ using System.Text;
 
 namespace SanteDB.Persistence.MDM.Services.Resources
 {
-
     /// <summary>
-    /// A delay load query wrapper that synthesizes a series of mdm masters 
+    /// A delay load query wrapper that synthesizes a series of mdm masters
     /// </summary>
     public class MdmEntityResultSet<TModel> : IQueryResultSet<EntityMaster<TModel>>, IQueryResultSet<IMdmMaster>
         where TModel : Entity, new()
     {
-
-
         // Wrapped result set
-        private IQueryResultSet<TModel> m_wrappedResultSet;
+        private readonly IQueryResultSet<TModel> m_wrappedResultSet;
 
         /// <summary>
         /// Creates a new mdm query result set
@@ -57,7 +56,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         public EntityMaster<TModel> FirstOrDefault()
         {
             var fd = this.m_wrappedResultSet.FirstOrDefault();
-            if(fd == null)
+            if (fd == null)
             {
                 return null;
             }
@@ -72,7 +71,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         public IEnumerator<EntityMaster<TModel>> GetEnumerator()
         {
-            foreach(var itm in this.m_wrappedResultSet)
+            foreach (var itm in this.m_wrappedResultSet)
             {
                 yield return new EntityMaster<TModel>(itm);
             }
@@ -89,15 +88,15 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// <summary>
         /// Intersect two result sets
         /// </summary>
-        public IQueryResultSet<EntityMaster<TModel>> Intersect(IQueryResultSet<EntityMaster<TModel>> other) {
-
+        public IQueryResultSet<EntityMaster<TModel>> Intersect(IQueryResultSet<EntityMaster<TModel>> other)
+        {
             if (other is MdmEntityResultSet<TModel> ot)
             {
                 return new MdmEntityResultSet<TModel>(this.m_wrappedResultSet.Intersect(ot.m_wrappedResultSet));
             }
             else
             {
-                throw new ArgumentOutOfRangeException(nameof(other), ErrorMessages.ERR_ARGUMENT_INCOMPATIBLE_TYPE.Format(typeof(MdmEntityResultSet<TModel>)));
+                throw new ArgumentException(nameof(other), String.Format(ErrorMessages.ARGUMENT_INVALID_TYPE, typeof(MdmEntityResultSet<TModel>), other.GetType()));
             }
         }
 
@@ -113,7 +112,6 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// Intersect with another
         /// </summary>
         IQueryResultSet<IMdmMaster> IQueryResultSet<IMdmMaster>.Intersect(IQueryResultSet<IMdmMaster> other) => this.Intersect(other as IQueryResultSet<EntityMaster<TModel>>) as MdmEntityResultSet<TModel>;
-        
 
         /// <summary>
         /// Order the result set
@@ -193,13 +191,13 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         public IQueryResultSet<EntityMaster<TModel>> Union(IQueryResultSet<EntityMaster<TModel>> other)
         {
-            if(other is MdmEntityResultSet<TModel> ot)
+            if (other is MdmEntityResultSet<TModel> ot)
             {
                 return new MdmEntityResultSet<TModel>(this.m_wrappedResultSet.Union(ot.m_wrappedResultSet));
             }
             else
             {
-                throw new ArgumentOutOfRangeException(nameof(other), ErrorMessages.ERR_ARGUMENT_INCOMPATIBLE_TYPE.Format(typeof(MdmEntityResultSet<TModel>)));
+                throw new ArgumentException(nameof(other), String.Format(ErrorMessages.ARGUMENT_INVALID_TYPE, typeof(MdmEntityResultSet<TModel>), other.GetType()));
             }
         }
 
@@ -244,9 +242,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             throw new NotImplementedException();
         }
 
-
         #region Non-Generic
-
 
         IQueryResultSet IQueryResultSet.AsStateful(Guid stateId) => this.AsStateful(stateId);
 
@@ -279,6 +275,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         IQueryResultSet IQueryResultSet.Take(int count) => this.Take(count);
 
         IQueryResultSet<IMdmMaster> IQueryResultSet<IMdmMaster>.Take(int count) => this.Take(count) as MdmEntityResultSet<TModel>;
-        #endregion
+
+        #endregion Non-Generic
     }
 }

@@ -2,22 +2,23 @@
  * Copyright (C) 2021 - 2021, SanteSuite Inc. and the SanteSuite Contributors (See NOTICE.md for full copyright notices)
  * Copyright (C) 2019 - 2021, Fyfe Software Inc. and the SanteSuite Contributors
  * Portions Copyright (C) 2015-2018 Mohawk College of Applied Arts and Technology
- * 
- * Licensed under the Apache License, Version 2.0 (the "License"); you 
- * may not use this file except in compliance with the License. You may 
- * obtain a copy of the License at 
- * 
- * http://www.apache.org/licenses/LICENSE-2.0 
- * 
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you
+ * may not use this file except in compliance with the License. You may
+ * obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the 
- * License for the specific language governing permissions and limitations under 
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations under
  * the License.
- * 
+ *
  * User: fyfej
  * Date: 2021-8-5
  */
+
 using SanteDB.Core;
 using SanteDB.Core.Configuration;
 using SanteDB.Core.Diagnostics;
@@ -39,8 +40,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
     /// </summary>
     public class BundleResourceInterceptor : IDisposable
     {
-
-        private Tracer m_tracer = Tracer.GetTracer(typeof(BundleResourceInterceptor));
+        private readonly Tracer m_tracer = Tracer.GetTracer(typeof(BundleResourceInterceptor));
 
         // Listeners for chaining
         private IEnumerable<IDisposable> m_listeners;
@@ -54,15 +54,15 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// <summary>
         /// Bundle resource listener
         /// </summary>
-        public BundleResourceInterceptor(IEnumerable<IDisposable> listeners) 
+        public BundleResourceInterceptor(IEnumerable<IDisposable> listeners)
         {
-            if(listeners == null)
+            if (listeners == null)
             {
                 throw new ArgumentNullException(nameof(listeners), "Listeners for chained invokation is required");
             }
             this.m_listeners = listeners;
 
-            foreach(var itm in this.m_listeners)
+            foreach (var itm in this.m_listeners)
             {
                 this.m_tracer.TraceInfo("Bundles will be chained to {0}", itm.GetType().FullName);
             }
@@ -80,7 +80,6 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             this.m_notifyRepository.Retrieving += this.OnRetrieving;
             this.m_notifyRepository.Querying += this.OnQuerying;
         }
-
 
         /// <summary>
         /// As a bundle, we call the base on the contents of the data
@@ -154,7 +153,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             for (int i = 0; i < bundle.Item.Count; i++)
             {
                 var data = bundle.Item[i];
-                if(data == null)
+                if (data == null)
                 {
                     throw new InvalidOperationException($"Bundle object at index {i} is null");
                 }
@@ -164,27 +163,31 @@ namespace SanteDB.Persistence.MDM.Services.Resources
 
                 foreach (IMdmResourceHandler hdlr in this.m_listeners?.Where(o => o?.GetType() == mdmHandler))
                 {
-
-                    switch (methodName) {
+                    switch (methodName)
+                    {
                         case nameof(OnPrePersistenceValidate):
                             hdlr.OnPrePersistenceValidate(bundle, evtArgs);
                             break;
+
                         case nameof(OnSaving):
                             hdlr.OnSaving(bundle, evtArgs);
                             break;
+
                         case nameof(OnInserting):
                             hdlr.OnInserting(bundle, evtArgs);
                             break;
+
                         case nameof(OnObsoleting):
                             hdlr.OnObsoleting(bundle, evtArgs);
                             break;
+
                         default:
                             throw new InvalidOperationException($"Cannot determine how to handle {methodName}");
                     }
 
                     // Cancel?
                     var subData = evtArgType.GetProperty("Data")?.GetValue(evtArgs) as IdentifiedData;
-                    if(subData == null)
+                    if (subData == null)
                     {
                         throw new InvalidOperationException($"Response to {hdlr.GetType().FullName}.{methodName} returned no data");
                     }
@@ -193,7 +196,6 @@ namespace SanteDB.Persistence.MDM.Services.Resources
 
                     if (eventArgs is DataPersistingEventArgs<Bundle> eclc)
                         eclc.Success |= eclc.Cancel |= (bool)evtArgType.GetProperty("Cancel")?.GetValue(evtArgs);
-
                 }
             }
 
@@ -216,7 +218,6 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 });
                 bundle = this.m_bundlePersistence.Insert(bundle, TransactionMode.Commit, principal);
                 bundle = businessRulesSerice?.AfterInsert(bundle) ?? bundle;
-
             }
 
             return bundle;

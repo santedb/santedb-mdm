@@ -38,7 +38,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         where TModel : IdentifiedData, new()
     {
         // Get specified tracer
-        protected Tracer m_tracer = Tracer.GetTracer(typeof(MdmResourceMerger<TModel>));
+        protected readonly Tracer m_tracer = Tracer.GetTracer(typeof(MdmResourceMerger<TModel>));
 
         /// <summary>
         /// Name of the merging service

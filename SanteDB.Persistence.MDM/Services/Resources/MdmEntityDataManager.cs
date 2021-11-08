@@ -61,7 +61,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         };
 
         // Tracer
-        private Tracer m_traceSource = new Tracer(MdmConstants.TraceSourceName);
+        private readonly Tracer m_traceSource = new Tracer(MdmConstants.TraceSourceName);
 
         // Entity persistence serviuce
         private IDataPersistenceService<Entity> m_entityPersistenceService;

@@ -55,7 +55,7 @@ namespace SanteDB.Persistence.MDM.Jobs
         private IRecordMergingService<T> m_mergeService;
 
         // Tracer
-        private Tracer m_tracer = Tracer.GetTracer(typeof(MdmMatchJob<T>));
+        private readonly Tracer m_tracer = Tracer.GetTracer(typeof(MdmMatchJob<T>));
 
         /// <summary>
         /// Create a match job
@@ -72,7 +72,6 @@ namespace SanteDB.Persistence.MDM.Jobs
                     this.StatusText = p.State.ToString();
                 };
             }
-
         }
 
         /// <summary>
@@ -144,7 +143,7 @@ namespace SanteDB.Persistence.MDM.Jobs
                     this.CurrentState = JobStateType.Running;
                     var clear = parameters.Length > 0 ? (bool)parameters[0] : false;
                     this.m_tracer.TraceInfo("Starting batch run of MDM Matching ");
-                   
+
                     if (clear)
                     {
                         this.m_tracer.TraceVerbose("Batch instruction indicates clear of all links");

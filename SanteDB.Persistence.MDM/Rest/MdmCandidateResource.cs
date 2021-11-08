@@ -47,7 +47,7 @@ namespace SanteDB.Persistence.MDM.Rest
     /// </summary>
     public class MdmCandidateOperation : IApiChildResourceHandler
     {
-        private Tracer m_tracer = Tracer.GetTracer(typeof(MdmCandidateOperation));
+        private readonly Tracer m_tracer = Tracer.GetTracer(typeof(MdmCandidateOperation));
 
         // Configuration
         private ResourceManagementConfigurationSection m_configuration;
