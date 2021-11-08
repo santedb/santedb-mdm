@@ -58,32 +58,32 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// <summary>
         /// Get all MDM candidate locals regardless of where they are attached
         /// </summary>
-        public abstract IQueryResultSet<ITargetedAssociation> GetAllMdmCandidateLocals();
+        public abstract IEnumerable<ITargetedAssociation> GetAllMdmCandidateLocals();
 
         /// <summary>
         /// Gets all local associations between <paramref name="masterKey"/> and its master
         /// </summary>
-        public abstract IQueryResultSet<ITargetedAssociation> GetAssociatedLocals(Guid masterKey);
+        public abstract IEnumerable<ITargetedAssociation> GetAssociatedLocals(Guid masterKey);
 
         /// <summary>
         /// Get all candidate associations between <paramref name="masterKey"/>
         /// </summary>
-        public abstract IQueryResultSet<ITargetedAssociation> GetCandidateLocals(Guid masterKey);
+        public abstract IEnumerable<ITargetedAssociation> GetCandidateLocals(Guid masterKey);
 
         /// <summary>
         /// Get ignore associations
         /// </summary>
-        public abstract IQueryResultSet<ITargetedAssociation> GetIgnoredCandidateLocals(Guid masterKey);
+        public abstract IEnumerable<ITargetedAssociation> GetIgnoredCandidateLocals(Guid masterKey);
 
         /// <summary>
         /// Get all associations for which this is a candidate to another master
         /// </summary>
-        public abstract IQueryResultSet<ITargetedAssociation> GetEstablishedCandidateMasters(Guid localKey);
+        public abstract IEnumerable<ITargetedAssociation> GetEstablishedCandidateMasters(Guid localKey);
 
         /// <summary>
         /// Get ignore associations
         /// </summary>
-        public abstract IQueryResultSet<ITargetedAssociation> GetIgnoredMasters(Guid localKey);
+        public abstract IEnumerable<ITargetedAssociation> GetIgnoredMasters(Guid localKey);
 
         /// <summary>
         /// Get the master entity
@@ -224,6 +224,6 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// <summary>
         /// Get all MDM associations for this local
         /// </summary>
-        public abstract IQueryResultSet<ITargetedAssociation> GetAllMdmAssociations(Guid localKey);
+        public abstract IEnumerable<ITargetedAssociation> GetAllMdmAssociations(Guid localKey);
     }
 }

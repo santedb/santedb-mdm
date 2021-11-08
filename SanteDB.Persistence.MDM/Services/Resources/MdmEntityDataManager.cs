@@ -987,7 +987,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         public override IEnumerable<ITargetedAssociation> GetAssociatedLocals(Guid masterKey)
         {
-            return this.m_relationshipService.Query(o => o.TargetEntityKey == masterKey && o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship && o.ObsoleteVersionSequenceId == null, AuthenticationContext.SystemPrincipal);
+            return this.m_relationshipService.Query(o => o.TargetEntityKey == masterKey && o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship && o.ObsoleteVersionSequenceId == null, AuthenticationContext.SystemPrincipal).OfType<ITargetedAssociation>();
         }
 
         /// <summary>
@@ -997,7 +997,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// <returns>The candidate locals which have not been established</returns>
         public override IEnumerable<ITargetedAssociation> GetCandidateLocals(Guid masterKey)
         {
-            return this.m_relationshipService.Query(o => o.TargetEntityKey == masterKey && o.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship && o.ObsoleteVersionSequenceId == null, AuthenticationContext.SystemPrincipal);
+            return this.m_relationshipService.Query(o => o.TargetEntityKey == masterKey && o.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship && o.ObsoleteVersionSequenceId == null, AuthenticationContext.SystemPrincipal).OfType<ITargetedAssociation>();
         }
 
         /// <summary>
@@ -1005,7 +1005,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         public override IEnumerable<ITargetedAssociation> GetIgnoredCandidateLocals(Guid masterKey)
         {
-            return this.m_relationshipService.Query(o => o.TargetEntityKey == masterKey && o.RelationshipTypeKey == MdmConstants.IgnoreCandidateRelationship && o.ObsoleteVersionSequenceId == null, AuthenticationContext.SystemPrincipal);
+            return this.m_relationshipService.Query(o => o.TargetEntityKey == masterKey && o.RelationshipTypeKey == MdmConstants.IgnoreCandidateRelationship && o.ObsoleteVersionSequenceId == null, AuthenticationContext.SystemPrincipal).OfType<ITargetedAssociation>();
         }
 
         /// <summary>
@@ -1013,7 +1013,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         public override IEnumerable<ITargetedAssociation> GetAllMdmCandidateLocals()
         {
-            return this.m_relationshipService.Query(o => o.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship && o.ObsoleteVersionSequenceId == null, AuthenticationContext.SystemPrincipal);
+            return this.m_relationshipService.Query(o => o.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship && o.ObsoleteVersionSequenceId == null, AuthenticationContext.SystemPrincipal).OfType<ITargetedAssociation>();
         }
 
         /// <summary>
@@ -1039,7 +1039,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         public override IEnumerable<ITargetedAssociation> GetEstablishedCandidateMasters(Guid localKey)
         {
-            return this.m_relationshipService.Query(o => o.SourceEntityKey == localKey && o.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship && o.ObsoleteVersionSequenceId == null, AuthenticationContext.SystemPrincipal);
+            return this.m_relationshipService.Query(o => o.SourceEntityKey == localKey && o.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship && o.ObsoleteVersionSequenceId == null, AuthenticationContext.SystemPrincipal).OfType<ITargetedAssociation>();
         }
 
         /// <summary>
@@ -1047,7 +1047,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         public override IEnumerable<ITargetedAssociation> GetIgnoredMasters(Guid localKey)
         {
-            return this.m_relationshipService.Query(o => o.SourceEntityKey == localKey && o.RelationshipTypeKey == MdmConstants.IgnoreCandidateRelationship && o.ObsoleteVersionSequenceId == null, AuthenticationContext.SystemPrincipal);
+            return this.m_relationshipService.Query(o => o.SourceEntityKey == localKey && o.RelationshipTypeKey == MdmConstants.IgnoreCandidateRelationship && o.ObsoleteVersionSequenceId == null, AuthenticationContext.SystemPrincipal).OfType<ITargetedAssociation>();
         }
 
         /// <summary>
@@ -1112,21 +1112,11 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         public override IEnumerable<ITargetedAssociation> GetAllMdmAssociations(Guid localKey)
         {
-            if (this.m_relationshipService is IUnionQueryDataPersistenceService<EntityRelationship> iups)
-            {
-                return
-                    iups.Union(new Expression<Func<EntityRelationship, bool>>[] {
-                        o => (o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship || o.RelationshipTypeKey == MdmConstants.OriginalMasterRelationship || o.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship) && o.ObsoleteVersionSequenceId == null && o.SourceEntityKey == localKey,
-                        o => o.RelationshipTypeKey == MdmConstants.MasterRecordOfTruthRelationship && o.ObsoleteVersionSequenceId == null && o.TargetEntityKey == localKey
-                    }, Guid.Empty, 0, 100, out int _, AuthenticationContext.SystemPrincipal);
-            }
-            else
-            {
-                return
-                    this.m_relationshipService.Query(
-                        o => (o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship || o.RelationshipTypeKey == MdmConstants.OriginalMasterRelationship || o.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship) && o.ObsoleteVersionSequenceId == null && o.SourceEntityKey == localKey, AuthenticationContext.SystemPrincipal)
-                        .Union(this.m_relationshipService.Query(o => o.RelationshipTypeKey == MdmConstants.MasterRecordOfTruthRelationship && o.ObsoleteVersionSequenceId == null && o.TargetEntityKey == localKey, AuthenticationContext.SystemPrincipal));
-            }
+            return
+                this.m_relationshipService.Query(
+                    o => (o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship || o.RelationshipTypeKey == MdmConstants.OriginalMasterRelationship || o.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship) && o.ObsoleteVersionSequenceId == null && o.SourceEntityKey == localKey, AuthenticationContext.SystemPrincipal)
+                    .Union(this.m_relationshipService.Query(o => o.RelationshipTypeKey == MdmConstants.MasterRecordOfTruthRelationship && o.ObsoleteVersionSequenceId == null && o.TargetEntityKey == localKey, AuthenticationContext.SystemPrincipal))
+                    .OfType<ITargetedAssociation>();
         }
     }
 }
