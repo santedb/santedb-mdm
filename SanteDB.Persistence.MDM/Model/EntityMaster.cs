@@ -236,10 +236,11 @@ namespace SanteDB.Persistence.MDM.Model
             entityMaster.Relationships = relationships;
 
             entityMaster.Policies = this.LocalRecords.SelectMany(o => (o as Entity).Policies).Distinct().ToList();
-            entityMaster.Tags.RemoveAll(o => o.TagKey == "$mdm.type");
+            entityMaster.Tags.RemoveAll(o => o.TagKey == MdmConstants.MdmTypeTag);
             entityMaster.Tags.Add(new EntityTag(MdmConstants.MdmTypeTag, "M")); // This is a master
             entityMaster.Tags.Add(new EntityTag(MdmConstants.MdmResourceTag, typeof(T).Name)); // The original resource of the master
             entityMaster.Tags.Add(new EntityTag(MdmConstants.MdmGeneratedTag, "true")); // This object was generated
+            entityMaster.Tags.Add(new EntityTag(SanteDBConstants.AlternateKeysTag, String.Join(",", locals.Select(o => o.Key.ToString()))));
             entityMaster.CreationTime = this.ModifiedOn;
             entityMaster.PreviousVersionKey = this.m_masterRecord.PreviousVersionKey;
             entityMaster.Key = this.m_masterRecord.Key;
@@ -251,7 +252,7 @@ namespace SanteDB.Persistence.MDM.Model
         /// <summary>
         /// Modified on
         /// </summary>
-        public override DateTimeOffset ModifiedOn => this.m_recordOfTruth?.ModifiedOn ?? this.m_localRecords?.OrderByDescending(o => o.ModifiedOn).OfType<BaseEntityData>().FirstOrDefault().ModifiedOn ?? this.ModifiedOn;
+        public override DateTimeOffset ModifiedOn => this.m_recordOfTruth?.ModifiedOn ?? this.m_localRecords?.OrderByDescending(o => o.ModifiedOn).OfType<BaseEntityData>().FirstOrDefault().ModifiedOn ?? DateTime.Now;
 
         /// <summary>
         /// Get the version tag
@@ -269,23 +270,6 @@ namespace SanteDB.Persistence.MDM.Model
                 if (this.m_localRecords == null)
                 {
                     this.m_localRecords = EntitySource.Current.Provider.Query<EntityRelationship>(o => o.TargetEntityKey == this.Key && o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship).Select(o => o.LoadProperty<T>("SourceEntity")).ToList();
-                    this.m_localRecords.OfType<Entity>().ToList().ForEach(o =>
-                    {
-                        o.LoadCollection(p => p.Relationships, true);
-                        o.LoadCollection<EntityAddress>(nameof(Entity.Addresses));
-                        o.LoadCollection<EntityTag>(nameof(Entity.Tag));
-                        o.LoadCollection<EntityTelecomAddress>(nameof(Entity.Telecoms));
-                        o.LoadCollection<EntityIdentifier>(nameof(Entity.Identifiers));
-                        o.LoadCollection<EntityName>(nameof(Entity.Names));
-                        o.LoadCollection<EntityNote>(nameof(Entity.Notes));
-                        o.LoadCollection<SecurityPolicyInstance>(nameof(Entity.Policies), true);
-                        o.LoadCollection<EntityExtension>(nameof(Entity.Extensions));
-
-                        if (o is Place place)
-                            place.LoadCollection<PlaceService>(nameof(Place.Services));
-                        if (o is Person person)
-                            person.LoadCollection<PersonLanguageCommunication>(nameof(Person.LanguageCommunication));
-                    });
                 }
                 return this.m_localRecords;
             }

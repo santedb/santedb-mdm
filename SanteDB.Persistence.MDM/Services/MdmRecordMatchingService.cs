@@ -143,17 +143,12 @@ namespace SanteDB.Persistence.MDM.Services
                 foreach (var itm in uqIdentifiers)
                     nvc.Add($"identifier[{itm.Authority.Key}].value", itm.Value);
 
-                if (ignoreKeys?.Any() == true)
-                {
-                    nvc.Add("id", ignoreKeys.Select(o => $"!{o}"));
-                }
-
                 var filterExpression = QueryExpressionParser.BuildLinqExpression<T>(nvc);
                 // Now we want to filter returning the masters
                 using (AuthenticationContext.EnterSystemContext())
                 {
                     var repository = ApplicationServiceContext.Current.GetService<IRepositoryService<T>>();
-                    return repository.Find(filterExpression).Select(o => new MdmIdentityMatchResult<T>(entity, o, "$identity"));
+                    return repository.Find(filterExpression).Where(o => !ignoreKeys.Contains(o.Key.Value)).Select(o => new MdmIdentityMatchResult<T>(entity, o, "$identity"));
                 }
             }
         }

@@ -29,6 +29,21 @@ namespace SanteDB.Persistence.MDM.Services
             public DateTimeOffset CreationTime => DateTimeOffset.Now;
 
             /// <summary>
+            /// True if the configuration is read only
+            /// </summary>
+            public bool IsReadonly => true;
+
+            /// <summary>
+            /// Updated time
+            /// </summary>
+            public DateTimeOffset? UpdatedTime => null;
+
+            /// <summary>
+            /// Updated by
+            /// </summary>
+            public string UpdatedBy => null;
+
+            /// <summary>
             /// Gets the state
             /// </summary>
             public MatchConfigurationStatus State => MatchConfigurationStatus.Active;
@@ -55,6 +70,11 @@ namespace SanteDB.Persistence.MDM.Services
                 this.AppliesTo = appliesTo;
                 this.Metadata = new MdmIdentityRecordMatchMetadata();
             }
+
+            /// <summary>
+            /// Get the identity match uuid
+            /// </summary>
+            public Guid Uuid => MdmConstants.IdentityMatchUuid;
 
             /// <summary>
             /// Gets the name of this matching configuration
@@ -102,12 +122,12 @@ namespace SanteDB.Persistence.MDM.Services
         /// <summary>
         /// Delete a configuration
         /// </summary>
-        public IRecordMatchingConfiguration DeleteConfiguration(string name) => this.m_matchingConfigurationService.DeleteConfiguration(name);
+        public IRecordMatchingConfiguration DeleteConfiguration(String id) => this.m_matchingConfigurationService.DeleteConfiguration(id);
 
         /// <summary>
         /// Get configuration
         /// </summary>
-        public IRecordMatchingConfiguration GetConfiguration(string name) => this.m_matchingConfigurationService.GetConfiguration(name);
+        public IRecordMatchingConfiguration GetConfiguration(String id) => this.m_matchingConfigurationService.GetConfiguration(id);
 
         /// <summary>
         /// Save configuration

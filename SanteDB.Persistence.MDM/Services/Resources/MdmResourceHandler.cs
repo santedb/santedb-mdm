@@ -145,7 +145,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 // It is a type controlled by this handler - so we want to ensure we return the master rather than a local
                 if (o is TModel tmodel && !this.m_dataManager.IsMaster(tmodel))
                 {
-                    return this.m_dataManager.GetMasterFor(tmodel.Key.Value).GetMaster(principal);
+                    return this.m_dataManager.GetMasterContainerForMasterEntity(tmodel.Key.Value).GetMaster(principal);
                 }
                 // It is a type which is classified as a master and has a type concept
                 else if (o is IHasClassConcept ihcc && ihcc.ClassConceptKey == MdmConstants.MasterRecordClassification &&
@@ -211,15 +211,25 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 var localQuery = new NameValueCollection(query.ToDictionary(o => $"relationship[{MdmConstants.MasterRecordRelationship}].source@{typeof(TModel).Name}.{o.Key}", o => o.Value));
                 e.Cancel = true; // We want to cancel the callers query
 
-                // Trim the local query
+                //// Trim the local query
                 foreach (var itm in query.ToArray())
                 {
-                    if (!itm.Key.StartsWith("identifier") && !itm.Key.StartsWith("name") && !itm.Key.StartsWith("address"))
+                    var keyField = itm.Key.Split('[', '.');
+                    switch (keyField[0])
                     {
-                        query.Remove(itm.Key);
+                        case "identifier":
+                            break;
+
+                        default:
+                            query.Remove(itm.Key);
+                            break;
                     }
                 }
-                query.Add("classConcept", MdmConstants.MasterRecordClassification.ToString());
+
+                if (query.Any())
+                {
+                    query.Add("classConcept", MdmConstants.MasterRecordClassification.ToString());
+                }
 
                 // We are wrapping an entity, so we query entity masters
                 // TODO: Ensure that the query mapping actually performs this on dataquery exhaustion rather than on

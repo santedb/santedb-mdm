@@ -31,6 +31,7 @@ using SanteDB.Core.Model.Entities;
 using SanteDB.Core.Model.Interfaces;
 using SanteDB.Core.Model.Query;
 using SanteDB.Core.Security;
+using SanteDB.Core.Security.Audit;
 using SanteDB.Core.Services;
 using SanteDB.Persistence.MDM.Exceptions;
 using SanteDB.Persistence.MDM.Services.Resources;
@@ -108,11 +109,12 @@ namespace SanteDB.Persistence.MDM.Rest
                 {
                     var transaction = new Bundle(dataManager.MdmTxMasterLink(scopedKey, childObject.Key.Value, new IdentifiedData[0], true));
 
-                    return this.m_batchService.Insert(transaction, TransactionMode.Commit, AuthenticationContext.Current.Principal);
+                    var retVal = this.m_batchService.Insert(transaction, TransactionMode.Commit, AuthenticationContext.Current.Principal);
+                    return retVal;
                 }
                 catch (Exception e)
                 {
-                    this.m_tracer.TraceError("Error detaching master- {0}", e);
+                    this.m_tracer.TraceError("Error attaching master- {0}", e);
                     throw new MdmException($"Error detaching {scopingKey} from {childObject.Key}", e);
                 }
             }
@@ -135,7 +137,7 @@ namespace SanteDB.Persistence.MDM.Rest
         /// </summary>
         public IEnumerable<object> Query(Type scopingType, object scopingKey, NameValueCollection filter, int offset, int count, out int totalCount)
         {
-            var dataManager = MdmDataManagerFactory.GetDataManager<Entity>(scopingType);
+            var dataManager = MdmDataManagerFactory.GetDataManager(scopingType);
             if (dataManager == null)
             {
                 throw new NotSupportedException($"MDM is not configured for {scopingType}");
@@ -151,12 +153,29 @@ namespace SanteDB.Persistence.MDM.Rest
                         // TODO: Filtering and sorting for the associated locals call
                         var associatedLocals = dataManager.GetAssociatedLocals(scopedKey);
                         totalCount = associatedLocals.Count();
-                        return associatedLocals.Skip(offset).Take(count).ToArray().Select(o => o.LoadProperty(p => p.SourceEntity));
+                        return associatedLocals.Skip(offset).Take(count).ToArray().Select(o =>
+                        {
+                            var tag = o.LoadProperty(p => p.SourceEntity) as ITaggable;
+                            if (o.ClassificationKey == MdmConstants.AutomagicClassification)
+                            {
+                                tag.AddTag(MdmConstants.MdmClassificationTag, "Auto");
+                            }
+                            else if (o.ClassificationKey == MdmConstants.SystemClassification)
+                            {
+                                tag.AddTag(MdmConstants.MdmClassificationTag, "System");
+                            }
+                            else
+                            {
+                                tag.AddTag(MdmConstants.MdmClassificationTag, "Verified");
+                            }
+
+                            return o.SourceEntity;
+                        });
                     }
                     else
                     {
                         totalCount = 1; // there will only be one
-                        return new object[] { dataManager.GetMasterFor(scopedKey) };
+                        return new object[] { dataManager.GetMasterRelationshipFor(scopedKey).LoadProperty(o => o.TargetEntity) };
                     }
                 }
                 catch (Exception e)
@@ -176,7 +195,7 @@ namespace SanteDB.Persistence.MDM.Rest
         /// </summary>
         public object Remove(Type scopingType, object scopingKey, object key)
         {
-            var dataManager = MdmDataManagerFactory.GetDataManager<Entity>(scopingType);
+            var dataManager = MdmDataManagerFactory.GetDataManager(scopingType);
             if (dataManager == null)
             {
                 throw new NotSupportedException($"MDM is not configured for {scopingType}");
@@ -188,11 +207,14 @@ namespace SanteDB.Persistence.MDM.Rest
                 try
                 {
                     var transaction = new Bundle(dataManager.MdmTxMasterUnlink(scopedKey, childKey, new IdentifiedData[0]));
-                    return this.m_batchService.Insert(transaction, TransactionMode.Commit, AuthenticationContext.Current.Principal);
+
+                    var retVal = this.m_batchService.Insert(transaction, TransactionMode.Commit, AuthenticationContext.Current.Principal);
+                    return retVal;
                 }
                 catch (Exception e)
                 {
                     this.m_tracer.TraceError("Error detaching master- {0}", e);
+
                     throw new MdmException($"Error detaching {scopingKey} from {childKey}", e);
                 }
             }
