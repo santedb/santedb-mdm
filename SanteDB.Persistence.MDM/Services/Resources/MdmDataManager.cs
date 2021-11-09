@@ -93,7 +93,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// <summary>
         /// Get a MDM Master for the specified local key
         /// </summary>
-        public abstract IMdmMaster GetMasterFor(Guid localKey);
+        public abstract IMdmMaster GetMasterContainerForMasterEntity(Guid masterKey);
 
         /// <summary>
         /// Merge two master records together
@@ -129,6 +129,17 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// Given a MASTER detect LOCALS which might be candidates
         /// </summary>
         public abstract IEnumerable<IdentifiedData> MdmTxDetectCandidates(IdentifiedData master, List<IdentifiedData> context);
+
+        /// <summary>
+        /// Get all MDM associations for this local
+        /// </summary>
+        public abstract IEnumerable<ITargetedAssociation> GetAllMdmAssociations(Guid localKey);
+
+        /// <summary>
+        /// Get the master record for the specified local record
+        /// </summary>
+        public ITargetedAssociation GetMasterRelationshipFor(Guid localKey) =>
+            this.GetAllMdmAssociations(localKey).FirstOrDefault(o => o.AssociationTypeKey == MdmConstants.MasterRecordRelationship);
     }
 
     /// <summary>
@@ -180,7 +191,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// <summary>
         /// Get the master for the specified local
         /// </summary>
-        public abstract IdentifiedData GetRawMaster(TModel local);
+        public abstract IdentifiedData GetMasterFor(TModel local);
 
         /// <summary>
         /// Extracts the transactional components which might be in <paramref name="store"/> and return them
@@ -235,11 +246,6 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// Create a new master for the local
         /// </summary>
         public abstract IdentifiedData EstablishMasterFor(TModel local);
-
-        /// <summary>
-        /// Get all MDM associations for this local
-        /// </summary>
-        public abstract IEnumerable<ITargetedAssociation> GetAllMdmAssociations(Guid localKey);
 
         /// <summary>
         /// Match masters

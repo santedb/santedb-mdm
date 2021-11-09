@@ -118,7 +118,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             {
                 return true;
             }
-            else if (entity.Key.HasValue && !entity.ClassConceptKey.HasValue) // only the key
+            // The user may be promoting a master setting the determiner concept key
+            else if (entity.Key.HasValue && (entity.DeterminerConceptKey == MdmConstants.RecordOfTruthDeterminer || !entity.ClassConceptKey.HasValue))
             {
                 return this.m_entityPersistenceService.Get(entity.Key.Value, null, true, AuthenticationContext.SystemPrincipal)?.ClassConceptKey == MdmConstants.MasterRecordClassification;
             }
@@ -177,13 +178,14 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         public override TModel PromoteRecordOfTruth(TModel local)
         {
-            var master = (Entity)this.GetRawMaster(local);
+            var master = (Entity)this.GetMasterFor(local);
             if (master == null)
             {
                 throw new InvalidOperationException($"Cannot find Master for {local}");
             }
             local.DeterminerConceptKey = MdmConstants.RecordOfTruthDeterminer;
 
+            // Does the local key
             var rotRelationship = local.LoadCollection(o => o.Relationships).FirstOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordOfTruthRelationship) ??
                 master.LoadCollection(o => o.Relationships).SingleOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordOfTruthRelationship);
 
@@ -192,11 +194,33 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 rotRelationship = new EntityRelationship(MdmConstants.MasterRecordOfTruthRelationship, local.Key)
                 {
                     SourceEntityKey = master.Key,
-                    ClassificationKey = MdmConstants.VerifiedClassification
+                    ClassificationKey = MdmConstants.SystemClassification
                 };
                 local.Relationships.Add(rotRelationship);
-            }
 
+                // Ensure the ROT points to the master
+                var masterRel = local.Relationships.SingleOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship);
+                if (masterRel.TargetEntityKey != master.Key)
+                {
+                    local.Relationships.Remove(masterRel);
+                    local.Relationships.Add(new EntityRelationship(MdmConstants.MasterRecordRelationship, master.Key)
+                    {
+                        ClassificationKey = MdmConstants.SystemClassification
+                    });
+                }
+
+                // Remove any other MDM relationships
+                local.Relationships.RemoveAll(r => r.RelationshipTypeKey == MdmConstants.IgnoreCandidateRelationship ||
+                    r.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship ||
+                    r.RelationshipTypeKey == MdmConstants.OriginalMasterRelationship ||
+                    r.RelationshipTypeKey == EntityRelationshipTypeKeys.Scoper ||
+                    r.RelationshipTypeKey == EntityRelationshipTypeKeys.Replaces
+                );
+            }
+            else if (rotRelationship.SourceEntityKey != master.Key)
+            {
+                throw new InvalidOperationException("Looks like you're trying to change a ROT relationship to a different master - this is not permitted ");
+            }
             rotRelationship.SourceEntityKey = master.Key;
             return local;
         }
@@ -220,7 +244,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// <summary>
         /// Get master for the specified object
         /// </summary>
-        public override IdentifiedData GetRawMaster(TModel local)
+        public override IdentifiedData GetMasterFor(TModel local)
         {
             return this.GetMasterFor(local, null);
         }
@@ -228,7 +252,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// <summary>
         /// Get master for specified object within a context
         /// </summary>
-        public Entity GetMasterFor(TModel local, IEnumerable<IdentifiedData> context)
+        private Entity GetMasterFor(TModel local, IEnumerable<IdentifiedData> context)
         {
             if (this.IsMaster(local))
             {
@@ -446,7 +470,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         public override IEnumerable<IdentifiedData> MdmTxObsolete(TModel data, IEnumerable<IdentifiedData> context)
         {
             // First we get the master
-            var master = (Entity)this.GetRawMaster(data);
+            var master = (Entity)this.GetMasterFor(data);
 
             // How many other relationships are on this master which aren't us and active?
             // No other active?
@@ -510,9 +534,6 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         public override IEnumerable<IdentifiedData> MdmTxSaveLocal(TModel data, IEnumerable<IdentifiedData> context)
         {
-            // Return value
-            var retVal = new LinkedList<IdentifiedData>(context);
-
             // Validate that we can store this in context
             data.Tags.RemoveAll(t => t.TagKey == MdmConstants.MdmTypeTag);
 
@@ -522,23 +543,26 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             // Persist master in the transaction?
             if (!context.Any(r => r.Key == data.Key))
             {
-                retVal.AddFirst(data);
-
                 // we need to remove any MDM relationships from the object since they'll be in the tx
                 data.Relationships.RemoveAll(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship ||
                     o.RelationshipTypeKey == MdmConstants.MasterRecordOfTruthRelationship ||
                     o.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship);
                 // Add them from the match instructions
                 data.Relationships.AddRange(matchInstructions.OfType<EntityRelationship>().Where(o => o.SourceEntityKey == data.Key));
+
+                yield return data;
+            }
+
+            foreach(var itm in context)
+            {
+                yield return itm;
             }
 
             // Match instructions
             foreach (var rv in matchInstructions)
             {
-                retVal.AddLast(rv);
+                yield return rv;
             }
-
-            return retVal;
         }
 
         /// <summary>
@@ -557,6 +581,12 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </remarks>
         public override IEnumerable<IdentifiedData> MdmTxMatchMasters(TModel local, IEnumerable<IdentifiedData> context)
         {
+            // If the LOCAL is a ROT then don't match them
+            if (local.DeterminerConceptKey == MdmConstants.RecordOfTruthDeterminer)
+            {
+                yield break;
+            }
+
             // Return value
             LinkedList<IdentifiedData> retVal = new LinkedList<IdentifiedData>();
             bool rematchMaster = false;
@@ -1051,11 +1081,11 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         }
 
         /// <summary>
-        /// Get the master construct record for <paramref name="localKey"/>
+        /// Get the master construct record for <paramref name="masterKey"/>
         /// </summary>
-        public override IMdmMaster GetMasterFor(Guid localKey)
+        public override IMdmMaster GetMasterContainerForMasterEntity(Guid masterKey)
         {
-            var masterEntity = this.m_entityPersistenceService.Get(localKey, null, true, AuthenticationContext.SystemPrincipal) as Entity;
+            var masterEntity = this.m_entityPersistenceService.Get(masterKey, null, true, AuthenticationContext.SystemPrincipal) as Entity;
             if (masterEntity.ClassConceptKey == MdmConstants.MasterRecordClassification)
             {
                 return new EntityMaster<TModel>(masterEntity);
@@ -1185,10 +1215,14 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 {
                     foreach (var local in this.GetAssociatedLocals(r.Record.Key.Value))
                     {
-                        yield return new EntityRelationship(MdmConstants.CandidateLocalRelationship, local.SourceEntityKey, master.Key, MdmConstants.AutomagicClassification)
+                        var src = local.LoadProperty(o => o.SourceEntity) as Entity;
+                        if (src.DeterminerConceptKey != MdmConstants.RecordOfTruthDeterminer)
                         {
-                            Strength = r.Strength
-                        };
+                            yield return new EntityRelationship(MdmConstants.CandidateLocalRelationship, local.SourceEntityKey, master.Key, MdmConstants.AutomagicClassification)
+                            {
+                                Strength = r.Strength
+                            };
+                        }
                     }
                 }
             }
