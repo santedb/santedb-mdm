@@ -553,6 +553,11 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 yield return data;
             }
 
+            foreach(var itm in context)
+            {
+                yield return itm;
+            }
+
             // Match instructions
             foreach (var rv in matchInstructions)
             {
