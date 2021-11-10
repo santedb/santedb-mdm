@@ -194,11 +194,33 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 rotRelationship = new EntityRelationship(MdmConstants.MasterRecordOfTruthRelationship, local.Key)
                 {
                     SourceEntityKey = master.Key,
-                    ClassificationKey = MdmConstants.VerifiedClassification
+                    ClassificationKey = MdmConstants.SystemClassification
                 };
                 local.Relationships.Add(rotRelationship);
-            }
 
+                // Ensure the ROT points to the master
+                var masterRel = local.Relationships.SingleOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship);
+                if (masterRel.TargetEntityKey != master.Key)
+                {
+                    local.Relationships.Remove(masterRel);
+                    local.Relationships.Add(new EntityRelationship(MdmConstants.MasterRecordRelationship, master.Key)
+                    {
+                        ClassificationKey = MdmConstants.SystemClassification
+                    });
+                }
+
+                // Remove any other MDM relationships
+                local.Relationships.RemoveAll(r => r.RelationshipTypeKey == MdmConstants.IgnoreCandidateRelationship ||
+                    r.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship ||
+                    r.RelationshipTypeKey == MdmConstants.OriginalMasterRelationship ||
+                    r.RelationshipTypeKey == EntityRelationshipTypeKeys.Scoper ||
+                    r.RelationshipTypeKey == EntityRelationshipTypeKeys.Replaces
+                );
+            }
+            else if (rotRelationship.SourceEntityKey != master.Key)
+            {
+                throw new InvalidOperationException("Looks like you're trying to change a ROT relationship to a different master - this is not permitted ");
+            }
             rotRelationship.SourceEntityKey = master.Key;
             return local;
         }
@@ -485,9 +507,6 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         public override IEnumerable<IdentifiedData> MdmTxSaveLocal(TModel data, IEnumerable<IdentifiedData> context)
         {
-            // Return value
-            var retVal = new LinkedList<IdentifiedData>(context);
-
             // Validate that we can store this in context
             data.Tags.RemoveAll(t => t.TagKey == MdmConstants.MdmTypeTag);
 
@@ -497,23 +516,26 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             // Persist master in the transaction?
             if (!context.Any(r => r.Key == data.Key))
             {
-                retVal.AddFirst(data);
-
                 // we need to remove any MDM relationships from the object since they'll be in the tx
                 data.Relationships.RemoveAll(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship ||
                     o.RelationshipTypeKey == MdmConstants.MasterRecordOfTruthRelationship ||
                     o.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship);
                 // Add them from the match instructions
                 data.Relationships.AddRange(matchInstructions.OfType<EntityRelationship>().Where(o => o.SourceEntityKey == data.Key));
+
+                yield return data;
+            }
+
+            foreach(var itm in context)
+            {
+                yield return itm;
             }
 
             // Match instructions
             foreach (var rv in matchInstructions)
             {
-                retVal.AddLast(rv);
+                yield return rv;
             }
-
-            return retVal;
         }
 
         /// <summary>
