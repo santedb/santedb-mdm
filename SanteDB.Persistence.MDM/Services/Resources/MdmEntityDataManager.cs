@@ -519,14 +519,15 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 // we need to remove any MDM relationships from the object since they'll be in the tx
                 data.Relationships.RemoveAll(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship ||
                     o.RelationshipTypeKey == MdmConstants.MasterRecordOfTruthRelationship ||
-                    o.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship);
+                    o.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship ||
+                    o.RelationshipTypeKey == MdmConstants.IgnoreCandidateRelationship);
                 // Add them from the match instructions
                 data.Relationships.AddRange(matchInstructions.OfType<EntityRelationship>().Where(o => o.SourceEntityKey == data.Key));
 
                 yield return data;
             }
 
-            foreach(var itm in context)
+            foreach (var itm in context)
             {
                 yield return itm;
             }
@@ -575,7 +576,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 {
                     if (!existingMasterRel.Key.HasValue)
                     {
-                        existingMasterRel = this.m_relationshipService.Query(o => o.SourceEntityKey == local.Key && o.TargetEntityKey == existingMasterRel.TargetEntityKey && o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship, 0, 1, out int _, AuthenticationContext.SystemPrincipal).FirstOrDefault() ?? existingMasterRel;
+                        existingMasterRel = this.m_relationshipService.Query(o => o.SourceEntityKey == local.Key && o.TargetEntityKey == existingMasterRel.TargetEntityKey && o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship, AuthenticationContext.SystemPrincipal).FirstOrDefault() ?? existingMasterRel;
                     }
                     retVal.AddLast(existingMasterRel);
                     rematchMaster = this.m_relationshipService.Count(r => r.TargetEntityKey == existingMasterRel.TargetEntityKey && r.SourceEntityKey != local.Key && r.RelationshipTypeKey == MdmConstants.MasterRecordRelationship && r.ObsoleteVersionSequenceId == null) > 0; // we'll need to rematch
@@ -589,11 +590,14 @@ namespace SanteDB.Persistence.MDM.Services.Resources
 
             // Get the ignore list
             // We ignore any candidate where:
+            // TODO: Ensure that this works with the new persistence layer
             // 1. The LOCAL under consideration has an explicit ignore key to a MASTER, or
-            var ignoreList = this.m_relationshipService.Query(o => o.SourceEntityKey == local.Key && o.RelationshipTypeKey == MdmConstants.IgnoreCandidateRelationship, AuthenticationContext.SystemPrincipal).Select(o => o.TargetEntityKey.Value)
-                .Union(context.OfType<EntityRelationship>().Where(o => o.RelationshipTypeKey == MdmConstants.IgnoreCandidateRelationship && o.BatchOperation != BatchOperationType.Obsolete).Select(o => o.TargetEntityKey.Value));
-            // 2. The LOCAL's MASTER is the target of an IGNORE of another local - then those LOCAL MASTERs are ignored or there is an ACTIVE CANDIDIATE
-            ignoreList = ignoreList.Union(this.m_relationshipService.Query(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship && o.SourceEntity.Relationships.Where(s => s.RelationshipTypeKey == MdmConstants.IgnoreCandidateRelationship || s.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship).Any(s => s.TargetEntityKey == existingMasterRel.TargetEntityKey), AuthenticationContext.SystemPrincipal).Select(o => o.TargetEntityKey.Value));
+            var ignoreList = this.m_relationshipService.Query(o => o.SourceEntityKey == local.Key && o.RelationshipTypeKey == MdmConstants.IgnoreCandidateRelationship, AuthenticationContext.SystemPrincipal)
+                // 2. The LOCAL's MASTER is the target of an IGNORE of another local - then those LOCAL MASTERs are ignored or there is an ACTIVE CANDIDIATE
+                .Union(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship && o.SourceEntity.Relationships.Where(s => s.RelationshipTypeKey == MdmConstants.IgnoreCandidateRelationship || s.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship).Any(s => s.TargetEntityKey == existingMasterRel.TargetEntityKey))
+                .Select(o => o.TargetEntityKey.Value);
+
+            ignoreList = ignoreList.Union(context.OfType<EntityRelationship>().Where(o => o.RelationshipTypeKey == MdmConstants.IgnoreCandidateRelationship && o.BatchOperation != BatchOperationType.Obsolete).Select(o => o.TargetEntityKey.Value)).ToArray();
 
             // It may be possible the ignore was un-ignored
             ignoreList = ignoreList.Where(i => !context.OfType<EntityRelationship>().Any(c => c.RelationshipTypeKey == MdmConstants.IgnoreCandidateRelationship && c.TargetEntityKey == i && c.BatchOperation == BatchOperationType.Obsolete)).ToList();
@@ -611,7 +615,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             foreach (var cnf in this.m_matchingConfigurationService.Configurations.Where(o => o.AppliesTo.Contains(typeof(TModel)) && o.Metadata.State == MatchConfigurationStatus.Active))
             {
                 // Get a list of match results
-                var matchResults = this.m_matchingService.Match<TModel>(local, cnf.Id, ignoreList);
+                var matchResults = this.m_matchingService.Match<TModel>(local, cnf.Id, ignoreList.ToArray());
 
                 bool autoLink = cnf.Metadata.Tags.TryGetValue(MdmConstants.AutoLinkSetting, out string autoLinkValue) && Boolean.Parse(autoLinkValue);
 

@@ -225,10 +225,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         }
 
         /// <summary>
-        /// Where
+        /// Returns the filtered expression on query
         /// </summary>
-        /// <param name="query"></param>
-        /// <returns></returns>
         public IQueryResultSet Where(Expression query)
         {
             throw new NotImplementedException();
@@ -275,6 +273,23 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         IQueryResultSet IQueryResultSet.Take(int count) => this.Take(count);
 
         IQueryResultSet<IMdmMaster> IQueryResultSet<IMdmMaster>.Take(int count) => this.Take(count) as MdmEntityResultSet<TModel>;
+
+        /// <summary>
+        /// Select specified data from entity master
+        /// </summary>
+        public IEnumerable<TReturn> Select<TReturn>(Expression<Func<EntityMaster<TModel>, TReturn>> selector)
+        {
+            var newSelector = new ExpressionConvertVisitor<EntityMaster<TModel>, TModel, TReturn>(selector).Convert();
+            return this.m_wrappedResultSet.Select(newSelector);
+        }
+
+        /// <summary>
+        /// Select from a IMaster
+        /// </summary>
+        public IEnumerable<TReturn> Select<TReturn>(Expression<Func<IMdmMaster, TReturn>> selector)
+        {
+            throw new NotSupportedException();
+        }
 
         #endregion Non-Generic
     }
