@@ -15,7 +15,7 @@ namespace SanteDB.Persistence.MDM.Test
     /// <summary>
     /// Implements a matcher service which only matches date of birth
     /// </summary>
-    public class DummyMatcherService : IRecordMatchingService
+    public class DummyMatcherService : IRecordMatchingService, IRecordMatchingConfigurationService
     {
         /// <summary>
         /// Gets the service name
@@ -23,11 +23,23 @@ namespace SanteDB.Persistence.MDM.Test
         public string ServiceName => "";
 
         /// <summary>
+        /// Get all configurations
+        /// </summary>
+        public IEnumerable<IRecordMatchingConfiguration> Configurations
+        {
+            get
+            {
+                yield return new DummyMatchConfiguration();
+            }
+        }
+
+        /// <summary>
         /// Perform blocking
         /// </summary>
         public IEnumerable<T> Block<T>(T input, string configurationName, IEnumerable<Guid> ignoreList) where T : IdentifiedData
         {
-            if (input.GetType() == typeof(Patient)) {
+            if (input.GetType() == typeof(Patient))
+            {
                 Patient p = (Patient)((Object)input);
                 return ApplicationServiceContext.Current.GetService<IDataPersistenceService<Patient>>().Query(o => o.DateOfBirth == p.DateOfBirth && o.Key != p.Key, AuthenticationContext.Current.Principal).OfType<T>();
             }
@@ -60,7 +72,7 @@ namespace SanteDB.Persistence.MDM.Test
         }
 
         /// <summary>
-        /// Classify 
+        /// Classify
         /// </summary>
         public IEnumerable<IRecordMatchResult> Classify(IdentifiedData input, IEnumerable<IdentifiedData> blocks, String configurationName)
         {
@@ -79,13 +91,106 @@ namespace SanteDB.Persistence.MDM.Test
             }
             else return null;
         }
+
+        public IRecordMatchingConfiguration GetConfiguration(string configurationId)
+        {
+            throw new NotImplementedException();
+        }
+
+        public IRecordMatchingConfiguration SaveConfiguration(IRecordMatchingConfiguration configuration)
+        {
+            throw new NotImplementedException();
+        }
+
+        public IRecordMatchingConfiguration DeleteConfiguration(string configurationId)
+        {
+            throw new NotImplementedException();
+        }
+    }
+
+    /// <summary>
+    /// Dummy match configuration
+    /// </summary>
+    internal class DummyMatchConfiguration : IRecordMatchingConfiguration
+    {
+        public DummyMatchConfiguration()
+        {
+            this.Metadata = new DummyMatchConfigurationMetadata();
+        }
+
+        /// <summary>
+        /// UUID
+        /// </summary>
+        public Guid Uuid => Guid.NewGuid();
+
+        /// <summary>
+        /// Identifier
+        /// </summary>
+        public string Id => "default";
+
+        /// <summary>
+        /// Applies to patient
+        /// </summary>
+        public Type[] AppliesTo => new Type[] { typeof(Patient) };
+
+        /// <summary>
+        /// Get the metadata
+        /// </summary>
+        public IRecordMatchingConfigurationMetadata Metadata
+        {
+            get; set;
+        }
+
+        /// <summary>
+        /// Match configuration metadata
+        /// </summary>
+        private class DummyMatchConfigurationMetadata : IRecordMatchingConfigurationMetadata
+        {
+            /// <summary>
+            /// Created by
+            /// </summary>
+            public string CreatedBy => "SYSTEM";
+
+            /// <summary>
+            /// Creation time
+            /// </summary>
+            public DateTimeOffset CreationTime => DateTimeOffset.Now;
+
+            /// <summary>
+            /// State of the configuration
+            /// </summary>
+            public MatchConfigurationStatus State => MatchConfigurationStatus.Active;
+
+            /// <summary>
+            /// Is readonly
+            /// </summary>
+            public bool IsReadonly => true;
+
+            /// <summary>
+            /// Get all tags
+            /// </summary>
+            public IDictionary<string, string> Tags => new Dictionary<String, String>()
+            {
+                { MdmConstants.AutoLinkSetting, "true" }
+            };
+
+            /// <summary>
+            /// Updated time
+            /// </summary>
+            public DateTimeOffset? UpdatedTime => null;
+
+            /// <summary>
+            /// Updated by
+            /// </summary>
+            public string UpdatedBy => null;
+        }
     }
 
     /// <summary>
     /// Represent a dummy match result
     /// </summary>
     public class DummyMatchResult<T> : IRecordMatchResult<T>
-        where T: IdentifiedData
+        where T : IdentifiedData
     {
         // The record
         private T m_record;

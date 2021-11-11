@@ -2,22 +2,23 @@
  * Copyright (C) 2021 - 2021, SanteSuite Inc. and the SanteSuite Contributors (See NOTICE.md for full copyright notices)
  * Copyright (C) 2019 - 2021, Fyfe Software Inc. and the SanteSuite Contributors
  * Portions Copyright (C) 2015-2018 Mohawk College of Applied Arts and Technology
- * 
- * Licensed under the Apache License, Version 2.0 (the "License"); you 
- * may not use this file except in compliance with the License. You may 
- * obtain a copy of the License at 
- * 
- * http://www.apache.org/licenses/LICENSE-2.0 
- * 
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you
+ * may not use this file except in compliance with the License. You may
+ * obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the 
- * License for the specific language governing permissions and limitations under 
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations under
  * the License.
- * 
+ *
  * User: fyfej
  * Date: 2021-8-5
  */
+
 using SanteDB.Core;
 using SanteDB.Core.Configuration;
 using SanteDB.Core.Model;
@@ -38,9 +39,9 @@ using System.Threading.Tasks;
 namespace SanteDB.Persistence.MDM.Services
 {
     /// <summary>
-    /// Freetext search service that is Master Aware 
+    /// Freetext search service that is Master Aware
     /// </summary>
-    /// <remarks>Only use this freetext search service if your freetext search service implementation interacts directly with the 
+    /// <remarks>Only use this freetext search service if your freetext search service implementation interacts directly with the
     /// SanteDB database, not if you're using something like Lucene or Redshift as those are index based and the fetch should
     /// be done via the IRepositoryService</remarks>
     public class MdmFreetextSearchService : IFreetextSearchService
@@ -71,7 +72,8 @@ namespace SanteDB.Persistence.MDM.Services
                 searchFilters.Add(QueryExpressionParser.BuildLinqExpression<Entity>(new NameValueCollection() { { "classConcept", MdmConstants.MasterRecordClassification.ToString() }, { $"relationship[{MdmConstants.MasterRecordRelationship}].source.name.component.value", term.Select(o => $":(approx|\"{o}\")") } }));
                 searchFilters.Add(QueryExpressionParser.BuildLinqExpression<Entity>(new NameValueCollection() { { "classConcept", MdmConstants.MasterRecordClassification.ToString() }, { $"relationship[{MdmConstants.MasterRecordRelationship}].source.identifier.value", term } }));
                 var results = idps.Union(searchFilters.ToArray(), queryId, offset, count, out totalResults, principal);
-                return results.AsParallel().AsOrdered().Select(o => o is Entity ? new EntityMaster<TEntity>((Entity)(object)o).Synthesize(principal) : new ActMaster<TEntity>((Act)(Object)o).Synthesize(principal)).OfType<TEntity>().ToList();
+                var mdmDataManager = MdmDataManagerFactory.GetDataManager<TEntity>();
+                return results.AsParallel().AsOrdered().Select(o => mdmDataManager.CreateMasterContainerForMasterEntity(o).Synthesize(principal)).OfType<TEntity>().ToList();
             }
             else
             {
@@ -80,11 +82,10 @@ namespace SanteDB.Persistence.MDM.Services
                 if (idps == null)
                     throw new InvalidOperationException("Cannot find a UNION query repository service");
                 var searchFilters = new List<Expression<Func<TEntity, bool>>>(term.Length);
-                searchFilters.Add(QueryExpressionParser.BuildLinqExpression<TEntity>(new NameValueCollection() { { "name.component.value", term.Select(o => $":(approx|\"{o}\")") } } ));
+                searchFilters.Add(QueryExpressionParser.BuildLinqExpression<TEntity>(new NameValueCollection() { { "name.component.value", term.Select(o => $":(approx|\"{o}\")") } }));
                 searchFilters.Add(QueryExpressionParser.BuildLinqExpression<TEntity>(new NameValueCollection() { { "identifier.value", term } }));
                 return idps.Union(searchFilters.ToArray(), queryId, offset, count, out totalResults, AuthenticationContext.Current.Principal, orderBy);
             }
-
         }
     }
 }

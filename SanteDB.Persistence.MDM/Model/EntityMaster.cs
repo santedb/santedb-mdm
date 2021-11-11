@@ -38,6 +38,7 @@ using SanteDB.Core.Model.Interfaces;
 using SanteDB.Core.Security;
 using SanteDB.Core.Model.Constants;
 using SanteDB.Core.Model.Attributes;
+using SanteDB.Core.Services;
 
 namespace SanteDB.Persistence.MDM.Model
 {
@@ -89,7 +90,8 @@ namespace SanteDB.Persistence.MDM.Model
         /// Get the type name
         /// </summary>
         [DataIgnore, XmlIgnore, JsonProperty("$type")]
-        public override string Type { get => $"EntityRelationshipMaster"; set { } }
+        public override string Type
+        { get => $"EntityRelationshipMaster"; set { } }
 
         /// <summary>
         /// Gets the original relationship
@@ -153,13 +155,14 @@ namespace SanteDB.Persistence.MDM.Model
     [XmlType(Namespace = "http://santedb.org/model")]
     [XmlInclude(typeof(EntityRelationshipMaster))]
     public class EntityMaster<T> : Entity, IMdmMaster<T>
-        where T : IdentifiedData, new()
+        where T : Entity, new()
     {
         /// <summary>
         /// Get the type name
         /// </summary>
         [DataIgnore, XmlIgnore, JsonProperty("$type")]
-        public override string Type { get => $"{typeof(T).Name}Master"; set { } }
+        public override string Type
+        { get => $"{typeof(T).Name}Master"; set { } }
 
         // The master record
         private Entity m_masterRecord;
@@ -196,7 +199,6 @@ namespace SanteDB.Persistence.MDM.Model
         public T Synthesize(IPrincipal principal)
         {
             var master = new T();
-            var entityMaster = master as Entity;
             master.CopyObjectData<IdentifiedData>(this.m_masterRecord, overwritePopulatedWithNull: false, ignoreTypeMismatch: true);
 
             // Is there a relationship which is the record of truth
@@ -204,7 +206,17 @@ namespace SanteDB.Persistence.MDM.Model
             var locals = this.LocalRecords.Select(o => pep != null ? pep.Apply(o, principal) : o).OfType<T>().ToArray();
 
             if (locals.Length == 0) // Not a single local can be viewed
+            {
+                // Attempt to fetch a "replaced-by" link
+                var oldRelationships = EntitySource.Current.Provider.Query<EntityRelationship>(o => (o.RelationshipTypeKey == EntityRelationshipTypeKeys.Replaces || o.RelationshipTypeKey == MdmConstants.OriginalMasterRelationship) && o.ObsoleteVersionSequenceId == null && o.TargetEntityKey == master.Key);
+
+                var originalMasterFor = oldRelationships.FirstOrDefault(o => o.RelationshipTypeKey == MdmConstants.OriginalMasterRelationship)?.LoadProperty(o => o.SourceEntity);
+                if (originalMasterFor != null)
+                {
+                    master.SemanticCopy(originalMasterFor);
+                }
                 return master;
+            }
             else if (this.m_recordOfTruth == null) // We have to create a synthetic record
             {
                 master.SemanticCopy(locals);
@@ -213,12 +225,12 @@ namespace SanteDB.Persistence.MDM.Model
             {
                 master.SemanticCopy((T)(object)this.m_recordOfTruth);
                 master.SemanticCopyNullFields(locals);
-                entityMaster.Tags.Add(new EntityTag(MdmConstants.MdmRotIndicatorTag, "true"));
+                master.Tags.Add(new EntityTag(MdmConstants.MdmRotIndicatorTag, "true"));
             }
 
             // HACK: Copy targets for relationships and refactor them - Find a cleaner way to do this
             var relationships = new List<EntityRelationship>();
-            foreach (var rel in entityMaster.LoadCollection(o => o.Relationships).Where(r => r.SourceEntityKey == entityMaster.Key)
+            foreach (var rel in master.LoadCollection(o => o.Relationships).Where(r => r.SourceEntityKey == master.Key)
                 .Union(
                     // Rewrite local record regular relationships
                     this.LocalRecords.OfType<Entity>().SelectMany(
@@ -233,19 +245,19 @@ namespace SanteDB.Persistence.MDM.Model
                 if (!relationships.Any(r => r.SemanticEquals(rel)))
                     relationships.Add(rel);
             }
-            entityMaster.Relationships = relationships;
+            master.Relationships = relationships;
 
-            entityMaster.Policies = this.LocalRecords.SelectMany(o => (o as Entity).Policies).Distinct().ToList();
-            entityMaster.Tags.RemoveAll(o => o.TagKey == MdmConstants.MdmTypeTag);
-            entityMaster.Tags.Add(new EntityTag(MdmConstants.MdmTypeTag, "M")); // This is a master
-            entityMaster.Tags.Add(new EntityTag(MdmConstants.MdmResourceTag, typeof(T).Name)); // The original resource of the master
-            entityMaster.Tags.Add(new EntityTag(MdmConstants.MdmGeneratedTag, "true")); // This object was generated
-            entityMaster.Tags.Add(new EntityTag(SanteDBConstants.AlternateKeysTag, String.Join(",", locals.Select(o => o.Key.ToString()))));
-            entityMaster.CreationTime = this.ModifiedOn;
-            entityMaster.PreviousVersionKey = this.m_masterRecord.PreviousVersionKey;
-            entityMaster.Key = this.m_masterRecord.Key;
-            entityMaster.VersionKey = this.m_recordOfTruth?.VersionKey ?? this.m_masterRecord.VersionKey;
-            entityMaster.VersionSequence = this.m_masterRecord.VersionSequence;
+            master.Policies = this.LocalRecords.SelectMany(o => (o as Entity).Policies).Distinct().ToList();
+            master.Tags.RemoveAll(o => o.TagKey == MdmConstants.MdmTypeTag);
+            master.Tags.Add(new EntityTag(MdmConstants.MdmTypeTag, "M")); // This is a master
+            master.Tags.Add(new EntityTag(MdmConstants.MdmResourceTag, typeof(T).Name)); // The original resource of the master
+            master.Tags.Add(new EntityTag(MdmConstants.MdmGeneratedTag, "true")); // This object was generated
+            master.Tags.Add(new EntityTag(SanteDBConstants.AlternateKeysTag, String.Join(",", locals.Select(o => o.Key.ToString()))));
+            master.CreationTime = this.ModifiedOn;
+            master.PreviousVersionKey = this.m_masterRecord.PreviousVersionKey;
+            master.Key = this.m_masterRecord.Key;
+            master.VersionKey = this.m_recordOfTruth?.VersionKey ?? this.m_masterRecord.VersionKey;
+            master.VersionSequence = this.m_masterRecord.VersionSequence;
             return master;
         }
 
@@ -278,7 +290,7 @@ namespace SanteDB.Persistence.MDM.Model
         /// <summary>
         /// Get master record
         /// </summary>
-        IIdentifiedEntity IMdmMaster.GetMaster(IPrincipal principal) => this.Synthesize(principal);
+        IIdentifiedEntity IMdmMaster.Synthesize(IPrincipal principal) => this.Synthesize(principal);
 
         /// <summary>
         /// Gets local records

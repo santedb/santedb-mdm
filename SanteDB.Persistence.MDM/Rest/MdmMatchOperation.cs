@@ -98,18 +98,18 @@ namespace SanteDB.Persistence.MDM.Rest
                     {
                         if (itm is EntityRelationship er)
                         {
-                            er.BatchOperation = Core.Model.DataTypes.BatchOperationType.Obsolete;
+                            er.BatchOperation = Core.Model.DataTypes.BatchOperationType.Delete;
                             retVal.Add(er);
                         }
                         else if (itm is ActRelationship ar)
                         {
-                            ar.BatchOperation = Core.Model.DataTypes.BatchOperationType.Obsolete;
+                            ar.BatchOperation = Core.Model.DataTypes.BatchOperationType.Delete;
                             retVal.Add(ar);
                         }
                     }
                 }
 
-                retVal.AddRange(dataManager.MdmTxDetectCandidates(dataManager.MdmGet(scopingObjectKey).GetMaster(AuthenticationContext.Current.Principal) as Entity, retVal.Item));
+                retVal.AddRange(dataManager.MdmTxDetectCandidates(dataManager.MdmGet(scopingObjectKey).Synthesize(AuthenticationContext.Current.Principal) as Entity, retVal.Item));
 
                 // Now we want to save?
                 try

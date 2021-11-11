@@ -71,7 +71,7 @@ namespace SanteDB.Persistence.MDM.Services
             {
                 foreach (var i in e.Data.Item.OfType<AssigningAuthority>())
                 {
-                    if (i.BatchOperation == BatchOperationType.Obsolete || i.ObsoletionTime.HasValue)
+                    if (i.BatchOperation == BatchOperationType.Delete || i.ObsoletionTime.HasValue)
                     {
                         this.m_uniqueAuthorities.Remove(i.Key.Value);
                     }
