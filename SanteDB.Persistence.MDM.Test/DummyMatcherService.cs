@@ -7,6 +7,7 @@ using SanteDB.Core.Services;
 using SanteDB.Core.Matching;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Linq.Expressions;
 
@@ -15,6 +16,7 @@ namespace SanteDB.Persistence.MDM.Test
     /// <summary>
     /// Implements a matcher service which only matches date of birth
     /// </summary>
+    [ExcludeFromCodeCoverage]
     public class DummyMatcherService : IRecordMatchingService, IRecordMatchingConfigurationService
     {
         /// <summary>

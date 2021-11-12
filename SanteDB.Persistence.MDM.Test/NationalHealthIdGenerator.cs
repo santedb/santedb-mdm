@@ -9,6 +9,7 @@ using SanteDB.Core.Services.Impl;
 using SanteDB.Persistence.MDM.Model;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -18,6 +19,7 @@ namespace SanteDB.Persistence.MDM.Test
     /// <summary>
     /// Business rule service
     /// </summary>
+    [ExcludeFromCodeCoverage]
     public class BundleBusinessRule : BaseBusinessRulesService<Bundle>
     {
         /// <summary>

@@ -13,6 +13,7 @@ using SanteDB.Persistence.MDM.Services;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using SanteDB.Caching.Memory.Configuration;
 using SanteDB.Core.TestFramework;
@@ -25,6 +26,7 @@ namespace SanteDB.Persistence.MDM.Test
     /// <summary>
     /// Tests the MDM daemon service for testing capabilities
     /// </summary>
+    [ExcludeFromCodeCoverage]
     [TestFixture(Category = "Master Data Management")]
     public class MdmAssociationTest : DataTest
     {
