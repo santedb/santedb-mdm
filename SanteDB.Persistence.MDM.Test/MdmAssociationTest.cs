@@ -13,6 +13,7 @@ using SanteDB.Persistence.MDM.Services;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using SanteDB.Core.TestFramework;
 using SanteDB.Core.Security.Claims;
@@ -25,10 +26,10 @@ namespace SanteDB.Persistence.MDM.Test
     /// <summary>
     /// Tests the MDM daemon service for testing capabilities
     /// </summary>
+    [ExcludeFromCodeCoverage]
     [TestFixture(Category = "Master Data Management")]
     public class MdmAssociationTest : DataTest
     {
-
         // Test authority
         private readonly AssigningAuthority m_testAuthority = new AssigningAuthority("TEST-MDM", "TEST-MDM", "1.2.3.4.9999");
 
@@ -62,7 +63,6 @@ namespace SanteDB.Persistence.MDM.Test
         // [Test(Description = "Case 0: Chained / Upstream Calls")]
         public void TestMdmInterceptsParentTypes()
         {
-
             using (AuthenticationContext.EnterSystemContext())
             {
                 var patientUnderTest = new Patient()
@@ -95,7 +95,7 @@ namespace SanteDB.Persistence.MDM.Test
                 // Assert -> A fetch by ID from master should return master
                 var fetchMaster = this.m_patientRepository.Get(queriedMaster.Key.Value);
                 Assert.AreEqual(queriedMaster.Key, fetchMaster.Key);
-                
+
                 // Assert -> A fetch by ID for local should return local
                 var fetchLocal = this.m_patientRepository.Get(savedLocal.Key.Value);
                 Assert.AreEqual(1, fetchLocal.Names.Count);
@@ -115,7 +115,6 @@ namespace SanteDB.Persistence.MDM.Test
                 Assert.AreEqual("true", queriedMaster.GetTag("$generated"));
                 Assert.AreEqual(1, queriedMaster.Names.Count);
                 Assert.AreEqual(2, queriedMaster.Identifiers.Count);
-
             }
         }
 
@@ -132,7 +131,6 @@ namespace SanteDB.Persistence.MDM.Test
         [Test(Description = "Case 1: Register New Record")]
         public void TestMdmShouldCreateNewMaster()
         {
-
             using (AuthenticationContext.EnterSystemContext())
             {
                 var patientUnderTest = new Patient()
@@ -171,7 +169,6 @@ namespace SanteDB.Persistence.MDM.Test
                 Assert.AreEqual(1, fetchLocal.Names.Count);
                 Assert.AreEqual(1, fetchLocal.Identifiers.Count);
                 Assert.IsNull(fetchLocal.GetTag("$mdm.type"));
-                
             }
         }
 
@@ -329,7 +326,7 @@ namespace SanteDB.Persistence.MDM.Test
                 Assert.AreEqual(MdmConstants.AutomagicClassification, queriedMasterB.Relationships.First(o => o.SourceEntityKey == savedLocalB.Key && o.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship && o.TargetEntityKey == queriedMasterA.Key).ClassificationKey);
             }
         }
-        
+
         /// <summary>
         /// When updating a record with one there should not be a new master created
         /// </summary>
@@ -385,7 +382,7 @@ namespace SanteDB.Persistence.MDM.Test
         /// 1. A MASTER_A for SOURCE_A with SOURCE_A pointing at MASTER_A
         /// 2. A MASTER_B for SOURCE_B with SOURCE_B pointing at MASTER_B
         /// 3. SOURCE_B pointing at MASTER_A with candidate link
-        /// 
+        ///
         /// The test then updates the multiplebirthorder to match and saves SOURCE_B
         /// This means that SOURCE_B should indicate a match with MASTER_A and:
         /// 1. MASTER_B should be marked obsolete
@@ -473,7 +470,7 @@ namespace SanteDB.Persistence.MDM.Test
                 // Fetch MASTER B and check status
                 var masterId = queriedMasterB.Key.Value;
                 var masterRaw = this.m_entityRepository.Get(masterId);
-                Assert.AreEqual(StatusKeys.Obsolete, masterRaw.StatusConceptKey);
+                Assert.AreEqual(StatusKeys.Inactive, masterRaw.StatusConceptKey);
             }
         }
 
@@ -555,7 +552,6 @@ namespace SanteDB.Persistence.MDM.Test
                 Assert.AreEqual(2, masterA.Identifiers.Count);
                 Assert.IsTrue(masterA.Identifiers.Any(o => o.Value == "MDM-06A"));
 
-
                 Assert.AreEqual("M", masterB.GetTag("$mdm.type"));
                 Assert.AreEqual("true", masterB.GetTag("$generated"));
                 Assert.AreEqual(1, masterB.Names.Count);
@@ -575,10 +571,10 @@ namespace SanteDB.Persistence.MDM.Test
         /// 1. SOURCE_A pointing to MASTER_A
         /// 2. SOURCE_B pointing to MASTER_B
         /// 3. SOURCE_B candidate to MASTER_A
-        /// 
+        ///
         /// We then reconcile SOURCE_B's candidate to MASTER_A performing the linking operation via the merging interface
         /// doing a SOURCE_B -> MASTER_A merge (which gets turned into a LINK)
-        /// 
+        ///
         /// The final state is:
         /// 1. SOURCE_A pointing to MASTER_A
         /// 2. SOURCE_B pointing to MASTER_A with "VALIDATED"
@@ -646,38 +642,39 @@ namespace SanteDB.Persistence.MDM.Test
                 queriedMasterA = this.m_patientRepository.Get(queriedMasterA.Key.Value);
                 var rawMasterB = this.m_entityRepository.Get(queriedMasterB.Key.Value);
                 queriedMasterB = this.m_patientRepository.Get(queriedMasterB.Key.Value);
+
                 // A and B point to A
                 Assert.IsTrue(savedLocalA.Relationships.Any(r => r.RelationshipTypeKey == MdmConstants.MasterRecordRelationship && r.TargetEntityKey == queriedMasterA.Key));
                 Assert.IsTrue(savedLocalB.Relationships.Any(r => r.RelationshipTypeKey == MdmConstants.MasterRecordRelationship && r.TargetEntityKey == queriedMasterA.Key && r.ClassificationKey == MdmConstants.VerifiedClassification));
                 Assert.IsFalse(savedLocalB.Relationships.Any(r => r.RelationshipTypeKey == MdmConstants.MasterRecordRelationship && r.TargetEntityKey == rawMasterB.Key));
                 Assert.IsTrue(queriedMasterA.Relationships.Any(r => r.RelationshipTypeKey == EntityRelationshipTypeKeys.Replaces && r.TargetEntityKey == rawMasterB.Key));
-                Assert.IsNull(queriedMasterB); //No longer under MDM (OBSOLETE)
-                Assert.AreEqual(StatusKeys.Obsolete, rawMasterB.StatusConceptKey);
+                Assert.AreEqual(StatusKeys.Inactive, queriedMasterB.StatusConceptKey); // No longer under MDM (OBSOLETE)
+                Assert.AreEqual(StatusKeys.Inactive, rawMasterB.StatusConceptKey);
             }
         }
 
         /// <summary>
-        /// This tests that a reconciled link is STICKY meaning the normal behavior does not apply 
+        /// This tests that a reconciled link is STICKY meaning the normal behavior does not apply
         /// </summary>
         /// <remarks>
         /// Midway state:
         /// 1. SOURCE_A pointing to MASTER_A
         /// 2. SOURCE_B pointing to MASTER_B
         /// 3. SOURCE_B candidate to MASTER_A
-        /// 
+        ///
         /// We then reconcile SOURCE_B's candidate to MASTER_A performing the linking operation via the merging interface
         /// doing a SOURCE_B -> MASTER_A merge (which gets turned into a LINK)
-        /// 
+        ///
         /// The second state is:
         /// 1. SOURCE_A pointing to MASTER_A
         /// 2. SOURCE_B pointing to MASTER_A with "VALIDATED"
         /// 3. SOURCE_B candidate to MASTER_A is removed
         /// 4. SOURCE_B has original master link to MASTER_B
         /// 5. MASTER_B is obsoleted (no longer appears)
-        /// 
+        ///
         /// We then update SOURCE_B so it no longer matches MASTER_A however because the link is VERIFIED it is not touched
-        /// 
-        /// The final state is: 
+        ///
+        /// The final state is:
         /// 1. SOURCE_A point to MASTER_A
         /// 2. SOURCE_B (with wildly different name) still pointing to MASTER_A
         /// </remarks>
@@ -763,7 +760,7 @@ namespace SanteDB.Persistence.MDM.Test
                 queriedAfterMerge = this.m_patientRepository.Find(o => o.Identifiers.Any(i => i.Value == "MDM-08B")).SingleOrDefault();
                 // Local B still points to A
                 Assert.AreEqual(MdmConstants.VerifiedClassification, queriedAfterMerge.Relationships.First(o => o.SourceEntityKey == savedLocalB.Key && o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship && o.TargetEntityKey == queriedMasterA.Key).ClassificationKey);
-                // Source A is detached and becomes it's own 
+                // Source A is detached and becomes it's own
                 queriedMasterB = this.m_patientRepository.Find(o => o.Identifiers.Any(i => i.Value == "MDM-08A")).SingleOrDefault();
                 Assert.AreNotEqual(queriedAfterMerge.Key, queriedMasterB.Key);
             }
@@ -775,10 +772,10 @@ namespace SanteDB.Persistence.MDM.Test
         /// <remarks>
         /// The initial state at the midpoint of this test is:
         /// 1. SOURCE_A points to MASTER_A
-        /// 
-        /// We then authenticate as a prinicpal which has EstablishRecordOfTruth permission. We then 
+        ///
+        /// We then authenticate as a prinicpal which has EstablishRecordOfTruth permission. We then
         /// save a new patient with the MDM.TAG set to T and a pointer of MDM-MASTER to MASTER_A
-        /// 
+        ///
         /// The final state is:
         /// 1. SOURCE_A points to MASTER_A
         /// 2. ROT_A points to MASTER_A
@@ -788,9 +785,8 @@ namespace SanteDB.Persistence.MDM.Test
         [Test]
         public void TestMdmPromoteRecordOfTruth()
         {
-
         }
-        
+
         /// <summary>
         /// This test verifies that updates to a ROT do not impact any of its associations with the MDM record
         /// </summary>
@@ -800,7 +796,7 @@ namespace SanteDB.Persistence.MDM.Test
         /// 2. ROT_A points to MASTER_A
         /// 3. MASTER_A points to ROT_A
         /// 4. Synthesized records contain only properties in ROT_A not SOURCE_A
-        /// 
+        ///
         /// The test then updates ROT_A to change the properties. The final state of this test is:
         /// 1. SOURCE_A points to MASTER_A
         /// 2. ROT_A still points to MASTER_A
@@ -810,9 +806,6 @@ namespace SanteDB.Persistence.MDM.Test
         [Test]
         public void TestMdmUpdateRecordOfTruth()
         {
-
         }
-
-                
     }
 }

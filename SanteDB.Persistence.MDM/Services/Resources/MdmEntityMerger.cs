@@ -260,7 +260,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                         });
                         this.m_tracer.TraceInfo("LOCAL({0})>LOCAL({0}) MERGE", victim.Key, survivor.Key);
 
-                        // Obsolete the victim
+                        // Obsolete the victim - the victim is obsolete since it was accurate and is no longer the accurate
                         victim.StatusConceptKey = StatusKeys.Obsolete;
                         transactionBundle.Add(victim);
 
@@ -363,7 +363,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
 
                 while (offset < totalResults)
                 {
-                    var results = this.m_entityPersistence.Query(o => o.StatusConceptKey != StatusKeys.Obsolete && o.DeterminerConceptKey != MdmConstants.RecordOfTruthDeterminer, queryId, offset, batchSize, out totalResults, AuthenticationContext.SystemPrincipal);
+                    var results = this.m_entityPersistence.Query(o => !StatusKeys.InactiveStates.Contains(o.StatusConceptKey.Value) && o.DeterminerConceptKey != MdmConstants.RecordOfTruthDeterminer, queryId, offset, batchSize, out totalResults, AuthenticationContext.SystemPrincipal);
                     this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)offset / (float)totalResults, "Rematching"));
 
                     var batchMatch = new Bundle(results.AsParallel().SelectMany(itm => this.m_dataManager.MdmTxMatchMasters(itm, new IdentifiedData[0])));

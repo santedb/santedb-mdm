@@ -121,7 +121,7 @@ namespace SanteDB.Persistence.MDM.Model
         /// <summary>
         /// Get master record
         /// </summary>
-        IIdentifiedEntity IMdmMaster.GetMaster(IPrincipal principal) => this.Synthesize(principal);
+        IIdentifiedEntity IMdmMaster.Synthesize(IPrincipal principal) => this.Synthesize(principal);
 
         /// <summary>
         /// Gets local records

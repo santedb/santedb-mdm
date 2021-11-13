@@ -7,6 +7,7 @@ using SanteDB.Core.Services;
 using SanteDB.Core.Matching;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Linq.Expressions;
 using SanteDB.Core.Model.Query;
@@ -16,12 +17,24 @@ namespace SanteDB.Persistence.MDM.Test
     /// <summary>
     /// Implements a matcher service which only matches date of birth
     /// </summary>
-    public class DummyMatcherService : IRecordMatchingService
+    [ExcludeFromCodeCoverage]
+    public class DummyMatcherService : IRecordMatchingService, IRecordMatchingConfigurationService
     {
         /// <summary>
         /// Gets the service name
         /// </summary>
         public string ServiceName => "";
+
+        /// <summary>
+        /// Get all configurations
+        /// </summary>
+        public IEnumerable<IRecordMatchingConfiguration> Configurations
+        {
+            get
+            {
+                yield return new DummyMatchConfiguration();
+            }
+        }
 
         /// <summary>
         /// Perform blocking
@@ -80,6 +93,99 @@ namespace SanteDB.Persistence.MDM.Test
                 return new DummyMatchResult<T>(input, input);
             }
             else return null;
+        }
+
+        public IRecordMatchingConfiguration GetConfiguration(string configurationId)
+        {
+            throw new NotImplementedException();
+        }
+
+        public IRecordMatchingConfiguration SaveConfiguration(IRecordMatchingConfiguration configuration)
+        {
+            throw new NotImplementedException();
+        }
+
+        public IRecordMatchingConfiguration DeleteConfiguration(string configurationId)
+        {
+            throw new NotImplementedException();
+        }
+    }
+
+    /// <summary>
+    /// Dummy match configuration
+    /// </summary>
+    internal class DummyMatchConfiguration : IRecordMatchingConfiguration
+    {
+        public DummyMatchConfiguration()
+        {
+            this.Metadata = new DummyMatchConfigurationMetadata();
+        }
+
+        /// <summary>
+        /// UUID
+        /// </summary>
+        public Guid Uuid => Guid.NewGuid();
+
+        /// <summary>
+        /// Identifier
+        /// </summary>
+        public string Id => "default";
+
+        /// <summary>
+        /// Applies to patient
+        /// </summary>
+        public Type[] AppliesTo => new Type[] { typeof(Patient) };
+
+        /// <summary>
+        /// Get the metadata
+        /// </summary>
+        public IRecordMatchingConfigurationMetadata Metadata
+        {
+            get; set;
+        }
+
+        /// <summary>
+        /// Match configuration metadata
+        /// </summary>
+        private class DummyMatchConfigurationMetadata : IRecordMatchingConfigurationMetadata
+        {
+            /// <summary>
+            /// Created by
+            /// </summary>
+            public string CreatedBy => "SYSTEM";
+
+            /// <summary>
+            /// Creation time
+            /// </summary>
+            public DateTimeOffset CreationTime => DateTimeOffset.Now;
+
+            /// <summary>
+            /// State of the configuration
+            /// </summary>
+            public MatchConfigurationStatus State => MatchConfigurationStatus.Active;
+
+            /// <summary>
+            /// Is readonly
+            /// </summary>
+            public bool IsReadonly => true;
+
+            /// <summary>
+            /// Get all tags
+            /// </summary>
+            public IDictionary<string, string> Tags => new Dictionary<String, String>()
+            {
+                { MdmConstants.AutoLinkSetting, "true" }
+            };
+
+            /// <summary>
+            /// Updated time
+            /// </summary>
+            public DateTimeOffset? UpdatedTime => null;
+
+            /// <summary>
+            /// Updated by
+            /// </summary>
+            public string UpdatedBy => null;
         }
     }
 

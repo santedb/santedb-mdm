@@ -89,7 +89,7 @@ namespace SanteDB.Persistence.MDM.Services
                     if (entityTypeMap.TryGetValue(entity.TypeConceptKey.GetValueOrDefault(), out Type t))
                     {
                         var master = Activator.CreateInstance(typeof(EntityMaster<>).MakeGenericType(t), entity) as IMdmMaster;
-                        return (TObject)master.GetMaster(AuthenticationContext.Current.Principal);
+                        return (TObject)master.Synthesize(AuthenticationContext.Current.Principal);
                     }
                     else
                     {

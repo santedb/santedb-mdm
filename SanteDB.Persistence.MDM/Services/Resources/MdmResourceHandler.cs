@@ -127,7 +127,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 var methodInfo = this.GetType().GetGenericMethod(nameof(OnGenericQueried), new Type[] { baseType }, new Type[] { typeof(IEnumerable<>).MakeGenericType(baseType), typeof(IPrincipal) });
                 var lambdaMethod = typeof(Expression).GetGenericMethod(nameof(Expression.Lambda), new Type[] { eventHandler.EventHandlerType }, new Type[] { typeof(Expression), typeof(ParameterExpression[]) });
                 var lambdaAccess = lambdaMethod.Invoke(null, new object[] { Expression.Assign(dataAccess, Expression.Call(Expression.Constant(this), (MethodInfo)methodInfo, dataAccess, principalAccess)), new ParameterExpression[] { Expression.Parameter(typeof(Object)), parameter } }) as LambdaExpression;
-                //eventHandler.AddEventHandler(repoInstance, lambdaAccess.Compile());
+                eventHandler.AddEventHandler(repoInstance, lambdaAccess.Compile());
                 //var lamdaAccess = Expression.Lambda(Expression.Call(Expression.Constant(this), this.GetType().GetMethod(nameof(OnGenericQueried))), dataAccess), Expression.Parameter(typeof(Object)), parameter);
                 // Continue down base types
                 baseType = baseType.BaseType;
@@ -145,24 +145,13 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 // It is a type controlled by this handler - so we want to ensure we return the master rather than a local
                 if (o is TModel tmodel && !this.m_dataManager.IsMaster(tmodel))
                 {
-                    return this.m_dataManager.GetMasterFor(tmodel.Key.Value).GetMaster(principal);
+                    return this.m_dataManager.GetMasterFor(tmodel.Key.Value).Synthesize(principal);
                 }
                 // It is a type which is classified as a master and has a type concept
                 else if (o is IHasClassConcept ihcc && ihcc.ClassConceptKey == MdmConstants.MasterRecordClassification &&
                     o is IHasTypeConcept ihtc && this.m_classConceptKey.Contains(ihtc.TypeConceptKey.GetValueOrDefault()))
                 {
-                    if (o is Entity ent)
-                    {
-                        return new EntityMaster<TModel>(ent).Synthesize(principal);
-                    }
-                    else if (o is Act act)
-                    {
-                        return new ActMaster<TModel>(act).Synthesize(principal);
-                    }
-                    else
-                    {
-                        return o;
-                    }
+                    return this.m_dataManager.GetMasterContainerForMasterEntity(o.Key.Value).Synthesize(principal);
                 }
                 else
                 {
@@ -246,7 +235,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             if (this.m_dataManager.IsMaster(e.Id.Value)) // object is a master
             {
                 e.Cancel = true;
-                e.Result = (TModel)this.m_dataManager.MdmGet(e.Id.Value).GetMaster(e.Principal);
+                e.Result = (TModel)this.m_dataManager.MdmGet(e.Id.Value).Synthesize(e.Principal);
             }
         }
 

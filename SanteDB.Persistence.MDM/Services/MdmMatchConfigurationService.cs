@@ -101,18 +101,18 @@ namespace SanteDB.Persistence.MDM.Services
         /// <summary>
         /// The match configuration service
         /// </summary>
-        public MdmMatchConfigurationService(IConfigurationManager configurationManager, IRecordMatchingConfigurationService recordMatchingConfigurationService)
+        public MdmMatchConfigurationService(IConfigurationManager configurationManager, IRecordMatchingConfigurationService recordMatchingConfigurationService = null)
         {
             this.m_matchingConfigurationService = recordMatchingConfigurationService;
             this.r_matchConfiguration = new MdmIdentityRecordMatchConfiguration[] {
-            new MdmIdentityRecordMatchConfiguration(configurationManager.GetSection<ResourceManagementConfigurationSection>().ResourceTypes.Select(o => o.Type).ToArray())
+                new MdmIdentityRecordMatchConfiguration(configurationManager.GetSection<ResourceManagementConfigurationSection>().ResourceTypes.Select(o => o.Type).ToArray())
             };
         }
 
         /// <summary>
         /// Gets the configuration
         /// </summary>
-        public IEnumerable<IRecordMatchingConfiguration> Configurations => this.m_matchingConfigurationService.Configurations.Union(this.r_matchConfiguration);
+        public IEnumerable<IRecordMatchingConfiguration> Configurations => this.m_matchingConfigurationService?.Configurations.Union(this.r_matchConfiguration) ?? this.r_matchConfiguration;
 
         /// <summary>
         /// Gets the service name

@@ -447,10 +447,19 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             // No other active?
             if (this.m_relationshipService.Count(o => o.TargetEntityKey != data.Key && o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship && o.SourceEntityKey == master.Key && o.ObsoleteVersionSequenceId == null) == 0)
             {
-                master.StatusConceptKey = StatusKeys.Obsolete;
+                if (StatusKeys.ActiveStates.Contains(master.StatusConceptKey.Value)) // default -> Active > Obsolete (i.e. was accurate but no longer accurate)
+                {
+                    master.StatusConceptKey = StatusKeys.Obsolete;
+                }
                 yield return master; // ensure master is obsoleted
             }
+
+            if (StatusKeys.ActiveStates.Contains(data.StatusConceptKey.Value)) // default -> Active > Obsolete (i.e. was accurate but no longer accurate)
+            {
+                data.StatusConceptKey = StatusKeys.Obsolete;
+            }
             data.StatusConceptKey = StatusKeys.Obsolete;
+
             yield return data; // ensure data is obsoleted
         }
 
@@ -653,7 +662,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     else if (matchedMaster.Master != existingMasterRel.TargetEntityKey)
                     {
                         // Old master was verified, so we don't touch it we just suggest a link
-                        if (existingMasterRel.ClassificationKey != MdmConstants.AutomagicClassification)
+                        if (existingMasterRel.ClassificationKey == MdmConstants.VerifiedClassification)
                         {
                             rematchMaster = false;
                             retVal.AddLast(new EntityRelationship(MdmConstants.CandidateLocalRelationship, local.Key, matchedMaster.Master, MdmConstants.AutomagicClassification)
@@ -702,7 +711,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             // Is the existing master rel still in place?
             if (rematchMaster)
             {
-                var masterDetail = this.MdmGet(existingMasterRel.TargetEntityKey.Value).GetMaster(AuthenticationContext.SystemPrincipal) as TModel;
+                var masterDetail = this.MdmGet(existingMasterRel.TargetEntityKey.Value).Synthesize(AuthenticationContext.SystemPrincipal) as TModel;
                 var bestMatch = this.m_matchingConfigurationService.Configurations.Where(o => o.AppliesTo.Contains(typeof(TModel)) && o.Metadata.State == MatchConfigurationStatus.Active).SelectMany(c => this.m_matchingService.Classify(local, new TModel[] { masterDetail }, c.Id)).OrderByDescending(o => o.Classification).FirstOrDefault();
                 switch (bestMatch.Classification)
                 // No longer a match
@@ -796,7 +805,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 {
                     yield return masterRelationships.First();
                     if (candidateRelationships.Any(r => r.ObsoleteVersionSequenceId.HasValue || r.BatchOperation == BatchOperationType.Delete)) // There is a candidate
-                        yield return candidateRelationships.FirstOrDefault(o => o.ObsoleteVersionSequenceId.HasValue);
+                        yield return candidateRelationships.FirstOrDefault(o => o.ObsoleteVersionSequenceId.HasValue || o.BatchOperation == BatchOperationType.Delete);
                 }
                 // If there is a candidate that is marked as to be deleted
                 // but another which is not - we take the candidate with a current
@@ -854,7 +863,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                         yield return existingRelationship;
                         if (!verified) // store link to original
                         {
-                            yield return new EntityRelationship(MdmConstants.OriginalMasterRelationship, localKey, existingRelationship.TargetEntityKey, MdmConstants.AutomagicClassification)
+                            yield return new EntityRelationship(MdmConstants.OriginalMasterRelationship, localKey, existingRelationship.TargetEntityKey, existingRelationship.ClassificationKey)
                             {
                                 BatchOperation = BatchOperationType.Insert
                             };
@@ -867,10 +876,10 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                         {
                             var oldMasterRec = context.OfType<Entity>().FirstOrDefault(o => o.Key == existingRelationship.TargetEntityKey) ??
                                 this.GetRaw(existingRelationship.TargetEntityKey.Value) as Entity;
-                            oldMasterRec.StatusConceptKey = StatusKeys.Obsolete;
+                            oldMasterRec.StatusConceptKey = StatusKeys.Inactive;
                             oldMasterRec.BatchOperation = BatchOperationType.Update;
                             yield return oldMasterRec;
-                            yield return new EntityRelationship(EntityRelationshipTypeKeys.Replaces, masterKey, oldMasterRec.Key, MdmConstants.AutomagicClassification)
+                            yield return new EntityRelationship(EntityRelationshipTypeKeys.Replaces, masterKey, oldMasterRec.Key, MdmConstants.SystemClassification)
                             {
                                 BatchOperation = BatchOperationType.Insert
                             };
@@ -896,7 +905,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     yield return existingCandidateRel;
                 }
 
-                yield return new EntityRelationship(MdmConstants.MasterRecordRelationship, localKey, masterKey, verified ? MdmConstants.VerifiedClassification : MdmConstants.AutomagicClassification)
+                yield return new EntityRelationship(MdmConstants.MasterRecordRelationship, localKey, masterKey, verified ? MdmConstants.VerifiedClassification : existingRelationship.ClassificationKey)
                 {
                     BatchOperation = BatchOperationType.Insert
                 };
@@ -1112,7 +1121,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             // First we obsolete the old
             var survivorData = this.GetRaw(survivorKey) as Entity;
             var victimData = this.GetRaw(victimKey) as Entity;
-            victimData.StatusConceptKey = StatusKeys.Obsolete;
+            victimData.StatusConceptKey = StatusKeys.Obsolete; // The MERGE indicates the OLD data is OBSOLETE (i.e. no longer accurate)
             yield return victimData;
 
             // Associated locals for the victim are mapped
@@ -1234,5 +1243,10 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     yield return itm;
             }
         }
+
+        /// <summary>
+        /// Create master container for the specified object
+        /// </summary>
+        public override IMdmMaster CreateMasterContainerForMasterEntity(IIdentifiedEntity masterObject) => new EntityMaster<TModel>(masterObject as TModel);
     }
 }

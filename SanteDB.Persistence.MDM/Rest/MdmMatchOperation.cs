@@ -109,7 +109,7 @@ namespace SanteDB.Persistence.MDM.Rest
                     }
                 }
 
-                retVal.AddRange(dataManager.MdmTxDetectCandidates(dataManager.MdmGet(scopingObjectKey).GetMaster(AuthenticationContext.Current.Principal) as Entity, retVal.Item));
+                retVal.AddRange(dataManager.MdmTxDetectCandidates(dataManager.MdmGet(scopingObjectKey).Synthesize(AuthenticationContext.Current.Principal) as Entity, retVal.Item));
 
                 // Now we want to save?
                 try
