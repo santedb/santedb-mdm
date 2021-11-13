@@ -151,7 +151,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 else if (o is IHasClassConcept ihcc && ihcc.ClassConceptKey == MdmConstants.MasterRecordClassification &&
                     o is IHasTypeConcept ihtc && this.m_classConceptKey.Contains(ihtc.TypeConceptKey.GetValueOrDefault()))
                 {
-                    return this.m_dataManager.GetMasterContainerForMasterEntity(o.Key.Value).Synthesize(principal);
+                    return this.m_dataManager.GetMasterFor(o.Key.Value).Synthesize(principal);
                 }
                 else
                 {

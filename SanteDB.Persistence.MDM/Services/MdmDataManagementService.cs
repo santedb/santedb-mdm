@@ -248,10 +248,9 @@ namespace SanteDB.Persistence.MDM.Services
                     // Is the data obsoleted (removed)? If so, then ensure we don't have a hanging master
                     if (e.Data.ObsoleteVersionSequenceId.HasValue || e.Data.BatchOperation == Core.Model.DataTypes.BatchOperationType.Delete)
                     {
-                        if (!this.m_entityRelationshipService.Query(r => r.TargetEntityKey == e.Data.TargetEntityKey && !StatusKeys.InactiveStates.Contains(r.TargetEntity.StatusConceptKey.Value) && r.SourceEntityKey != e.Data.SourceEntityKey && r.ObsoleteVersionSequenceId == null).Any())
-                        
+                        if (!this.m_entityRelationshipService.Query(r => r.TargetEntityKey == e.Data.TargetEntityKey && !StatusKeys.InactiveStates.Contains(r.TargetEntity.StatusConceptKey.Value) && r.SourceEntityKey != e.Data.SourceEntityKey && r.ObsoleteVersionSequenceId == null, AuthenticationContext.SystemPrincipal).Any())
+                        {
                             this.m_entityService.Delete(e.Data.TargetEntityKey.Value, e.Mode, e.Principal, this.m_configuration.MasterDataDeletionMode);
-                            this.m_entityService.Obsolete(new Entity() { Key = e.Data.TargetEntityKey }, e.Mode, e.Principal);
                         }
                         return; // no need to de-dup check on obsoleted object
                     }
@@ -263,8 +262,8 @@ namespace SanteDB.Persistence.MDM.Services
                     // A =[MDM-Duplicate]=> B
                     // A =[MDM-Original]=> B
                     foreach (var itm in this.m_entityRelationshipService.Query(q => q.RelationshipTypeKey != MdmConstants.MasterRecordRelationship && q.SourceEntityKey == e.Data.SourceEntityKey && q.TargetEntityKey == e.Data.TargetEntityKey && q.ObsoleteVersionSequenceId == null, e.Principal))
+                    {
                         this.m_entityRelationshipService.Delete(itm.Key.Value, e.Mode, e.Principal, this.m_configuration.MasterDataDeletionMode);
-                        this.m_entityRelationshipService.Update(itm, e.Mode, e.Principal);
                     }
                     break;
 
@@ -310,12 +309,11 @@ namespace SanteDB.Persistence.MDM.Services
                     classifiable.ClassConceptKey != MdmConstants.MasterRecordClassification)
                 {
                     var dataManager = MdmDataManagerFactory.GetDataManager(res.GetType());
-                    return dataManager.GetMasterFor(res.Key.Value).GetMaster(AuthenticationContext.Current.Principal) as IdentifiedData;
-                    }
+                    return dataManager.GetMasterFor(res.Key.Value).Synthesize(AuthenticationContext.Current.Principal) as IdentifiedData;
                 }
                 else
+                {
                     return res;
-                    return (Activator.CreateInstance(masterType, master.LoadProperty<Act>(nameof(ActRelationship.TargetAct))) as IMdmMaster).GetMaster(authPrincipal);
                 }
             });
         }
