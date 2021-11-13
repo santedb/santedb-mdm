@@ -9,6 +9,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
+using SanteDB.Core.Model.Query;
 
 namespace SanteDB.Persistence.MDM.Test
 {
@@ -25,13 +26,14 @@ namespace SanteDB.Persistence.MDM.Test
         /// <summary>
         /// Perform blocking
         /// </summary>
-        public IEnumerable<T> Block<T>(T input, string configurationName, IEnumerable<Guid> ignoreList) where T : IdentifiedData
+        public IQueryResultSet<T> Block<T>(T input, string configurationName, IEnumerable<Guid> ignoreList) where T : IdentifiedData
         {
-            if (input.GetType() == typeof(Patient)) {
+            if (input.GetType() == typeof(Patient))
+            {
                 Patient p = (Patient)((Object)input);
-                return ApplicationServiceContext.Current.GetService<IDataPersistenceService<Patient>>().Query(o => o.DateOfBirth == p.DateOfBirth && o.Key != p.Key, AuthenticationContext.Current.Principal).OfType<T>();
+                return ApplicationServiceContext.Current.GetService<IDataPersistenceService<Patient>>().Query(o => o.DateOfBirth == p.DateOfBirth && o.Key != p.Key, AuthenticationContext.Current.Principal).TransformResultSet<Patient, T>();
             }
-            return new List<T>();
+            return new MemoryQueryResultSet<T>(new List<T>());
         }
 
         /// <summary>
@@ -60,7 +62,7 @@ namespace SanteDB.Persistence.MDM.Test
         }
 
         /// <summary>
-        /// Classify 
+        /// Classify
         /// </summary>
         public IEnumerable<IRecordMatchResult> Classify(IdentifiedData input, IEnumerable<IdentifiedData> blocks, String configurationName)
         {
@@ -85,7 +87,7 @@ namespace SanteDB.Persistence.MDM.Test
     /// Represent a dummy match result
     /// </summary>
     public class DummyMatchResult<T> : IRecordMatchResult<T>
-        where T: IdentifiedData
+        where T : IdentifiedData
     {
         // The record
         private T m_record;

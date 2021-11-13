@@ -27,6 +27,7 @@ using SanteDB.Core.Event;
 using SanteDB.Core.Model;
 using SanteDB.Core.Model.Interfaces;
 using SanteDB.Core.Model.Patch;
+using SanteDB.Core.Model.Query;
 using SanteDB.Core.Services;
 
 namespace SanteDB.Persistence.MDM.Services.Resources
@@ -73,7 +74,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// <summary>
         /// Get the ignore list
         /// </summary>
-        public abstract IEnumerable<IdentifiedData> GetIgnored(Guid masterKey);
+        public abstract IQueryResultSet<IdentifiedData> GetIgnored(Guid masterKey);
 
         /// <summary>
         /// Get the merge candidate keys
@@ -83,7 +84,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// <summary>
         /// Get merge candidates
         /// </summary>
-        public abstract IEnumerable<IdentifiedData> GetMergeCandidates(Guid masterKey);
+        public abstract IQueryResultSet<IdentifiedData> GetMergeCandidates(Guid masterKey);
 
         /// <summary>
         /// Ignore the specified candidate
@@ -146,7 +147,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// <summary>
         /// Get all global merge candidates
         /// </summary>
-        public abstract IEnumerable<ITargetedAssociation> GetGlobalMergeCandidates();
+        public abstract IQueryResultSet<ITargetedAssociation> GetGlobalMergeCandidates();
 
         /// <summary>
         /// Detect global merge candidates

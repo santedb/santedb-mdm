@@ -213,10 +213,10 @@ namespace SanteDB.Persistence.MDM.Services
 
                 ApplicationServiceContext.Current.GetService<IDataPersistenceService<Bundle>>().Inserted += RecheckBundleTrigger;
                 ApplicationServiceContext.Current.GetService<IDataPersistenceService<Bundle>>().Updated += RecheckBundleTrigger;
-                ApplicationServiceContext.Current.GetService<IDataPersistenceService<Bundle>>().Obsoleted += RecheckBundleTrigger;
+                ApplicationServiceContext.Current.GetService<IDataPersistenceService<Bundle>>().Deleted += RecheckBundleTrigger;
                 this.m_entityRelationshipService.Inserted += RecheckRelationshipTrigger;
                 this.m_entityRelationshipService.Updated += RecheckRelationshipTrigger;
-                this.m_entityRelationshipService.Obsoleted += RecheckRelationshipTrigger;
+                this.m_entityRelationshipService.Deleted += RecheckRelationshipTrigger;
 
                 // Add an MDM listener for subscriptions
                 if (this.m_subscriptionExecutor != null)
@@ -246,11 +246,11 @@ namespace SanteDB.Persistence.MDM.Services
             {
                 case MdmConstants.MASTER_RECORD_RELATIONSHIP:
                     // Is the data obsoleted (removed)? If so, then ensure we don't have a hanging master
-                    if (e.Data.ObsoleteVersionSequenceId.HasValue || e.Data.BatchOperation == Core.Model.DataTypes.BatchOperationType.Obsolete)
+                    if (e.Data.ObsoleteVersionSequenceId.HasValue || e.Data.BatchOperation == Core.Model.DataTypes.BatchOperationType.Delete)
                     {
                         if (this.m_entityRelationshipService.Query(r => r.TargetEntityKey == e.Data.TargetEntityKey && r.TargetEntity.StatusConceptKey != StatusKeys.Obsolete && r.SourceEntityKey != e.Data.SourceEntityKey && r.ObsoleteVersionSequenceId == null, AuthenticationContext.SystemPrincipal).Any())
                         {
-                            this.m_entityService.Obsolete(e.Data.TargetEntityKey.Value, e.Mode, e.Principal);
+                            this.m_entityService.Delete(e.Data.TargetEntityKey.Value, e.Mode, e.Principal, this.m_configuration.MasterDataDeletionMode);
                         }
                         return; // no need to de-dup check on obsoleted object
                     }
@@ -263,19 +263,18 @@ namespace SanteDB.Persistence.MDM.Services
                     // A =[MDM-Original]=> B
                     foreach (var itm in this.m_entityRelationshipService.Query(q => q.RelationshipTypeKey != MdmConstants.MasterRecordRelationship && q.SourceEntityKey == e.Data.SourceEntityKey && q.TargetEntityKey == e.Data.TargetEntityKey && q.ObsoleteVersionSequenceId == null, e.Principal))
                     {
-                        itm.BatchOperation = Core.Model.DataTypes.BatchOperationType.Obsolete;
-                        this.m_entityRelationshipService.Update(itm, e.Mode, e.Principal);
+                        this.m_entityRelationshipService.Delete(itm.Key.Value, e.Mode, e.Principal, this.m_configuration.MasterDataDeletionMode);
                     }
                     break;
 
                 case MdmConstants.RECORD_OF_TRUTH_RELATIONSHIP:
                     // Is the ROT being assigned, and if so is there another ?
-                    if (!e.Data.ObsoleteVersionSequenceId.HasValue || e.Data.BatchOperation == Core.Model.DataTypes.BatchOperationType.Obsolete)
+                    if (!e.Data.ObsoleteVersionSequenceId.HasValue || e.Data.BatchOperation == Core.Model.DataTypes.BatchOperationType.Delete)
                     {
                         foreach (var rotRel in this.m_entityRelationshipService.Query(r => r.SourceEntityKey == e.Data.SourceEntityKey && r.TargetEntityKey != e.Data.TargetEntityKey && r.ObsoleteVersionSequenceId == null, e.Principal))
                         {
                             //Obsolete other ROTs (there can only be one)
-                            this.m_entityRelationshipService.Obsolete(rotRel.Key.Value, e.Mode, e.Principal);
+                            this.m_entityRelationshipService.Delete(rotRel.Key.Value, e.Mode, e.Principal, this.m_configuration.MasterDataDeletionMode);
                         }
                     }
                     break;
@@ -294,14 +293,6 @@ namespace SanteDB.Persistence.MDM.Services
         }
 
         /// <summary>
-        /// The subscription is executing
-        /// </summary>
-        private void MdmSubscriptionExecuting(object sender, Core.Event.QueryRequestEventArgs<IdentifiedData> e)
-        {
-            e.UseFuzzyTotals = true;
-        }
-
-        /// <summary>
         /// Fired when the MDM Subscription has been executed
         /// </summary>
         private void MdmSubscriptionExecuted(object sender, Core.Event.QueryResultEventArgs<Core.Model.IdentifiedData> e)
@@ -310,48 +301,22 @@ namespace SanteDB.Persistence.MDM.Services
 
             // Results contain LOCAL records most likely
             // We have a resource type that matches
-            e.Results = e.Results.AsParallel().AsOrdered().Select((res) =>
+            e.Results = new NestedQueryResultSet<IdentifiedData>(e.Results, (res) =>
             {
                 if (!this.m_configuration.ResourceTypes.Any(o => o.Type == res.GetType())) return res;
-                // Result is taggable and a tag exists for MDM
-                if (res is Entity entity)
-                {
-                    if (entity.ClassConceptKey != MdmConstants.MasterRecordClassification)
-                    {
-                        // just a regular record
-                        // Attempt to load the master and add to the results
-                        var master = entity.LoadCollection<EntityRelationship>(nameof(Entity.Relationships)).FirstOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship);
-                        if (master == null) // load from DB
-                            master = EntitySource.Current.Provider.Query<EntityRelationship>(o => o.SourceEntityKey == entity.Key && o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship).FirstOrDefault();
 
-                        var masterType = typeof(EntityMaster<>).MakeGenericType(res.GetType());
-
-                        if (master != null)
-                            return (Activator.CreateInstance(masterType, master.LoadProperty<Entity>(nameof(EntityRelationship.TargetEntity))) as IMdmMaster).GetMaster(authPrincipal);
-                        else
-                        {
-                            entity.Tags.Add(new Core.Model.DataTypes.EntityTag("$mdm.type", "O")); // Orphan record
-                            return entity;
-                        }
-                    }
-                    else // is a master
-                    {
-                        var masterType = typeof(EntityMaster<>).MakeGenericType(MapUtil.GetModelTypeFromClassKey(entity.ClassConceptKey.Value));
-                        return (Activator.CreateInstance(masterType, entity) as IMdmMaster).GetMaster(authPrincipal);
-                    }
-                }
-                else if (res is Act act && act.ClassConceptKey != MdmConstants.MasterRecordClassification)
+                // Get the data manager for this type
+                if (res is IHasClassConcept classifiable &&
+                    classifiable.ClassConceptKey != MdmConstants.MasterRecordClassification)
                 {
-                    // Attempt to load the master and add to the results
-                    var master = act.LoadCollection<ActRelationship>(nameof(Act.Relationships)).FirstOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship);
-                    if (master == null) // load from DB
-                        master = EntitySource.Current.Provider.Query<ActRelationship>(o => o.SourceEntityKey == act.Key && o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship).FirstOrDefault();
-                    var masterType = typeof(EntityMaster<>).MakeGenericType(res.GetType());
-                    return (Activator.CreateInstance(masterType, master.LoadProperty<Act>(nameof(ActRelationship.TargetAct))) as IMdmMaster).GetMaster(authPrincipal);
+                    var dataManager = MdmDataManagerFactory.GetDataManager(res.GetType());
+                    return dataManager.GetMasterFor(res.Key.Value).GetMaster(AuthenticationContext.Current.Principal) as IdentifiedData;
                 }
                 else
-                    throw new InvalidOperationException($"Result of type {res.GetType().Name} is not supported in MDM contexts");
-            }).OfType<IdentifiedData>().ToArray();
+                {
+                    return res;
+                }
+            });
         }
 
         /// <summary>

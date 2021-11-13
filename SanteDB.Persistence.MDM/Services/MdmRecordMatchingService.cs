@@ -71,7 +71,7 @@ namespace SanteDB.Persistence.MDM.Services
             {
                 foreach (var i in e.Data.Item.OfType<AssigningAuthority>())
                 {
-                    if (i.BatchOperation == BatchOperationType.Obsolete || i.ObsoletionTime.HasValue)
+                    if (i.BatchOperation == BatchOperationType.Delete || i.ObsoletionTime.HasValue)
                     {
                         this.m_uniqueAuthorities.Remove(i.Key.Value);
                     }
@@ -88,7 +88,7 @@ namespace SanteDB.Persistence.MDM.Services
                     this.m_uniqueAuthorities.Add(e.Data.Key.Value);
                 }
             };
-            authorityService.Obsoleted += (o, e) =>
+            authorityService.Deleted += (o, e) =>
             {
                 this.m_uniqueAuthorities.Remove(e.Data.Key.Value);
             };
@@ -148,7 +148,7 @@ namespace SanteDB.Persistence.MDM.Services
                 using (AuthenticationContext.EnterSystemContext())
                 {
                     var repository = ApplicationServiceContext.Current.GetService<IRepositoryService<T>>();
-                    return repository.Find(filterExpression).Where(o => !ignoreKeys.Contains(o.Key.Value)).Select(o => new MdmIdentityMatchResult<T>(entity, o, "$identity"));
+                    return repository.Find(filterExpression).Where(o => !ignoreKeys.Contains(o.Key.Value)).OfType<T>().Select(o => new MdmIdentityMatchResult<T>(entity, o, "$identity"));
                 }
             }
         }
@@ -156,10 +156,10 @@ namespace SanteDB.Persistence.MDM.Services
         /// <summary>
         /// Perform a blocking stage setting
         /// </summary>
-        public IEnumerable<T> Block<T>(T input, string configurationName, IEnumerable<Guid> ignoreKeys) where T : IdentifiedData
+        public IQueryResultSet<T> Block<T>(T input, string configurationName, IEnumerable<Guid> ignoreKeys) where T : IdentifiedData
         {
             if (MdmConstants.MdmIdentityMatchConfiguration.Equals(configurationName))
-                return this.PerformIdentityMatch(input, this.GetIgnoreList(ignoreKeys, input)).Select(o => o.Record);
+                return this.PerformIdentityMatch(input, this.GetIgnoreList(ignoreKeys, input)).Select(o => o.Record).AsResultSet<T>();
             else
                 return this.m_matchService?.Block<T>(input, configurationName, this.GetIgnoreList(ignoreKeys, input));
         }

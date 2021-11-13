@@ -135,7 +135,7 @@ namespace SanteDB.Persistence.MDM.Rest
         /// <summary>
         /// Query the candidate links
         /// </summary>
-        public IEnumerable<object> Query(Type scopingType, object scopingKey, NameValueCollection filter, int offset, int count, out int totalCount)
+        public IQueryResultSet Query(Type scopingType, object scopingKey, NameValueCollection filter)
         {
             var dataManager = MdmDataManagerFactory.GetDataManager(scopingType);
             if (dataManager == null)
@@ -152,30 +152,35 @@ namespace SanteDB.Persistence.MDM.Rest
                         // Translate the filter
                         // TODO: Filtering and sorting for the associated locals call
                         var associatedLocals = dataManager.GetAssociatedLocals(scopedKey);
-                        totalCount = associatedLocals.Count();
-                        return associatedLocals.Skip(offset).Take(count).ToArray().Select(o =>
+                        return new NestedQueryResultSet(associatedLocals, o =>
                         {
-                            var tag = o.LoadProperty(p => p.SourceEntity) as ITaggable;
-                            if (o.ClassificationKey == MdmConstants.AutomagicClassification)
+                            if (o is ITargetedAssociation ta)
                             {
-                                tag.AddTag(MdmConstants.MdmClassificationTag, "Auto");
-                            }
-                            else if (o.ClassificationKey == MdmConstants.SystemClassification)
-                            {
-                                tag.AddTag(MdmConstants.MdmClassificationTag, "System");
+                                var tag = ta.LoadProperty(p => p.SourceEntity) as ITaggable;
+                                if (ta.ClassificationKey == MdmConstants.AutomagicClassification)
+                                {
+                                    tag.AddTag(MdmConstants.MdmClassificationTag, "Auto");
+                                }
+                                else if (ta.ClassificationKey == MdmConstants.SystemClassification)
+                                {
+                                    tag.AddTag(MdmConstants.MdmClassificationTag, "System");
+                                }
+                                else
+                                {
+                                    tag.AddTag(MdmConstants.MdmClassificationTag, "Verified");
+                                }
+
+                                return ta.SourceEntity;
                             }
                             else
                             {
-                                tag.AddTag(MdmConstants.MdmClassificationTag, "Verified");
+                                return null;
                             }
-
-                            return o.SourceEntity;
                         });
                     }
                     else
                     {
-                        totalCount = 1; // there will only be one
-                        return new object[] { dataManager.GetMasterRelationshipFor(scopedKey).LoadProperty(o => o.TargetEntity) };
+                        return new MemoryQueryResultSet(new object[] { dataManager.GetMasterRelationshipFor(scopedKey).LoadProperty(o => o.TargetEntity) });
                     }
                 }
                 catch (Exception e)

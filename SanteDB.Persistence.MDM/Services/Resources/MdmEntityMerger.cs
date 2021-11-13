@@ -28,6 +28,7 @@ using SanteDB.Core.Model.Constants;
 using SanteDB.Core.Model.DataTypes;
 using SanteDB.Core.Model.Entities;
 using SanteDB.Core.Model.Interfaces;
+using SanteDB.Core.Model.Query;
 using SanteDB.Core.Security;
 using SanteDB.Core.Security.Services;
 using SanteDB.Core.Services;
@@ -85,58 +86,60 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// <summary>
         /// Get the ignore list
         /// </summary>
-        public override IEnumerable<Guid> GetIgnoredKeys(Guid masterKey) => this.GetIgnored(masterKey).Select(o => o.Key.Value);
+        public override IEnumerable<Guid> GetIgnoredKeys(Guid masterKey) => this.m_dataManager.GetIgnoredMasters(masterKey).Select(o => o.Key.Value);
 
         /// <summary>
         /// Gets ignored records
         /// </summary>
-        public override IEnumerable<IdentifiedData> GetIgnored(Guid masterKey)
+        public override IQueryResultSet<IdentifiedData> GetIgnored(Guid masterKey)
         {
             this.m_pepService.Demand(MdmPermissionPolicyIdentifiers.ReadMdmLocals);
 
             if (this.m_dataManager.IsMaster(masterKey))
             {
-                return this.m_dataManager.GetIgnoredCandidateLocals(masterKey)
-                    .Select(o => o.LoadProperty(p => p.SourceEntity) as IdentifiedData);
+                return new TransformQueryResultSet<ITargetedAssociation, IdentifiedData>(this.m_dataManager.GetIgnoredCandidateLocals(masterKey), o => ((EntityRelationship)o).LoadProperty(p => p.SourceEntity));
             }
             else
             {
-                return this.m_dataManager.GetIgnoredMasters(masterKey)
-                    .Select(o => o.LoadProperty(p => p.TargetEntity) as IdentifiedData);
+                return new TransformQueryResultSet<ITargetedAssociation, IdentifiedData>(this.m_dataManager.GetIgnoredMasters(masterKey),
+                    o => ((EntityRelationship)o).LoadProperty(p => p.TargetEntity));
             }
         }
 
         /// <summary>
         /// Get candidate associations
         /// </summary>
-        public override IEnumerable<Guid> GetMergeCandidateKeys(Guid masterKey) => this.GetMergeCandidates(masterKey).Select(o => o.Key.Value);
+        public override IEnumerable<Guid> GetMergeCandidateKeys(Guid masterKey) => this.m_dataManager.GetCandidateLocals(masterKey).Select(o => o.Key.Value);
 
         /// <summary>
         /// Get merge candidates
         /// </summary>
-        public override IEnumerable<IdentifiedData> GetMergeCandidates(Guid masterKey)
+        public override IQueryResultSet<IdentifiedData> GetMergeCandidates(Guid masterKey)
         {
             this.m_pepService.Demand(MdmPermissionPolicyIdentifiers.ReadMdmLocals);
 
             if (this.m_dataManager.IsMaster(masterKey))
             {
-                return this.m_dataManager.GetCandidateLocals(masterKey)
-                    .OfType<EntityRelationship>()
-                    .Select(o =>
+                return new TransformQueryResultSet<ITargetedAssociation, IdentifiedData>(this.m_dataManager.GetCandidateLocals(masterKey),
+                    o =>
                     {
                         var retVal = o.LoadProperty(p => p.SourceEntity) as Entity;
-                        retVal.AddTag("$match.score", $"{o.Strength:0#%}");
+                        if (o is EntityRelationship e)
+                        {
+                            retVal.AddTag("$match.score", $"{e.Strength:0#%}");
+                        }
                         return retVal;
                     });
             }
             else
             {
-                return this.m_dataManager.GetEstablishedCandidateMasters(masterKey)
-                    .OfType<EntityRelationship>()
-                    .Select(o =>
+                return new TransformQueryResultSet<ITargetedAssociation, IdentifiedData>(this.m_dataManager.GetEstablishedCandidateMasters(masterKey), o =>
                     {
                         var retVal = o.LoadProperty(p => p.TargetEntity) as Entity;
-                        retVal.AddTag("$match.score", $"{o.Strength:#0%}");
+                        if (o is EntityRelationship e)
+                        {
+                            retVal.AddTag("$match.score", $"{e.Strength:#0%}");
+                        }
                         return retVal;
                     });
             }
@@ -265,7 +268,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                         transactionBundle.AddRange(
                             victim.LoadCollection(o => o.Identifiers).Where(i => !survivor.LoadCollection(o => o.Identifiers).Any(e => e.SemanticEquals(i))).Select(o =>
                             {
-                                o.BatchOperation = BatchOperationType.Obsolete;
+                                o.BatchOperation = BatchOperationType.Delete;
                                 return o;
                             })
                         );
@@ -283,7 +286,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                         // Remove links from victim
                         foreach (var rel in this.m_dataManager.GetAllMdmAssociations(victim.Key.Value).OfType<EntityRelationship>())
                         {
-                            rel.BatchOperation = BatchOperationType.Obsolete;
+                            rel.BatchOperation = BatchOperationType.Delete;
                             transactionBundle.Add(rel);
                         }
                     }
@@ -337,7 +340,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// <summary>
         /// Get merge candidates
         /// </summary>
-        public override IEnumerable<ITargetedAssociation> GetGlobalMergeCandidates()
+        public override IQueryResultSet<ITargetedAssociation> GetGlobalMergeCandidates()
         {
             return this.m_dataManager.GetAllMdmCandidateLocals();
         }
@@ -392,7 +395,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 {
                     this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)offset / (float)totalResults, "Clearing Candidates"));
                     var results = this.m_relationshipPersistence.Query(o => o.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship && o.ObsoleteVersionSequenceId == null, queryId, offset, batchSize, out totalResults, AuthenticationContext.SystemPrincipal); ;
-                    var batch = new Bundle(results.Select(o => { o.BatchOperation = BatchOperationType.Obsolete; return o; }));
+                    var batch = new Bundle(results.Select(o => { o.BatchOperation = BatchOperationType.Delete; return o; }));
                     this.m_batchPersistence.Update(batch, TransactionMode.Commit, AuthenticationContext.SystemPrincipal);
                     offset += batchSize;
                 }
@@ -421,7 +424,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 while (offset < totalResults)
                 {
                     var results = this.m_relationshipPersistence.Query(o => o.RelationshipTypeKey == MdmConstants.IgnoreCandidateRelationship && o.ObsoleteVersionSequenceId == null, queryId, offset, batchSize, out totalResults, AuthenticationContext.SystemPrincipal); ;
-                    var batch = new Bundle(results.Select(o => { o.BatchOperation = BatchOperationType.Obsolete; return o; }));
+                    var batch = new Bundle(results.Select(o => { o.BatchOperation = BatchOperationType.Delete; return o; }));
                     this.m_batchPersistence.Update(batch, TransactionMode.Commit, AuthenticationContext.SystemPrincipal);
                     offset += batchSize;
                     this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)offset / (float)totalResults, "Clearing ignore links"));
@@ -482,7 +485,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 while (offset < totalResults)
                 {
                     var results = this.m_relationshipPersistence.Query(expr, queryId, offset, batchSize, out totalResults, AuthenticationContext.SystemPrincipal); ;
-                    var batch = new Bundle(results.Select(o => { o.BatchOperation = BatchOperationType.Obsolete; return o; }));
+                    var batch = new Bundle(results.Select(o => { o.BatchOperation = BatchOperationType.Delete; return o; }));
                     this.m_batchPersistence.Update(batch, TransactionMode.Commit, AuthenticationContext.SystemPrincipal);
                     offset += batchSize;
                     this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)offset / (float)totalResults, "Clearing candidate links"));
@@ -522,7 +525,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 while (offset < totalResults)
                 {
                     var results = this.m_relationshipPersistence.Query(expr, queryId, offset, batchSize, out totalResults, AuthenticationContext.SystemPrincipal); ;
-                    var batch = new Bundle(results.Select(o => { o.BatchOperation = BatchOperationType.Obsolete; return o; }));
+                    var batch = new Bundle(results.Select(o => { o.BatchOperation = BatchOperationType.Delete; return o; }));
                     this.m_batchPersistence.Update(batch, TransactionMode.Commit, AuthenticationContext.SystemPrincipal);
                     offset += batchSize;
                     this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)offset / (float)totalResults, "Clearing ignore links"));

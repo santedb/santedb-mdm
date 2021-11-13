@@ -152,7 +152,7 @@ namespace SanteDB.Persistence.MDM.Rest
         /// <summary>
         /// Query the candidate links
         /// </summary>
-        public IEnumerable<object> Query(Type scopingType, object scopingKey, NameValueCollection filter, int offset, int count, out int totalCount)
+        public IQueryResultSet Query(Type scopingType, object scopingKey, NameValueCollection filter)
         {
             var merger = ApplicationServiceContext.Current.GetService(typeof(IRecordMergingService<>).MakeGenericType(scopingType)) as IRecordMergingService;
             if (merger == null)
@@ -160,18 +160,17 @@ namespace SanteDB.Persistence.MDM.Rest
                 throw new InvalidOperationException("No merging service configuration");
             }
 
-            IEnumerable<IdentifiedData> result = null;
+            IQueryResultSet result = null;
             if (scopingKey == null) // class call
             {
-                result = merger.GetGlobalMergeCandidates().OfType<IdentifiedData>();
+                result = merger.GetGlobalMergeCandidates();
             }
             else
             {
                 result = merger.GetMergeCandidates((Guid)scopingKey);
             }
 
-            totalCount = result.Count();
-            return result.Skip(offset).Take(count);
+            return result;
         }
 
         /// <summary>
