@@ -257,7 +257,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                         });
                         this.m_tracer.TraceInfo("LOCAL({0})>LOCAL({0}) MERGE", victim.Key, survivor.Key);
 
-                        // Obsolete the victim
+                        // Obsolete the victim - the victim is obsolete since it was accurate and is no longer the accurate
                         victim.StatusConceptKey = StatusKeys.Obsolete;
                         transactionBundle.Add(victim);
 
@@ -265,7 +265,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                         transactionBundle.AddRange(
                             victim.LoadCollection(o => o.Identifiers).Where(i => !survivor.LoadCollection(o => o.Identifiers).Any(e => e.SemanticEquals(i))).Select(o =>
                             {
-                                o.BatchOperation = BatchOperationType.Obsolete;
+                                o.BatchOperation = BatchOperationType.Delete;
                                 return o;
                             })
                         );
@@ -283,7 +283,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                         // Remove links from victim
                         foreach (var rel in this.m_dataManager.GetAllMdmAssociations(victim.Key.Value).OfType<EntityRelationship>())
                         {
-                            rel.BatchOperation = BatchOperationType.Obsolete;
+                            rel.BatchOperation = BatchOperationType.Delete;
                             transactionBundle.Add(rel);
                         }
                     }
@@ -360,7 +360,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
 
                 while (offset < totalResults)
                 {
-                    var results = this.m_entityPersistence.Query(o => o.StatusConceptKey != StatusKeys.Obsolete && o.DeterminerConceptKey != MdmConstants.RecordOfTruthDeterminer, queryId, offset, batchSize, out totalResults, AuthenticationContext.SystemPrincipal);
+                    var results = this.m_entityPersistence.Query(o => !StatusKeys.InactiveStates.Contains(o.StatusConceptKey.Value) && o.DeterminerConceptKey != MdmConstants.RecordOfTruthDeterminer, queryId, offset, batchSize, out totalResults, AuthenticationContext.SystemPrincipal);
                     this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)offset / (float)totalResults, "Rematching"));
 
                     var batchMatch = new Bundle(results.AsParallel().SelectMany(itm => this.m_dataManager.MdmTxMatchMasters(itm, new IdentifiedData[0])));
@@ -392,7 +392,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 {
                     this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)offset / (float)totalResults, "Clearing Candidates"));
                     var results = this.m_relationshipPersistence.Query(o => o.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship && o.ObsoleteVersionSequenceId == null, queryId, offset, batchSize, out totalResults, AuthenticationContext.SystemPrincipal); ;
-                    var batch = new Bundle(results.Select(o => { o.BatchOperation = BatchOperationType.Obsolete; return o; }));
+                    var batch = new Bundle(results.Select(o => { o.BatchOperation = BatchOperationType.Delete; return o; }));
                     this.m_batchPersistence.Update(batch, TransactionMode.Commit, AuthenticationContext.SystemPrincipal);
                     offset += batchSize;
                 }
@@ -421,7 +421,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 while (offset < totalResults)
                 {
                     var results = this.m_relationshipPersistence.Query(o => o.RelationshipTypeKey == MdmConstants.IgnoreCandidateRelationship && o.ObsoleteVersionSequenceId == null, queryId, offset, batchSize, out totalResults, AuthenticationContext.SystemPrincipal); ;
-                    var batch = new Bundle(results.Select(o => { o.BatchOperation = BatchOperationType.Obsolete; return o; }));
+                    var batch = new Bundle(results.Select(o => { o.BatchOperation = BatchOperationType.Delete; return o; }));
                     this.m_batchPersistence.Update(batch, TransactionMode.Commit, AuthenticationContext.SystemPrincipal);
                     offset += batchSize;
                     this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)offset / (float)totalResults, "Clearing ignore links"));
@@ -482,7 +482,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 while (offset < totalResults)
                 {
                     var results = this.m_relationshipPersistence.Query(expr, queryId, offset, batchSize, out totalResults, AuthenticationContext.SystemPrincipal); ;
-                    var batch = new Bundle(results.Select(o => { o.BatchOperation = BatchOperationType.Obsolete; return o; }));
+                    var batch = new Bundle(results.Select(o => { o.BatchOperation = BatchOperationType.Delete; return o; }));
                     this.m_batchPersistence.Update(batch, TransactionMode.Commit, AuthenticationContext.SystemPrincipal);
                     offset += batchSize;
                     this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)offset / (float)totalResults, "Clearing candidate links"));
@@ -522,7 +522,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 while (offset < totalResults)
                 {
                     var results = this.m_relationshipPersistence.Query(expr, queryId, offset, batchSize, out totalResults, AuthenticationContext.SystemPrincipal); ;
-                    var batch = new Bundle(results.Select(o => { o.BatchOperation = BatchOperationType.Obsolete; return o; }));
+                    var batch = new Bundle(results.Select(o => { o.BatchOperation = BatchOperationType.Delete; return o; }));
                     this.m_batchPersistence.Update(batch, TransactionMode.Commit, AuthenticationContext.SystemPrincipal);
                     offset += batchSize;
                     this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)offset / (float)totalResults, "Clearing ignore links"));

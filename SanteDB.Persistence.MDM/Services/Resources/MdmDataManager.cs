@@ -96,6 +96,11 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         public abstract IMdmMaster GetMasterContainerForMasterEntity(Guid masterKey);
 
         /// <summary>
+        /// Get a MDM Master for the specified local key
+        /// </summary>
+        public abstract IMdmMaster CreateMasterContainerForMasterEntity(IIdentifiedEntity masterObject);
+
+        /// <summary>
         /// Merge two master records together
         /// </summary>
         public abstract IEnumerable<IdentifiedData> MdmTxMergeMasters(Guid survivorKey, Guid victimKey, IEnumerable<IdentifiedData> context);
