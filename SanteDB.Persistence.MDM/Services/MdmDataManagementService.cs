@@ -229,9 +229,9 @@ namespace SanteDB.Persistence.MDM.Services
                 // Slipstream the MdmEntityProvider
                 //EntitySource.Current = new EntitySource(new MdmEntityProvider());
 
-                // FTS?
-                if (ApplicationServiceContext.Current.GetService<IFreetextSearchService>() == null)
-                    m_serviceManager.AddServiceProvider(new MdmFreetextSearchService());
+                // HACK: Replace any freetext service with our own
+                this.m_serviceManager.RemoveServiceProvider(typeof(IFreetextSearchService));
+                m_serviceManager.AddServiceProvider(new MdmFreetextSearchService());
             };
 
             this.Started?.Invoke(this, EventArgs.Empty);
