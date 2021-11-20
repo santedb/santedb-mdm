@@ -268,6 +268,7 @@ namespace SanteDB.Persistence.MDM.Services
                         itm.BatchOperation = Core.Model.DataTypes.BatchOperationType.Delete;
                         this.m_entityRelationshipService.Update(itm, e.Mode, e.Principal);
                     }
+
                     break;
 
                 case MdmConstants.RECORD_OF_TRUTH_RELATIONSHIP:

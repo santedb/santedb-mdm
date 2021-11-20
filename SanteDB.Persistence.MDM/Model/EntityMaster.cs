@@ -255,6 +255,7 @@ namespace SanteDB.Persistence.MDM.Model
             master.Tags.Add(new EntityTag(SanteDBConstants.AlternateKeysTag, String.Join(",", locals.Select(o => o.Key.ToString()))));
             master.CreationTime = this.ModifiedOn;
             master.PreviousVersionKey = this.m_masterRecord.PreviousVersionKey;
+            master.StatusConceptKey = this.m_masterRecord.StatusConceptKey;
             master.Key = this.m_masterRecord.Key;
             master.VersionKey = this.m_recordOfTruth?.VersionKey ?? this.m_masterRecord.VersionKey;
             master.VersionSequence = this.m_masterRecord.VersionSequence;
