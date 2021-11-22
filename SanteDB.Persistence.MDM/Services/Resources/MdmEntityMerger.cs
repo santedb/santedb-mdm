@@ -286,6 +286,17 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                             rel.BatchOperation = BatchOperationType.Delete;
                             transactionBundle.Add(rel);
                         }
+
+                        // Recheck the master to ensure that it isn't dangling out here
+                        var otherLocals = this.m_relationshipPersistence.Count(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship && o.TargetEntityKey == itm && o.SourceEntityKey != victim.Key, AuthenticationContext.SystemPrincipal);
+                        if (otherLocals == 0)
+                        {
+                            transactionBundle.Add(new Entity()
+                            {
+                                BatchOperation = BatchOperationType.Delete,
+                                Key = itm
+                            });
+                        }
                     }
                     else
                     {
