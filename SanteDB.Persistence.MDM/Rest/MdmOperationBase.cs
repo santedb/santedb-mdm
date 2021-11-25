@@ -23,6 +23,7 @@ using SanteDB.Core.Configuration;
 using SanteDB.Core.Diagnostics;
 using SanteDB.Core.Interop;
 using SanteDB.Core.Model.Collection;
+using SanteDB.Core.Model.Parameters;
 using SanteDB.Core.Services;
 using SanteDB.Rest.Common;
 using System;
@@ -72,6 +73,6 @@ namespace SanteDB.Persistence.MDM.Rest
         /// <summary>
         /// Invoke the operation
         /// </summary>
-        public abstract object Invoke(Type scopingType, object scopingKey, ApiOperationParameterCollection parameters);
+        public abstract object Invoke(Type scopingType, object scopingKey, ParameterCollection parameters);
     }
 }

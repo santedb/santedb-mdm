@@ -24,6 +24,7 @@ using SanteDB.Core.Jobs;
 using SanteDB.Core.Model.Acts;
 using SanteDB.Core.Model.Collection;
 using SanteDB.Core.Model.Entities;
+using SanteDB.Core.Model.Parameters;
 using SanteDB.Core.Security;
 using SanteDB.Core.Services;
 using SanteDB.Persistence.MDM.Exceptions;
@@ -67,7 +68,7 @@ namespace SanteDB.Persistence.MDM.Rest
         /// <summary>
         /// Perform  the operation
         /// </summary>
-        public override object Invoke(Type scopingType, object scopingKey, ApiOperationParameterCollection parameters)
+        public override object Invoke(Type scopingType, object scopingKey, ParameterCollection parameters)
         {
             var dataManager = MdmDataManagerFactory.GetDataManager(scopingType);
             if (dataManager == null)

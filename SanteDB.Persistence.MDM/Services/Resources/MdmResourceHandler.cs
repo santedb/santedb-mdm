@@ -29,6 +29,7 @@ using SanteDB.Core.Model;
 using SanteDB.Core.Model.Acts;
 using SanteDB.Core.Model.Attributes;
 using SanteDB.Core.Model.Collection;
+using SanteDB.Core.Model.Constants;
 using SanteDB.Core.Model.Entities;
 using SanteDB.Core.Model.Interfaces;
 using SanteDB.Core.Model.Query;
@@ -198,6 +199,10 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             else
             {
                 var localQuery = new NameValueCollection(query.ToDictionary(o => $"relationship[{MdmConstants.MasterRecordRelationship}].source@{typeof(TModel).Name}.{o.Key}", o => o.Value));
+                if (!query.TryGetValue("statusConcept", out _))
+                {
+                    localQuery.Add($"relationship[{MdmConstants.MasterRecordRelationship}].source@{typeof(TModel).Name}.statusConcept", StatusKeys.ActiveStates.Select(o => o.ToString()));
+                }
                 e.Cancel = true; // We want to cancel the callers query
 
                 //// Trim the local query

@@ -1,6 +1,7 @@
 ﻿using SanteDB.Core;
 using SanteDB.Core.Interop;
 using SanteDB.Core.Model.Collection;
+using SanteDB.Core.Model.Parameters;
 using SanteDB.Core.Services;
 using SanteDB.Rest.Common;
 using System;
@@ -34,10 +35,10 @@ namespace SanteDB.Persistence.MDM.Rest
         /// <summary>
         /// Invoke the specified operation
         /// </summary>
-        public override object Invoke(Type scopingType, object scopingKey, ApiOperationParameterCollection parameters)
+        public override object Invoke(Type scopingType, object scopingKey, ParameterCollection parameters)
         {
             var merger = ApplicationServiceContext.Current.GetService(typeof(IRecordMergingService<>).MakeGenericType(scopingType)) as IRecordMergingService;
-            if(merger == null)
+            if (merger == null)
             {
                 throw new InvalidOperationException($"Cannot find merging service for {scopingType.Name}. Is it under MDM control?");
             }
@@ -49,7 +50,6 @@ namespace SanteDB.Persistence.MDM.Rest
             // Is this scoped call?
             if (scopingKey == null)
             {
-
                 if (globalReset)
                 {
                     merger.Reset(includeVerified, linksOnly);
@@ -57,7 +57,7 @@ namespace SanteDB.Persistence.MDM.Rest
                 else
                 {
                     merger.ClearGlobalMergeCanadidates();
-                    if(includeVerified)
+                    if (includeVerified)
                     {
                         merger.ClearGlobalIgnoreFlags();
                     }
@@ -65,7 +65,6 @@ namespace SanteDB.Persistence.MDM.Rest
             }
             else if (scopingKey is Guid scopingObjectKey)
             {
-
                 if (globalReset)
                 {
                     merger.Reset(scopingObjectKey, includeVerified, linksOnly);
