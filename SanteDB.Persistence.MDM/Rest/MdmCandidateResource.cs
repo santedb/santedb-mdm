@@ -39,6 +39,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using RestSrvr;
 
 namespace SanteDB.Persistence.MDM.Rest
 {
@@ -125,23 +126,32 @@ namespace SanteDB.Persistence.MDM.Rest
                 var repository = ApplicationServiceContext.Current.GetService(typeof(IRepositoryService<>).MakeGenericType(scopingType)) as IRepositoryService;
 
                 // Produce a match report
-                IdentifiedData recordA = repository.Get(objectAKey),
-                    recordB = repository.Get(objectBKey);
-
-                if (recordA == null || recordB == null)
+                using (AuthenticationContext.EnterSystemContext())
                 {
-                    throw new KeyNotFoundException($"Source or target not found");
-                }
+                    IdentifiedData recordA = repository.Get(objectAKey),
+                        recordB = repository.Get(objectBKey);
 
-                var matchConfigurations = matchConfiguration.Configurations.Where(o => o.AppliesTo.Contains(scopingType) && o.Metadata.State == MatchConfigurationStatus.Active);
-                if (matchConfiguration == null)
-                {
-                    throw new InvalidOperationException("No configuration for type exists");
-                }
+                    if (recordA == null || recordB == null)
+                    {
+                        throw new KeyNotFoundException($"Source or target not found");
+                    }
 
-                // Match result
-                var matchResult = matchConfigurations.SelectMany(c => matcher.Classify(recordA, new IdentifiedData[] { recordB }, c.Id));
-                return matchReportFactory.CreateMatchReport(scopingType, recordA, matchResult);
+                    var configId = RestOperationContext.Current.IncomingRequest.QueryString["_configuration"];
+                    IEnumerable<IRecordMatchingConfiguration> matchConfigurations = matchConfiguration.Configurations.Where(o => o.AppliesTo.Contains(scopingType) && o.Metadata.State == MatchConfigurationStatus.Active);
+                    if (!String.IsNullOrEmpty(configId))
+                    {
+                        matchConfigurations = matchConfiguration.Configurations.Where(o => o.AppliesTo.Contains(scopingType) && o.Id == configId).Union(matchConfigurations);
+                    }
+
+                    if (matchConfiguration == null)
+                    {
+                        throw new InvalidOperationException("No configuration for type exists");
+                    }
+
+                    // Match result
+                    var matchResult = matchConfigurations.SelectMany(c => matcher.Classify(recordA, new IdentifiedData[] { recordB }, c.Id));
+                    return matchReportFactory.CreateMatchReport(scopingType, recordA, matchResult);
+                }
             }
             else
             {
