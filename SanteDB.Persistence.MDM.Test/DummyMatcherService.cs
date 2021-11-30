@@ -108,6 +108,36 @@ namespace SanteDB.Persistence.MDM.Test
         {
             throw new NotImplementedException();
         }
+
+        public IEnumerable<T> Block<T>(T input, string configurationId, IEnumerable<Guid> ignoreList, IRecordMatchingDiagnosticSession collector = null) where T : IdentifiedData
+        {
+            throw new NotImplementedException();
+        }
+
+        public IEnumerable<IRecordMatchResult<T>> Classify<T>(T input, IEnumerable<T> blocks, string configurationId, IRecordMatchingDiagnosticSession collector = null) where T : IdentifiedData
+        {
+            throw new NotImplementedException();
+        }
+
+        public IEnumerable<IRecordMatchResult<T>> Match<T>(T input, string configurationId, IEnumerable<Guid> ignoreList, IRecordMatchingDiagnosticSession collector = null) where T : IdentifiedData
+        {
+            throw new NotImplementedException();
+        }
+
+        public IEnumerable<IRecordMatchResult> Match(IdentifiedData input, string configurationId, IEnumerable<Guid> ignoreList, IRecordMatchingDiagnosticSession collector = null)
+        {
+            throw new NotImplementedException();
+        }
+
+        public IEnumerable<IRecordMatchResult> Classify(IdentifiedData input, IEnumerable<IdentifiedData> blocks, string configurationId, IRecordMatchingDiagnosticSession collector = null)
+        {
+            throw new NotImplementedException();
+        }
+
+        public IRecordMatchingDiagnosticSession CreateDiagnosticSession()
+        {
+            throw new NotImplementedException();
+        }
     }
 
     /// <summary>
