@@ -217,7 +217,7 @@ namespace SanteDB.Persistence.MDM.Services
                     {
                         try
                         {
-                            collector.LogStartAction(o);
+                            collector?.LogStartAction(o);
 
                             if (o is IHasIdentifiers oid)
                             {
@@ -232,7 +232,7 @@ namespace SanteDB.Persistence.MDM.Services
                         }
                         finally
                         {
-                            collector.LogEndAction();
+                            collector?.LogEndAction();
                         }
                     });
                 }
