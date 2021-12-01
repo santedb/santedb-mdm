@@ -416,19 +416,24 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     versioned.VersionSequence = null;
                     versioned.VersionKey = null;
                 }
+
             }
             else if (!store.Key.HasValue)
             {
                 store.Key = Guid.NewGuid(); // Ensure that we have a key for the object.
             }
 
-            store.StripAssociatedItemSources();
-
             // Is this a ROT?
             if (this.m_dataManager.IsRecordOfTruth(e.Data))
             {
                 this.m_policyEnforcement.Demand(MdmPermissionPolicyIdentifiers.EstablishRecordOfTruth);
                 store = this.m_dataManager.PromoteRecordOfTruth(store);
+            }
+            else
+            {
+
+                store.StripAssociatedItemSources();
+
             }
 
             // Rewrite any relationships we need to

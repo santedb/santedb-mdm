@@ -44,6 +44,7 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Security.Principal;
 using System.Text;
+using SanteDB.Core.Model.Roles;
 
 namespace SanteDB.Persistence.MDM.Services.Resources
 {
@@ -216,10 +217,49 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     r.RelationshipTypeKey == EntityRelationshipTypeKeys.Scoper ||
                     r.RelationshipTypeKey == EntityRelationshipTypeKeys.Replaces
                 );
+
+                // Remove all local identifiers for names , addresses, etc.
+                local.Names?.ForEach(o =>
+                {
+                    o.Key = null;
+                    o.Component?.ForEach(c => c.Key = null);
+                    o.SourceEntityKey = null;
+                });
+                local.Addresses?.ForEach(o =>
+                {
+                    o.Key = null;
+                    o.Component?.ForEach(c => c.Key = null);
+                    o.SourceEntityKey = null;
+                });
+                local.Telecoms?.ForEach(o =>
+                {
+                    o.Key = null;
+                    o.SourceEntityKey = null;
+                });
+                local.Notes?.Clear();
+                local.Participations?.Clear();
+                local.Identifiers?.ForEach(o =>
+                {
+                    o.Key = null;
+                    o.SourceEntityKey = null;
+                });
+                if (local is Person psn)
+                {
+                    psn.LanguageCommunication.ForEach(o =>
+                    {
+                        o.Key = null;
+                        o.SourceEntityKey = null;
+                    });
+                }
             }
             else if (rotRelationship.SourceEntityKey != master.Key)
             {
                 throw new InvalidOperationException("Looks like you're trying to change a ROT relationship to a different master - this is not permitted ");
+            }
+            else if (local.Key.HasValue && !local.Relationships.Any(r => r.RelationshipTypeKey == MdmConstants.MasterRecordRelationship))
+            {
+                var rel = this.GetMasterRelationshipFor(local.Key.Value);
+                local.Relationships.Add(rel as EntityRelationship);
             }
             rotRelationship.SourceEntityKey = master.Key;
             return local;
