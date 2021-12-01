@@ -143,6 +143,7 @@ namespace SanteDB.Persistence.MDM.Test
     /// <summary>
     /// Dummy match configuration
     /// </summary>
+    [ExcludeFromCodeCoverage]
     internal class DummyMatchConfiguration : IRecordMatchingConfiguration
     {
         public DummyMatchConfiguration()
@@ -221,6 +222,7 @@ namespace SanteDB.Persistence.MDM.Test
     /// <summary>
     /// Represent a dummy match result
     /// </summary>
+    [ExcludeFromCodeCoverage]
     public class DummyMatchResult<T> : IRecordMatchResult<T>
         where T : IdentifiedData
     {
