@@ -20,10 +20,8 @@
  */
 
 using SanteDB.Core;
-using SanteDB.Core.Configuration;
 using SanteDB.Core.Diagnostics;
 using SanteDB.Core.Event;
-using SanteDB.Core.Exceptions;
 using SanteDB.Core.Matching;
 using SanteDB.Core.Model;
 using SanteDB.Core.Model.Acts;
@@ -34,20 +32,15 @@ using SanteDB.Core.Model.Entities;
 using SanteDB.Core.Model.Interfaces;
 using SanteDB.Core.Model.Query;
 using SanteDB.Core.Security;
-using SanteDB.Core.Security.Claims;
-using SanteDB.Core.Security.Principal;
 using SanteDB.Core.Security.Services;
 using SanteDB.Core.Services;
 using SanteDB.Persistence.MDM.Exceptions;
-using SanteDB.Persistence.MDM.Model;
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Security.Principal;
-using System.Text;
 
 namespace SanteDB.Persistence.MDM.Services.Resources
 {
@@ -290,7 +283,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
 
                 if (sender is Bundle bundle)
                 {
-                    var transactionItems = this.PrepareTransaction(e.Data, bundle.Item);
+                    // need to create a new list to avoid the collection being modified during enumeration
+                    var transactionItems = new List<IdentifiedData>(this.PrepareTransaction(e.Data, bundle.Item));
                     bundle.Item.InsertRange(bundle.Item.FindIndex(o => o.Key == e.Data.Key), transactionItems.Where(o => o != e.Data));
                 }
                 else
@@ -309,7 +303,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             }
             catch (Exception ex)
             {
-                throw new MdmException(e.Data, "Error Executing INSERT trigger", ex);
+                throw new MdmException(e.Data, "Error Executing UPDATE trigger", ex);
             }
         }
 
