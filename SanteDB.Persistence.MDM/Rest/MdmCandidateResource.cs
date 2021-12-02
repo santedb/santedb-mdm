@@ -171,17 +171,18 @@ namespace SanteDB.Persistence.MDM.Rest
             }
 
             IEnumerable<IdentifiedData> result = null;
-            if (scopingKey == null) // class call
+            if (scopingKey == null) // TODO: This is being refactored to the new yield pattern this is just a temporary performance thing
             {
-                result = merger.GetGlobalMergeCandidates().OfType<IdentifiedData>();
+                result = merger.GetGlobalMergeCandidates(offset, count, out totalCount).OfType<IdentifiedData>();
             }
             else
             {
                 result = merger.GetMergeCandidates((Guid)scopingKey);
+                totalCount = result.Count();
+                result = result.Skip(offset).Take(count);
             }
 
-            totalCount = result.Count();
-            return result.Skip(offset).Take(count);
+            return result;
         }
 
         /// <summary>

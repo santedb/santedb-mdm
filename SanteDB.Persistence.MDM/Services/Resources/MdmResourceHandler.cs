@@ -398,9 +398,53 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 }
                 else
                 {
-                    // Copy the changed data from the inbound to the new local
-                    store.SemanticCopy(e.Data);
-                    store.SemanticCopy(e.Data);
+                    // We only copy the key and use the new inbound data to replace the local
+                    e.Data.Key = store.Key;
+                    if (e.Data is IVersionedEntity ivd && store is IVersionedEntity ivs)
+                    {
+                        ivd.VersionKey = ivs.VersionKey;
+                        ivd.VersionSequence = ivs.VersionSequence;
+                        ivd.PreviousVersionKey = ivs.PreviousVersionKey;
+                    }
+
+                    store = e.Data;
+                }
+
+                // So - this is complex but here is a description of why we do the next line of code:
+                //  Basically we never want to explicitly let the client send us an EntityRelationshipMaster on the
+                //  service instance. So we need to select back out of any provided relationships the
+                //  relationship masters to only those which apply to our object rather than the
+                //  redirected relationships
+                if (store is IHasRelationships irelationships)
+                {
+                    // Now re-process the relationships
+                    foreach (var itm in irelationships.Relationships.ToArray())
+                    {
+                        if (itm is IMdmRedirectedRelationship imdmrdr)
+                        {
+                            if (imdmrdr.OriginalTargetKey.HasValue && imdmrdr.OriginalHolderKey != store.Key)
+                            {
+                                irelationships.RemoveRelationship(imdmrdr);
+                            }
+                            else if (imdmrdr.OriginalTargetKey.HasValue && imdmrdr.OriginalTargetKey != imdmrdr.TargetEntityKey) // the pointer is to another MDM master - so fix it
+                            {
+                                imdmrdr.TargetEntityKey = imdmrdr.OriginalTargetKey;
+                            }
+                            else
+                            {
+                                imdmrdr.SourceEntityKey = imdmrdr.OriginalHolderKey ?? store.Key;
+                                imdmrdr.TargetEntityKey = imdmrdr.OriginalTargetKey ?? imdmrdr.TargetEntityKey;
+                            }
+                        }
+                        else if (itm.SourceEntityKey.HasValue && itm.SourceEntityKey != store.Key && itm.TargetEntityKey.HasValue && itm.TargetEntityKey != store.Key) // The source was never meant for us
+                        {
+                            irelationships.RemoveRelationship(itm);
+                        }
+                        else
+                        {
+                            itm.SourceEntityKey = store.Key;
+                        }
+                    }
                 }
 
                 // Remove MDM tags since this is a master
@@ -416,24 +460,19 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     versioned.VersionSequence = null;
                     versioned.VersionKey = null;
                 }
-
             }
             else if (!store.Key.HasValue)
             {
                 store.Key = Guid.NewGuid(); // Ensure that we have a key for the object.
             }
 
+            store.StripAssociatedItemSources();
+
             // Is this a ROT?
             if (this.m_dataManager.IsRecordOfTruth(e.Data))
             {
                 this.m_policyEnforcement.Demand(MdmPermissionPolicyIdentifiers.EstablishRecordOfTruth);
                 store = this.m_dataManager.PromoteRecordOfTruth(store);
-            }
-            else
-            {
-
-                store.StripAssociatedItemSources();
-
             }
 
             // Rewrite any relationships we need to

@@ -46,7 +46,7 @@ namespace SanteDB.Persistence.MDM.Model
     /// Represents a relationship
     /// </summary>
     [XmlType(Namespace = "http://santedb.org/model")]
-    public class EntityRelationshipMaster : EntityRelationship
+    public class EntityRelationshipMaster : EntityRelationship, IMdmRedirectedRelationship
     {
         /// <summary>
         /// Default ctor for serialization
