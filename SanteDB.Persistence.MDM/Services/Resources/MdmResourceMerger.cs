@@ -146,7 +146,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// <summary>
         /// Get all global merge candidates
         /// </summary>
-        public abstract IEnumerable<ITargetedAssociation> GetGlobalMergeCandidates();
+        public abstract IEnumerable<ITargetedAssociation> GetGlobalMergeCandidates(int offset, int count, out int totalResults);
 
         /// <summary>
         /// Detect global merge candidates

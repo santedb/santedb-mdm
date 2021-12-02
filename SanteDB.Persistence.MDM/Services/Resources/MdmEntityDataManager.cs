@@ -948,6 +948,13 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                             {
                                 BatchOperation = BatchOperationType.Insert
                             };
+
+                            // Any inbound relationships on the old master rec that were candidates or ignores should be removed
+                            foreach (var itm in this.m_relationshipService.Query(r => (r.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship || r.RelationshipTypeKey == MdmConstants.IgnoreCandidateRelationship) && r.TargetEntityKey == oldMasterRec.Key && r.ObsoleteVersionSequenceId == null, AuthenticationContext.SystemPrincipal))
+                            {
+                                itm.BatchOperation = BatchOperationType.Delete;
+                                yield return itm;
+                            }
                         }
                     }
                     else
@@ -1056,8 +1063,6 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     RelationshipTypeKey = MdmConstants.IgnoreCandidateRelationship
                 };
 
-                /**
-                 * Not needed since detect only now uses ONE WAY matching
                 // Add reverse ignores on the master
                 // This covers A(LOC)--[IGNORE]-->B(MAS) however if that is true then
                 // B(LOC)--[IGNORE]-->A(MAS)
@@ -1069,18 +1074,18 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     // Were any of those reverse candidates in the host locals?
                     if (otherHostLocals.Any(l => l.SourceEntityKey == reverseCandidate.SourceEntityKey))
                     {
-                        reverseCandidate.BatchOperation = BatchOperationType.Obsolete;
+                        reverseCandidate.BatchOperation = BatchOperationType.Delete;
+                        yield return reverseCandidate; // delete the old candidate reverse relationship
                         yield return new EntityRelationship()
                         {
                             BatchOperation = BatchOperationType.Insert,
                             SourceEntityKey = reverseCandidate.SourceEntityKey,
                             TargetEntityKey = reverseCandidate.TargetEntityKey,
-                            Classification = MdmConstants.AutomagicClassification,
+                            ClassificationKey = MdmConstants.VerifiedClassification,
                             RelationshipTypeKey = MdmConstants.IgnoreCandidateRelationship
-                        }
+                        };
                     }
                 }
-                */
             }
             else if (this.IsMaster(ignoreKey))
             {
@@ -1120,9 +1125,9 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// <summary>
         /// Get all candidate locals
         /// </summary>
-        public override IEnumerable<ITargetedAssociation> GetAllMdmCandidateLocals()
+        public override IEnumerable<ITargetedAssociation> GetAllMdmCandidateLocals(int offset, int count, out int totalResults)
         {
-            return this.m_relationshipService.Query(o => o.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship && o.ObsoleteVersionSequenceId == null, AuthenticationContext.SystemPrincipal);
+            return this.m_relationshipService.Query(o => o.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship && o.ObsoleteVersionSequenceId == null, offset, count, out totalResults, AuthenticationContext.SystemPrincipal);
         }
 
         /// <summary>

@@ -51,6 +51,7 @@ using SanteDB.Persistence.MDM.Jobs;
 using SanteDB.Core.Model.Collection;
 using SanteDB.Core.Event;
 using SanteDB.Core.Matching;
+using System.Security.Principal;
 
 namespace SanteDB.Persistence.MDM.Services
 {
@@ -87,6 +88,9 @@ namespace SanteDB.Persistence.MDM.Services
         // Match configuration service
         private IRecordMatchingConfigurationService m_matchConfigurationService;
 
+        // Data caching
+        private readonly IDataCachingService m_dataCachingService;
+
         // TRace source
         private Tracer m_traceSource = new Tracer(MdmConstants.TraceSourceName);
 
@@ -122,7 +126,7 @@ namespace SanteDB.Persistence.MDM.Services
         /// <summary>
         /// Create injected service
         /// </summary>
-        public MdmDataManagementService(IServiceManager serviceManager, IConfigurationManager configuration, IRecordMatchingConfigurationService matchConfigurationService = null, IRecordMatchingService matchingService = null, ISubscriptionExecutor subscriptionExecutor = null, SimDataManagementService simDataManagementService = null, IJobManagerService jobManagerService = null)
+        public MdmDataManagementService(IServiceManager serviceManager, IConfigurationManager configuration, IDataCachingService cachingService = null, IRecordMatchingConfigurationService matchConfigurationService = null, IRecordMatchingService matchingService = null, ISubscriptionExecutor subscriptionExecutor = null, SimDataManagementService simDataManagementService = null, IJobManagerService jobManagerService = null)
         {
             this.m_configuration = configuration.GetSection<ResourceManagementConfigurationSection>();
             this.m_matchingService = matchingService;
@@ -130,6 +134,7 @@ namespace SanteDB.Persistence.MDM.Services
             this.m_subscriptionExecutor = subscriptionExecutor;
             this.m_jobManager = jobManagerService;
             this.m_matchConfigurationService = matchConfigurationService;
+            this.m_dataCachingService = cachingService;
             if (simDataManagementService != null)
             {
                 throw new InvalidOperationException("Cannot run MDM and SIM in same mode");
@@ -243,45 +248,57 @@ namespace SanteDB.Persistence.MDM.Services
         /// </summary>
         private void RecheckRelationshipTrigger(object sender, DataPersistedEventArgs<EntityRelationship> e)
         {
-            switch (e.Data.RelationshipTypeKey.ToString())
+            this.RecheckRelationship(e.Data, e.Mode, e.Principal);
+            this.m_dataCachingService.Remove(e.Data);
+        }
+
+        /// <summary>
+        /// Recheck relationship
+        /// </summary>
+        private void RecheckRelationship(ITargetedVersionedExtension targetedAssociation, TransactionMode mode, IPrincipal principal)
+        {
+            if (targetedAssociation is IdentifiedData idData)
             {
-                case MdmConstants.MASTER_RECORD_RELATIONSHIP:
-                    // Is the data obsoleted (removed)? If so, then ensure we don't have a hanging master
-                    if (e.Data.ObsoleteVersionSequenceId.HasValue || e.Data.BatchOperation == Core.Model.DataTypes.BatchOperationType.Delete)
-                    {
-                        if (this.m_entityRelationshipService.Count(r => r.TargetEntityKey == e.Data.TargetEntityKey && !StatusKeys.InactiveStates.Contains(r.TargetEntity.StatusConceptKey.Value) && r.SourceEntityKey != e.Data.SourceEntityKey && r.ObsoleteVersionSequenceId == null) == 0)
+                switch (targetedAssociation.AssociationTypeKey.ToString())
+                {
+                    case MdmConstants.MASTER_RECORD_RELATIONSHIP:
+                        // Is the data obsoleted (removed)? If so, then ensure we don't have a hanging master
+                        if (targetedAssociation.ObsoleteVersionSequenceId.HasValue || idData.BatchOperation == Core.Model.DataTypes.BatchOperationType.Delete)
                         {
-                            // TODO: Replace this with the Delete() call instead - since it is an orphan and we don't know why
-                            this.m_entityService.Obsolete(new Entity() { Key = e.Data.TargetEntityKey, StatusConceptKey = StatusKeys.Inactive }, e.Mode, e.Principal);
+                            if (this.m_entityRelationshipService.Count(r => r.TargetEntityKey == targetedAssociation.TargetEntityKey && !StatusKeys.InactiveStates.Contains(r.TargetEntity.StatusConceptKey.Value) && r.SourceEntityKey != targetedAssociation.SourceEntityKey && r.ObsoleteVersionSequenceId == null) == 0)
+                            {
+                                // TODO: Replace this with the Delete() call instead - since it is an orphan and we don't know why
+                                this.m_entityService.Obsolete(new Entity() { Key = targetedAssociation.TargetEntityKey, StatusConceptKey = StatusKeys.Inactive }, mode, principal);
+                            }
+                            return; // no need to de-dup check on obsoleted object
                         }
-                        return; // no need to de-dup check on obsoleted object
-                    }
 
-                    // MDM relationship should be the only active relationship between
-                    // So when:
-                    // A =[MDM-Master]=> B
-                    // You cannot have:
-                    // A =[MDM-Duplicate]=> B
-                    // A =[MDM-Original]=> B
-                    foreach (var itm in this.m_entityRelationshipService.Query(q => q.RelationshipTypeKey != MdmConstants.MasterRecordRelationship && q.SourceEntityKey == e.Data.SourceEntityKey && q.TargetEntityKey == e.Data.TargetEntityKey && q.ObsoleteVersionSequenceId == null, e.Principal))
-                    {
-                        itm.BatchOperation = Core.Model.DataTypes.BatchOperationType.Delete;
-                        this.m_entityRelationshipService.Update(itm, e.Mode, e.Principal);
-                    }
-
-                    break;
-
-                case MdmConstants.RECORD_OF_TRUTH_RELATIONSHIP:
-                    // Is the ROT being assigned, and if so is there another ?
-                    if (!e.Data.ObsoleteVersionSequenceId.HasValue || e.Data.BatchOperation == Core.Model.DataTypes.BatchOperationType.Delete)
-                    {
-                        foreach (var rotRel in this.m_entityRelationshipService.Query(r => r.SourceEntityKey == e.Data.SourceEntityKey && r.TargetEntityKey != e.Data.TargetEntityKey && r.ObsoleteVersionSequenceId == null, e.Principal))
+                        // MDM relationship should be the only active relationship between
+                        // So when:
+                        // A =[MDM-Master]=> B
+                        // You cannot have:
+                        // A =[MDM-Duplicate]=> B
+                        // A =[MDM-Original]=> B
+                        foreach (var itm in this.m_entityRelationshipService.Query(q => q.RelationshipTypeKey != MdmConstants.MasterRecordRelationship && q.SourceEntityKey == targetedAssociation.SourceEntityKey && q.TargetEntityKey == targetedAssociation.TargetEntityKey && q.ObsoleteVersionSequenceId == null, principal))
                         {
-                            //Obsolete other ROTs (there can only be one)
-                            this.m_entityRelationshipService.Obsolete(rotRel, e.Mode, e.Principal);
+                            itm.BatchOperation = Core.Model.DataTypes.BatchOperationType.Delete;
+                            this.m_entityRelationshipService.Update(itm, mode, principal);
                         }
-                    }
-                    break;
+
+                        break;
+
+                    case MdmConstants.RECORD_OF_TRUTH_RELATIONSHIP:
+                        // Is the ROT being assigned, and if so is there another ?
+                        if (!targetedAssociation.ObsoleteVersionSequenceId.HasValue || idData.BatchOperation == Core.Model.DataTypes.BatchOperationType.Delete)
+                        {
+                            foreach (var rotRel in this.m_entityRelationshipService.Query(r => r.SourceEntityKey == targetedAssociation.SourceEntityKey && r.TargetEntityKey != targetedAssociation.TargetEntityKey && r.ObsoleteVersionSequenceId == null, principal))
+                            {
+                                //Obsolete other ROTs (there can only be one)
+                                this.m_entityRelationshipService.Obsolete(rotRel, mode, principal);
+                            }
+                        }
+                        break;
+                }
             }
         }
 
@@ -290,9 +307,20 @@ namespace SanteDB.Persistence.MDM.Services
         /// </summary>
         private void RecheckBundleTrigger(object sender, DataPersistedEventArgs<Bundle> e)
         {
-            foreach (var itm in e.Data.Item.OfType<EntityRelationship>())
+            foreach (var itm in e.Data.Item.OfType<ITargetedVersionedExtension>())
             {
-                this.RecheckRelationshipTrigger(sender, new DataPersistedEventArgs<EntityRelationship>(itm, e.Mode, e.Principal));
+                this.RecheckRelationship(itm, e.Mode, e.Principal);
+            }
+
+            // Remove dependent objects from cache
+            foreach (var itm in e.Data.Item.OfType<IHasRelationships>())
+            {
+                foreach (var rel in itm.Relationships.OfType<ITargetedVersionedExtension>())
+                {
+                    this.m_dataCachingService.Remove(rel as IdentifiedData);
+                    this.RecheckRelationship(rel, e.Mode, e.Principal);
+                }
+                this.m_dataCachingService.Remove(itm as IdentifiedData);
             }
         }
 

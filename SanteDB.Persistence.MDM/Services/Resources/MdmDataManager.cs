@@ -58,7 +58,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// <summary>
         /// Get all MDM candidate locals regardless of where they are attached
         /// </summary>
-        public abstract IEnumerable<ITargetedAssociation> GetAllMdmCandidateLocals();
+        public abstract IEnumerable<ITargetedAssociation> GetAllMdmCandidateLocals(int offset, int count, out int totalCount);
 
         /// <summary>
         /// Gets all local associations between <paramref name="masterKey"/> and its master
