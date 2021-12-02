@@ -35,6 +35,7 @@ using SanteDB.Core.Security;
 using SanteDB.Core.Security.Services;
 using SanteDB.Core.Services;
 using SanteDB.Persistence.MDM.Exceptions;
+using SanteDB.Persistence.MDM.Model;
 using System;
 using System.Collections.Generic;
 using System.Linq;
