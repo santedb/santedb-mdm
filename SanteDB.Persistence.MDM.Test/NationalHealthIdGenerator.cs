@@ -47,6 +47,7 @@ namespace SanteDB.Persistence.MDM.Test
     /// <summary>
     /// National health identifier BRE
     /// </summary>
+    [ExcludeFromCodeCoverage]
     public class NationalHealthIdRule : BaseBusinessRulesService<EntityMaster<Patient>>
     {
 
