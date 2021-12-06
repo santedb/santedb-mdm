@@ -1127,7 +1127,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         public override IEnumerable<ITargetedAssociation> GetAllMdmCandidateLocals(int offset, int count, out int totalResults)
         {
-            return this.m_relationshipService.Query(o => o.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship && o.ObsoleteVersionSequenceId == null, offset, count, out totalResults, AuthenticationContext.SystemPrincipal);
+            return this.m_relationshipService.Query(o => o.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship && o.ObsoleteVersionSequenceId == null, offset, count, out totalResults, AuthenticationContext.Current.Principal);
         }
 
         /// <summary>
