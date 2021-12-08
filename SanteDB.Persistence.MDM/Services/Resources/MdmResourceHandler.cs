@@ -382,6 +382,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// create/update a master</remarks>
         internal virtual void OnPrePersistenceValidate(object sender, DataPersistingEventArgs<TModel> e)
         {
+            var originalKey = e.Data.Key;
             var store = e.Data;
             // Is the existing object a master?
             if (this.m_dataManager.IsMaster(e.Data))
@@ -393,18 +394,13 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 }
                 else
                 {
-                    // We only copy the key and use the new inbound data to replace the local
-                    e.Data.Key = store.Key;
-                    if (e.Data is IVersionedEntity ivd && store is IVersionedEntity ivs)
-                    {
-                        ivd.VersionKey = ivs.VersionKey;
-                        ivd.VersionSequence = ivs.VersionSequence;
-                        ivd.PreviousVersionKey = ivs.PreviousVersionKey;
-                    }
 
-                    store = e.Data;
+                    var localKey = store.Key;
+                    store = e.Data.Clone() as TModel;
+                    store.Key = localKey;
                 }
 
+               
                 // So - this is complex but here is a description of why we do the next line of code:
                 //  Basically we never want to explicitly let the client send us an EntityRelationshipMaster on the
                 //  service instance. So we need to select back out of any provided relationships the
@@ -454,6 +450,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 {
                     versioned.VersionSequence = null;
                     versioned.VersionKey = null;
+                    versioned.PreviousVersionKey = null;
                 }
             }
             else if (!store.Key.HasValue)
@@ -464,7 +461,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             store.StripAssociatedItemSources();
 
             // Is this a ROT?
-            if (this.m_dataManager.IsRecordOfTruth(e.Data))
+            if (this.m_dataManager.IsRecordOfTruth(store))
             {
                 this.m_policyEnforcement.Demand(MdmPermissionPolicyIdentifiers.EstablishRecordOfTruth);
                 store = this.m_dataManager.PromoteRecordOfTruth(store);
@@ -473,28 +470,28 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             // Rewrite any relationships we need to
             if (sender is Bundle bundle)
             {
-                if (e.Data != store) // storage has changed
+                if (originalKey != store.Key) // storage has changed
                 {
-                    bundle.Item.Insert(bundle.Item.IndexOf(e.Data), store);
-                    bundle.Item.Remove(e.Data); // Remove
+                    bundle.Item.Insert(bundle.Item.FindIndex(o=>o.Key == originalKey), store);
+                    bundle.Item.RemoveAll(o=>o.Key == originalKey); // Remove
                 }
                 bundle.Item.AddRange(this.m_dataManager.ExtractRelationships(store).OfType<IdentifiedData>());
-                this.m_dataManager.RefactorRelationships(bundle.Item, e.Data.Key.Value, store.Key.Value);
+                this.m_dataManager.RefactorRelationships(bundle.Item, originalKey.Value, store.Key.Value);
 
                 // Rewrite the focal object to the proper objects actually being actioned
-                if (e.Data.Key != store.Key.Value)
+                if (originalKey != store.Key.Value)
                 {
-                    var replaceKeys = bundle.FocalObjects.Where(f => f == e.Data.Key).ToArray();
+                    var replaceKeys = bundle.FocalObjects.Where(f => f == originalKey).ToArray();
                     if (replaceKeys.Any())
                     {
                         bundle.FocalObjects.Add(store.Key.Value);
-                        bundle.FocalObjects.RemoveAll(f => f == e.Data.Key);
+                        bundle.FocalObjects.RemoveAll(f => f == originalKey);
                     }
                 }
             }
             else
             {
-                this.m_dataManager.RefactorRelationships(new List<IdentifiedData>() { store }, e.Data.Key.Value, store.Key.Value);
+                this.m_dataManager.RefactorRelationships(new List<IdentifiedData>() { store }, originalKey.Value, store.Key.Value);
             }
 
             e.Data = store;
