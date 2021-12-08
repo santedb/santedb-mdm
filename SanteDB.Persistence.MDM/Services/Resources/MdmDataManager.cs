@@ -53,7 +53,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// <summary>
         /// Refactor relationships
         /// </summary>
-        public abstract void RefactorRelationships(List<IdentifiedData> item, Guid fromEntityKey, Guid toEntityKey);
+        public abstract void RefactorRelationships(IEnumerable<IdentifiedData> item, Guid fromEntityKey, Guid toEntityKey);
 
         /// <summary>
         /// Get all MDM candidate locals regardless of where they are attached
