@@ -200,7 +200,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 local.Relationships.Add(rotRelationship);
 
                 // Ensure the ROT points to the master
-                var masterRel = local.Relationships.SingleOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship);
+                var masterRel = local.Relationships.SingleOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship) ??
+                    this.GetMasterRelationshipFor(local.Key.Value) as EntityRelationship;
                 if (masterRel.TargetEntityKey != master.Key)
                 {
                     local.Relationships.Remove(masterRel);
@@ -208,6 +209,11 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     {
                         ClassificationKey = MdmConstants.SystemClassification
                     });
+                }
+                else
+                {
+                    local.Relationships.Remove(masterRel);
+                    local.Relationships.Add(masterRel);
                 }
 
                 // Remove any other MDM relationships

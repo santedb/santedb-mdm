@@ -394,13 +394,11 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 }
                 else
                 {
-
                     var localKey = store.Key;
                     store = e.Data.Clone() as TModel;
                     store.Key = localKey;
                 }
 
-               
                 // So - this is complex but here is a description of why we do the next line of code:
                 //  Basically we never want to explicitly let the client send us an EntityRelationshipMaster on the
                 //  service instance. So we need to select back out of any provided relationships the
@@ -461,7 +459,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             store.StripAssociatedItemSources();
 
             // Is this a ROT?
-            if (this.m_dataManager.IsRecordOfTruth(store))
+            if (this.m_dataManager.IsRecordOfTruth(e.Data))
             {
                 this.m_policyEnforcement.Demand(MdmPermissionPolicyIdentifiers.EstablishRecordOfTruth);
                 store = this.m_dataManager.PromoteRecordOfTruth(store);
@@ -472,8 +470,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             {
                 if (originalKey != store.Key) // storage has changed
                 {
-                    bundle.Item.Insert(bundle.Item.FindIndex(o=>o.Key == originalKey), store);
-                    bundle.Item.RemoveAll(o=>o.Key == originalKey); // Remove
+                    bundle.Item.Insert(bundle.Item.FindIndex(o => o.Key == originalKey), store);
+                    bundle.Item.RemoveAll(o => o.Key == originalKey); // Remove
                 }
                 bundle.Item.AddRange(this.m_dataManager.ExtractRelationships(store).OfType<IdentifiedData>());
                 this.m_dataManager.RefactorRelationships(bundle.Item, originalKey.Value, store.Key.Value);
