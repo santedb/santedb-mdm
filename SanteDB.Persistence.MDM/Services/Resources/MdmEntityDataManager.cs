@@ -356,7 +356,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// <summary>
         /// Refactor relationships
         /// </summary>
-        public override void RefactorRelationships(List<IdentifiedData> item, Guid fromEntityKey, Guid toEntityKey)
+        public override void RefactorRelationships(IEnumerable<IdentifiedData> item, Guid fromEntityKey, Guid toEntityKey)
         {
             foreach (var obj in item)
             {
