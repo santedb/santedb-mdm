@@ -45,8 +45,8 @@ namespace SanteDB.Persistence.MDM.Model
     /// <summary>
     /// Represents a relationship
     /// </summary>
-    [XmlType(Namespace = "http://santedb.org/model")]
-    public class EntityRelationshipMaster : EntityRelationship
+    [XmlType(nameof(EntityRelationshipMaster), Namespace = "http://santedb.org/model")]
+    public class EntityRelationshipMaster : EntityRelationship, IMdmRedirectedRelationship
     {
         /// <summary>
         /// Default ctor for serialization
@@ -240,7 +240,7 @@ namespace SanteDB.Persistence.MDM.Model
                         this.LocalRecords.OfType<Entity>().SelectMany(o => o.Relationships.Where(r => r.TargetEntityKey == this.m_masterRecord.Key || r.SourceEntityKey == this.m_masterRecord.Key))
                     ))
             {
-                if (!relationships.Any(r => r.SemanticEquals(rel)))
+                if (!relationships.Any(r => r.SemanticEquals(rel) || r.TargetEntityKey == rel.TargetEntityKey && r.RelationshipTypeKey == rel.RelationshipTypeKey))
                     relationships.Add(rel);
             }
             master.Relationships = relationships;

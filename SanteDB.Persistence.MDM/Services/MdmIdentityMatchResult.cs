@@ -23,6 +23,7 @@ using SanteDB.Core.Model.Entities;
 using SanteDB.Core.Matching;
 using System.Collections.Generic;
 using SanteDB.Core.Model.Interfaces;
+using System.Linq;
 
 namespace SanteDB.Persistence.MDM.Services
 {
@@ -127,7 +128,7 @@ namespace SanteDB.Persistence.MDM.Services
             this.ConfigurationName = configurationName;
             if (input is IHasIdentifiers aIdentity && record is IHasIdentifiers bIdentity)
             {
-                this.Vectors = new IRecordMatchVector[] { new MdmIdentityMatchAttribute(classification, string.Join(",", aIdentity.Identifiers), string.Join(",", bIdentity.Identifiers)) };
+                this.Vectors = new IRecordMatchVector[] { new MdmIdentityMatchAttribute(classification, string.Join(",", aIdentity.Identifiers.Select(o=>$"{o.Value} [{o.Authority.DomainName}]")), string.Join(",", bIdentity.Identifiers.Select(o=>$"{o.Value} [{o.Authority.DomainName}]"))) };
             }
         }
 

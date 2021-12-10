@@ -353,7 +353,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         public override IQueryResultSet<ITargetedAssociation> GetGlobalMergeCandidates()
         {
-            return this.m_dataManager.GetAllMdmCandidateLocals();
+            return this.m_dataManager.GetAllMdmCandidateLocals(offset, count, out totalCount);
         }
 
         /// <summary>
@@ -377,7 +377,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     var results = this.m_entityPersistence.Query(o => !StatusKeys.InactiveStates.Contains(o.StatusConceptKey.Value) && o.DeterminerConceptKey != MdmConstants.RecordOfTruthDeterminer, queryId, offset, batchSize, out totalResults, AuthenticationContext.SystemPrincipal);
                     this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)offset / (float)totalResults, "Rematching"));
 
-                    var batchMatch = new Bundle(results.AsParallel().SelectMany(itm => this.m_dataManager.MdmTxMatchMasters(itm, new IdentifiedData[0])));
+                    var batchMatch = new Bundle(results.AsParallel().WithDegreeOfParallelism(8).SelectMany(itm => this.m_dataManager.MdmTxMatchMasters(itm, new IdentifiedData[0])));
                     this.m_batchPersistence.Insert(batchMatch, TransactionMode.Commit, AuthenticationContext.SystemPrincipal);
 
                     offset += batchSize;

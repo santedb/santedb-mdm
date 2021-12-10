@@ -20,10 +20,8 @@
  */
 
 using SanteDB.Core;
-using SanteDB.Core.Configuration;
 using SanteDB.Core.Diagnostics;
 using SanteDB.Core.Event;
-using SanteDB.Core.Exceptions;
 using SanteDB.Core.Matching;
 using SanteDB.Core.Model;
 using SanteDB.Core.Model.Acts;
@@ -34,20 +32,16 @@ using SanteDB.Core.Model.Entities;
 using SanteDB.Core.Model.Interfaces;
 using SanteDB.Core.Model.Query;
 using SanteDB.Core.Security;
-using SanteDB.Core.Security.Claims;
-using SanteDB.Core.Security.Principal;
 using SanteDB.Core.Security.Services;
 using SanteDB.Core.Services;
 using SanteDB.Persistence.MDM.Exceptions;
 using SanteDB.Persistence.MDM.Model;
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Security.Principal;
-using System.Text;
 
 namespace SanteDB.Persistence.MDM.Services.Resources
 {
@@ -291,7 +285,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
 
                 if (sender is Bundle bundle)
                 {
-                    var transactionItems = this.PrepareTransaction(e.Data, bundle.Item);
+                    // need to create a new list to avoid the collection being modified during enumeration
+                    var transactionItems = new List<IdentifiedData>(this.PrepareTransaction(e.Data, bundle.Item));
                     bundle.Item.InsertRange(bundle.Item.FindIndex(o => o.Key == e.Data.Key), transactionItems.Where(o => o != e.Data));
                 }
                 else
@@ -310,7 +305,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             }
             catch (Exception ex)
             {
-                throw new MdmException(e.Data, "Error Executing INSERT trigger", ex);
+                throw new MdmException(e.Data, "Error Executing UPDATE trigger", ex);
             }
         }
 
@@ -388,6 +383,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// create/update a master</remarks>
         internal virtual void OnPrePersistenceValidate(object sender, DataPersistingEventArgs<TModel> e)
         {
+            var originalKey = e.Data.Key;
             var store = e.Data;
             // Is the existing object a master?
             if (this.m_dataManager.IsMaster(e.Data))
@@ -399,9 +395,46 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 }
                 else
                 {
-                    // Copy the changed data from the inbound to the new local
-                    store.SemanticCopy(e.Data);
-                    store.SemanticCopy(e.Data);
+                    var localKey = store.Key;
+                    store = e.Data.Clone() as TModel;
+                    store.Key = localKey;
+                }
+
+                // So - this is complex but here is a description of why we do the next line of code:
+                //  Basically we never want to explicitly let the client send us an EntityRelationshipMaster on the
+                //  service instance. So we need to select back out of any provided relationships the
+                //  relationship masters to only those which apply to our object rather than the
+                //  redirected relationships
+                if (store is IHasRelationships irelationships)
+                {
+                    // Now re-process the relationships
+                    foreach (var itm in irelationships.Relationships.ToArray())
+                    {
+                        if (itm is IMdmRedirectedRelationship imdmrdr)
+                        {
+                            if (imdmrdr.OriginalTargetKey.HasValue && imdmrdr.OriginalHolderKey != store.Key)
+                            {
+                                irelationships.RemoveRelationship(imdmrdr);
+                            }
+                            else if (imdmrdr.OriginalTargetKey.HasValue && imdmrdr.OriginalTargetKey != imdmrdr.TargetEntityKey) // the pointer is to another MDM master - so fix it
+                            {
+                                imdmrdr.TargetEntityKey = imdmrdr.OriginalTargetKey;
+                            }
+                            else
+                            {
+                                imdmrdr.SourceEntityKey = imdmrdr.OriginalHolderKey ?? store.Key;
+                                imdmrdr.TargetEntityKey = imdmrdr.OriginalTargetKey ?? imdmrdr.TargetEntityKey;
+                            }
+                        }
+                        else if (itm.SourceEntityKey.HasValue && itm.SourceEntityKey != store.Key && itm.TargetEntityKey.HasValue && itm.TargetEntityKey != store.Key) // The source was never meant for us
+                        {
+                            irelationships.RemoveRelationship(itm);
+                        }
+                        else
+                        {
+                            itm.SourceEntityKey = store.Key;
+                        }
+                    }
                 }
 
                 // Remove MDM tags since this is a master
@@ -416,6 +449,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 {
                     versioned.VersionSequence = null;
                     versioned.VersionKey = null;
+                    versioned.PreviousVersionKey = null;
                 }
             }
             else if (!store.Key.HasValue)
@@ -435,28 +469,28 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             // Rewrite any relationships we need to
             if (sender is Bundle bundle)
             {
-                if (e.Data != store) // storage has changed
+                if (originalKey != store.Key) // storage has changed
                 {
-                    bundle.Item.Insert(bundle.Item.IndexOf(e.Data), store);
-                    bundle.Item.Remove(e.Data); // Remove
+                    bundle.Item.Insert(bundle.Item.FindIndex(o => o.Key == originalKey), store);
+                    bundle.Item.RemoveAll(o => o.Key == originalKey); // Remove
                 }
                 bundle.Item.AddRange(this.m_dataManager.ExtractRelationships(store).OfType<IdentifiedData>());
-                this.m_dataManager.RefactorRelationships(bundle.Item, e.Data.Key.Value, store.Key.Value);
+                this.m_dataManager.RefactorRelationships(bundle.Item, originalKey.Value, store.Key.Value);
 
                 // Rewrite the focal object to the proper objects actually being actioned
-                if (e.Data.Key != store.Key.Value)
+                if (originalKey != store.Key.Value)
                 {
-                    var replaceKeys = bundle.FocalObjects.Where(f => f == e.Data.Key).ToArray();
+                    var replaceKeys = bundle.FocalObjects.Where(f => f == originalKey).ToArray();
                     if (replaceKeys.Any())
                     {
                         bundle.FocalObjects.Add(store.Key.Value);
-                        bundle.FocalObjects.RemoveAll(f => f == e.Data.Key);
+                        bundle.FocalObjects.RemoveAll(f => f == originalKey);
                     }
                 }
             }
             else
             {
-                this.m_dataManager.RefactorRelationships(new List<IdentifiedData>() { store }, e.Data.Key.Value, store.Key.Value);
+                this.m_dataManager.RefactorRelationships(new List<IdentifiedData>() { store }, originalKey.Value, store.Key.Value);
             }
 
             e.Data = store;

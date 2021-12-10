@@ -51,6 +51,7 @@ using SanteDB.Persistence.MDM.Jobs;
 using SanteDB.Core.Model.Collection;
 using SanteDB.Core.Event;
 using SanteDB.Core.Matching;
+using System.Security.Principal;
 
 namespace SanteDB.Persistence.MDM.Services
 {
@@ -87,6 +88,9 @@ namespace SanteDB.Persistence.MDM.Services
         // Match configuration service
         private IRecordMatchingConfigurationService m_matchConfigurationService;
 
+        // Data caching
+        private readonly IDataCachingService m_dataCachingService;
+
         // TRace source
         private readonly Tracer m_traceSource = new Tracer(MdmConstants.TraceSourceName);
 
@@ -122,7 +126,7 @@ namespace SanteDB.Persistence.MDM.Services
         /// <summary>
         /// Create injected service
         /// </summary>
-        public MdmDataManagementService(IServiceManager serviceManager, IConfigurationManager configuration, IRecordMatchingConfigurationService matchConfigurationService = null, IRecordMatchingService matchingService = null, ISubscriptionExecutor subscriptionExecutor = null, SimDataManagementService simDataManagementService = null, IJobManagerService jobManagerService = null)
+        public MdmDataManagementService(IServiceManager serviceManager, IConfigurationManager configuration, IDataCachingService cachingService = null, IRecordMatchingConfigurationService matchConfigurationService = null, IRecordMatchingService matchingService = null, ISubscriptionExecutor subscriptionExecutor = null, SimDataManagementService simDataManagementService = null, IJobManagerService jobManagerService = null)
         {
             this.m_configuration = configuration.GetSection<ResourceManagementConfigurationSection>();
             this.m_matchingService = matchingService;
@@ -130,6 +134,7 @@ namespace SanteDB.Persistence.MDM.Services
             this.m_subscriptionExecutor = subscriptionExecutor;
             this.m_jobManager = jobManagerService;
             this.m_matchConfigurationService = matchConfigurationService;
+            this.m_dataCachingService = cachingService;
             if (simDataManagementService != null)
             {
                 throw new InvalidOperationException("Cannot run MDM and SIM in same mode");
@@ -266,7 +271,7 @@ namespace SanteDB.Persistence.MDM.Services
                         this.m_entityRelationshipService.Delete(itm.Key.Value, e.Mode, e.Principal, this.m_configuration.MasterDataDeletionMode);
                     }
 
-                    break;
+                        break;
 
                 case MdmConstants.RECORD_OF_TRUTH_RELATIONSHIP:
                     // Is the ROT being assigned, and if so is there another ?
@@ -287,9 +292,20 @@ namespace SanteDB.Persistence.MDM.Services
         /// </summary>
         private void RecheckBundleTrigger(object sender, DataPersistedEventArgs<Bundle> e)
         {
-            foreach (var itm in e.Data.Item.OfType<EntityRelationship>())
+            foreach (var itm in e.Data.Item.OfType<ITargetedVersionedExtension>())
             {
-                this.RecheckRelationshipTrigger(sender, new DataPersistedEventArgs<EntityRelationship>(itm, e.Mode, e.Principal));
+                this.RecheckRelationship(itm, e.Mode, e.Principal);
+            }
+
+            // Remove dependent objects from cache
+            foreach (var itm in e.Data.Item.OfType<IHasRelationships>())
+            {
+                foreach (var rel in itm.Relationships.OfType<ITargetedVersionedExtension>())
+                {
+                    this.m_dataCachingService.Remove(rel as IdentifiedData);
+                    this.RecheckRelationship(rel, e.Mode, e.Principal);
+                }
+                this.m_dataCachingService.Remove(itm as IdentifiedData);
             }
         }
 

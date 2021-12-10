@@ -124,42 +124,52 @@ namespace SanteDB.Persistence.MDM.Services
         /// <summary>
         /// Performs an identifier based match
         /// </summary>
-        private IEnumerable<IRecordMatchResult<T>> PerformIdentityMatch<T>(T entity, IEnumerable<Guid> ignoreKeys) where T : IdentifiedData
+        private IEnumerable<IRecordMatchResult<T>> PerformIdentityMatch<T>(T entity, IEnumerable<Guid> ignoreKeys, IRecordMatchingDiagnosticSession collector) where T : IdentifiedData
         {
             if (!(entity is IHasIdentifiers identifiers))
                 throw new InvalidOperationException($"Cannot perform identity match on {typeof(T)}");
-
+            collector?.LogStartStage("blocking");
             // Identifiers in which entity has the unique authority
             var uqIdentifiers = identifiers.Identifiers.OfType<IExternalIdentifier>().Where(o => this.m_uniqueAuthorities.Contains(o.Authority.Key ?? Guid.Empty));
             if (uqIdentifiers?.Any(i => i.Authority == null) == true)
                 throw new InvalidOperationException("Some identifiers are missing authorities, cannot perform identity match");
 
-            if (uqIdentifiers?.Any() != true)
-                return new List<IRecordMatchResult<T>>();
-            else
-            {
-                // TODO: Build this using Expression trees rather than relying on the parsing methods
-                NameValueCollection nvc = new NameValueCollection();
-                foreach (var itm in uqIdentifiers)
-                    nvc.Add($"identifier[{itm.Authority.Key}].value", itm.Value);
+                if (uqIdentifiers?.Any() != true)
+                    return new List<IRecordMatchResult<T>>();
+                else
+                {
+                    try
+                    {
+                        collector?.LogStartAction("block-identity");
+                        // TODO: Build this using Expression trees rather than relying on the parsing methods
+                        NameValueCollection nvc = new NameValueCollection();
+                        foreach (var itm in uqIdentifiers)
+                            nvc.Add($"identifier[{itm.Authority.Key}].value", itm.Value);
 
                 var filterExpression = QueryExpressionParser.BuildLinqExpression<T>(nvc);
                 // Now we want to filter returning the masters
                 using (AuthenticationContext.EnterSystemContext())
                 {
                     var repository = ApplicationServiceContext.Current.GetService<IRepositoryService<T>>();
-                    return repository.Find(filterExpression).Where(o => !ignoreKeys.Contains(o.Key.Value)).OfType<T>().Select(o => new MdmIdentityMatchResult<T>(entity, o, "$identity"));
+                    var retVal = repository.Find(filterExpression).Where(o => !ignoreKeys.Contains(o.Key.Value)).OfType<T>().Select(o => new MdmIdentityMatchResult<T>(entity, o, "$identity"));
+                        collector?.LogSample(filterExpression.ToString(), retVal.Count());
+                        return retVal
+                    }
                 }
+                }
+            finally
+            {
+                collector?.LogEnd();
             }
         }
 
         /// <summary>
         /// Perform a blocking stage setting
         /// </summary>
-        public IQueryResultSet<T> Block<T>(T input, string configurationName, IEnumerable<Guid> ignoreKeys) where T : IdentifiedData
+        public IQueryResultSet<T> Block<T>(T input, string configurationName, IEnumerable<Guid> ignoreKeys, IRecordMatchingDiagnosticSession collector = null) where T : IdentifiedData
         {
             if (MdmConstants.MdmIdentityMatchConfiguration.Equals(configurationName))
-                return this.PerformIdentityMatch(input, this.GetIgnoreList(ignoreKeys, input)).Select(o => o.Record).AsResultSet<T>();
+                return this.PerformIdentityMatch(input, this.GetIgnoreList(ignoreKeys, input), collector).Select(o => o.Record).AsResultSet<T>();
             else
                 return this.m_matchService?.Block<T>(input, configurationName, this.GetIgnoreList(ignoreKeys, input));
         }
@@ -167,10 +177,10 @@ namespace SanteDB.Persistence.MDM.Services
         /// <summary>
         /// Classify the records
         /// </summary>
-        public IEnumerable<IRecordMatchResult<T>> Classify<T>(T input, IEnumerable<T> blocks, string configurationName) where T : IdentifiedData
+        public IEnumerable<IRecordMatchResult<T>> Classify<T>(T input, IEnumerable<T> blocks, string configurationName, IRecordMatchingDiagnosticSession collector = null) where T : IdentifiedData
         {
             if (MdmConstants.MdmIdentityMatchConfiguration.Equals(configurationName))
-                return this.PerformIdentityClassify(input, blocks);
+                return this.PerformIdentityClassify(input, blocks, collector);
             else
                 return this.m_matchService?.Classify<T>(input, blocks, configurationName);
         }
@@ -178,68 +188,95 @@ namespace SanteDB.Persistence.MDM.Services
         /// <summary>
         /// Perform a classification operation on identifier
         /// </summary>
-        private IEnumerable<IRecordMatchResult<T>> PerformIdentityClassify<T>(T input, IEnumerable<T> blocks) where T : IdentifiedData
+        private IEnumerable<IRecordMatchResult<T>> PerformIdentityClassify<T>(T input, IEnumerable<T> blocks, IRecordMatchingDiagnosticSession collector) where T : IdentifiedData
         {
-            if (!(input is IHasIdentifiers identifiers))
-                throw new InvalidOperationException($"Cannot perform identity match on {typeof(T)}");
+            try
+            {
+                collector?.LogStartStage("scoring");
+
+                if (!(input is IHasIdentifiers identifiers))
+                    throw new InvalidOperationException($"Cannot perform identity match on {typeof(T)}");
 
             // Identifiers in which entity has the unique authority
             var uqIdentifiers = identifiers.Identifiers.OfType<IExternalIdentifier>().Where(o => this.m_uniqueAuthorities.Contains(o.Authority.Key ?? Guid.Empty));
             if (uqIdentifiers?.Any(i => i.Authority.Key == null) == true)
                 throw new InvalidOperationException("Some identifiers are missing authorities, cannot perform identity match");
 
-            if (uqIdentifiers?.Any() != true)
-                return blocks.Select(o => new MdmIdentityMatchResult<T>(input, o, "$identity", RecordMatchClassification.NonMatch, 0.0f));
-            else
-            {
-                return blocks.Select(o =>
+                if (uqIdentifiers?.Any() != true)
+                    return blocks.Select(o => new MdmIdentityMatchResult<T>(input, o, "$identity", RecordMatchClassification.NonMatch, 0.0f));
+                else
                 {
-                    if (o is IHasIdentifiers oid)
+                    return blocks.Select(o =>
                     {
-                        var isMatch = oid.Identifiers.Any(i => uqIdentifiers.Any(u => u.Authority.Key == i.Authority.Key && i.Value == u.Value));
-                        return new MdmIdentityMatchResult<T>(input, o, "$identity", isMatch ? RecordMatchClassification.Match : RecordMatchClassification.NonMatch, isMatch ? 1.0f : 0.0f);
-                    }
-                    else
-                    {
-                        return new MdmIdentityMatchResult<T>(input, o, "$identity", RecordMatchClassification.NonMatch, 0.0f);
-                    }
-                });
+                        try
+                        {
+                            collector?.LogStartAction(o);
+
+                            if (o is IHasIdentifiers oid)
+                            {
+                                var isMatch = oid.Identifiers.Any(i => uqIdentifiers.Any(u => u.Authority.Key == i.Authority.Key && i.Value == u.Value));
+
+                                return new MdmIdentityMatchResult<T>(input, o, "$identity", isMatch ? RecordMatchClassification.Match : RecordMatchClassification.NonMatch, isMatch ? 1.0f : 0.0f);
+                            }
+                            else
+                            {
+                                return new MdmIdentityMatchResult<T>(input, o, "$identity", RecordMatchClassification.NonMatch, 0.0f);
+                            }
+                        }
+                        finally
+                        {
+                            collector?.LogEndAction();
+                        }
+                    });
+                }
+            }
+            finally
+            {
+                collector?.LogEndStage();
             }
         }
 
         /// <summary>
         /// Perform a match
         /// </summary>
-        public IEnumerable<IRecordMatchResult<T>> Match<T>(T input, string configurationName, IEnumerable<Guid> ignoreKeys) where T : IdentifiedData
+        public IEnumerable<IRecordMatchResult<T>> Match<T>(T input, string configurationName, IEnumerable<Guid> ignoreKeys, IRecordMatchingDiagnosticSession collector = null) where T : IdentifiedData
         {
             // Fetch ignore keys if none provided
 
             if (MdmConstants.MdmIdentityMatchConfiguration.Equals(configurationName))
-                return this.PerformIdentityMatch(input, this.GetIgnoreList(ignoreKeys, input));
+                return this.PerformIdentityMatch(input, this.GetIgnoreList(ignoreKeys, input), collector);
             else
-                return this.m_matchService?.Match(input, configurationName, this.GetIgnoreList(ignoreKeys, input));
+                return this.m_matchService?.Match(input, configurationName, this.GetIgnoreList(ignoreKeys, input), collector);
         }
 
         /// <summary>
         /// Match
         /// </summary>
-        public IEnumerable<IRecordMatchResult> Match(IdentifiedData input, string configurationName, IEnumerable<Guid> ignoreKeys)
+        public IEnumerable<IRecordMatchResult> Match(IdentifiedData input, string configurationName, IEnumerable<Guid> ignoreKeys, IRecordMatchingDiagnosticSession collector = null)
         {
             // TODO: Provide a lookup list with a lambda expression to make this go faster
-            var genMethod = typeof(MdmRecordMatchingService).GetGenericMethod(nameof(Match), new Type[] { input.GetType() }, new Type[] { input.GetType(), typeof(String), typeof(IEnumerable<Guid>) });
-            var results = genMethod.Invoke(this, new object[] { input, configurationName, ignoreKeys }) as IEnumerable;
+            var genMethod = typeof(MdmRecordMatchingService).GetGenericMethod(nameof(Match), new Type[] { input.GetType() }, new Type[] { input.GetType(), typeof(String), typeof(IEnumerable<Guid>), typeof(IRecordMatchingDiagnosticSession) });
+            var results = genMethod.Invoke(this, new object[] { input, configurationName, ignoreKeys, collector }) as IEnumerable;
             return results.OfType<IRecordMatchResult>();
         }
 
         /// <summary>
         /// Classify
         /// </summary>
-        public IEnumerable<IRecordMatchResult> Classify(IdentifiedData input, IEnumerable<IdentifiedData> blocks, String configurationName)
+        public IEnumerable<IRecordMatchResult> Classify(IdentifiedData input, IEnumerable<IdentifiedData> blocks, String configurationName, IRecordMatchingDiagnosticSession collector = null)
         {
-            var genMethod = typeof(MdmRecordMatchingService).GetGenericMethod(nameof(Classify), new Type[] { input.GetType() }, new Type[] { input.GetType(), typeof(IEnumerable<>).MakeGenericType(input.GetType()), typeof(String) });
+            var genMethod = typeof(MdmRecordMatchingService).GetGenericMethod(nameof(Classify), new Type[] { input.GetType() }, new Type[] { input.GetType(), typeof(IEnumerable<>).MakeGenericType(input.GetType()), typeof(String), typeof(IRecordMatchingDiagnosticSession) });
             var ofTypeMethod = typeof(Enumerable).GetGenericMethod(nameof(Enumerable.OfType), new Type[] { input.GetType() }, new Type[] { typeof(IEnumerable) });
-            var results = genMethod.Invoke(this, new object[] { input, ofTypeMethod.Invoke(null, new object[] { blocks }), configurationName }) as IEnumerable;
+            var results = genMethod.Invoke(this, new object[] { input, ofTypeMethod.Invoke(null, new object[] { blocks }), configurationName, collector }) as IEnumerable;
             return results.OfType<IRecordMatchResult>();
+        }
+
+        /// <summary>
+        /// Create a diagnostics session collector
+        /// </summary>
+        public IRecordMatchingDiagnosticSession CreateDiagnosticSession()
+        {
+            return this.m_matchService.CreateDiagnosticSession();
         }
     }
 }
