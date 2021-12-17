@@ -197,6 +197,9 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 {
                     localQuery.Add($"relationship[{MdmConstants.MasterRecordRelationship}].source@{typeof(TModel).Name}.statusConcept", StatusKeys.ActiveStates.Select(o => o.ToString()));
                 }
+                localQuery.Add("statusConcept", StatusKeys.ActiveStates.Select(o => o.ToString()));
+                localQuery.Add("obsoletionTime", "null");
+
                 e.Cancel = true; // We want to cancel the callers query
 
                 //// Trim the local query
@@ -394,13 +397,21 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 }
                 else
                 {
-
-                    var localKey = store.Key;
+                    // Backup the core properties
+                    var oldStore = store.Clone() as TModel;
                     store = e.Data.Clone() as TModel;
-                    store.Key = localKey;
+                    store.Key = oldStore.Key;
+                    if(store is IHasState state && oldStore is IHasState oldState)
+                    {
+                        state.StatusConceptKey = oldState.StatusConceptKey;
+                    }
+                    if(store is Entity storeEnt && oldStore is Entity oldEnt)
+                    {
+                        storeEnt.DeterminerConceptKey = oldEnt.DeterminerConceptKey;
+                        storeEnt.ClassConceptKey = oldEnt.ClassConceptKey;
+                    }
                 }
 
-               
                 // So - this is complex but here is a description of why we do the next line of code:
                 //  Basically we never want to explicitly let the client send us an EntityRelationshipMaster on the
                 //  service instance. So we need to select back out of any provided relationships the
@@ -431,10 +442,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                         {
                             irelationships.RemoveRelationship(itm);
                         }
-                        else
-                        {
-                            itm.SourceEntityKey = store.Key;
-                        }
+                        
                     }
                 }
 
@@ -452,16 +460,18 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     versioned.VersionKey = null;
                     versioned.PreviousVersionKey = null;
                 }
+
+
+                store.StripAssociatedItemSources();
             }
             else if (!store.Key.HasValue)
             {
                 store.Key = Guid.NewGuid(); // Ensure that we have a key for the object.
             }
 
-            store.StripAssociatedItemSources();
 
             // Is this a ROT?
-            if (this.m_dataManager.IsRecordOfTruth(store))
+            if (this.m_dataManager.IsRecordOfTruth(e.Data))
             {
                 this.m_policyEnforcement.Demand(MdmPermissionPolicyIdentifiers.EstablishRecordOfTruth);
                 store = this.m_dataManager.PromoteRecordOfTruth(store);
@@ -472,8 +482,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             {
                 if (originalKey != store.Key) // storage has changed
                 {
-                    bundle.Item.Insert(bundle.Item.FindIndex(o=>o.Key == originalKey), store);
-                    bundle.Item.RemoveAll(o=>o.Key == originalKey); // Remove
+                    bundle.Item.Insert(bundle.Item.FindIndex(o => o.Key == originalKey), store);
+                    bundle.Item.RemoveAll(o => o.Key == originalKey); // Remove
                 }
                 bundle.Item.AddRange(this.m_dataManager.ExtractRelationships(store).OfType<IdentifiedData>());
                 this.m_dataManager.RefactorRelationships(bundle.Item, originalKey.Value, store.Key.Value);

@@ -159,8 +159,11 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         public override TModel CreateLocalFor(TModel masterRecord)
         {
             var retVal = new TModel();
-            retVal.SemanticCopy(masterRecord);
-            retVal.SemanticCopy(masterRecord); // HACK: First pass sometimes misses data
+            Guid? originalClass = retVal.ClassConceptKey, originalDeterminer = retVal.DeterminerConceptKey;
+            retVal.SemanticCopyNullFields(masterRecord);
+            retVal.SemanticCopyNullFields(masterRecord); // HACK: First pass sometimes misses data
+            retVal.ClassConceptKey = originalClass;
+            retVal.DeterminerConceptKey = originalDeterminer;
             retVal.Key = Guid.NewGuid();
             retVal.VersionKey = Guid.NewGuid();
             retVal.Relationships.RemoveAll(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship || o.RelationshipTypeKey == MdmConstants.MasterRecordOfTruthRelationship);
@@ -200,7 +203,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 local.Relationships.Add(rotRelationship);
 
                 // Ensure the ROT points to the master
-                var masterRel = local.Relationships.SingleOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship);
+                var masterRel = local.Relationships.SingleOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship) ??
+                    this.GetMasterRelationshipFor(local.Key.Value) as EntityRelationship;
                 if (masterRel.TargetEntityKey != master.Key)
                 {
                     local.Relationships.Remove(masterRel);
@@ -208,6 +212,11 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     {
                         ClassificationKey = MdmConstants.SystemClassification
                     });
+                }
+                else
+                {
+                    local.Relationships.Remove(masterRel);
+                    local.Relationships.Add(masterRel);
                 }
 
                 // Remove any other MDM relationships
@@ -575,7 +584,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 retVal.AddFirst(data);
             }
 
-            return context;
+            return retVal;
         }
 
         /// <summary>
@@ -1127,7 +1136,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         public override IEnumerable<ITargetedAssociation> GetAllMdmCandidateLocals(int offset, int count, out int totalResults)
         {
-            return this.m_relationshipService.Query(o => o.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship && o.ObsoleteVersionSequenceId == null, offset, count, out totalResults, AuthenticationContext.SystemPrincipal);
+            return this.m_relationshipService.Query(o => o.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship && o.ObsoleteVersionSequenceId == null, offset, count, out totalResults, AuthenticationContext.Current.Principal);
         }
 
         /// <summary>

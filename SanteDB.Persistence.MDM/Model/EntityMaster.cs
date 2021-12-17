@@ -45,7 +45,7 @@ namespace SanteDB.Persistence.MDM.Model
     /// <summary>
     /// Represents a relationship
     /// </summary>
-    [XmlType(Namespace = "http://santedb.org/model")]
+    [XmlType(nameof(EntityRelationshipMaster), Namespace = "http://santedb.org/model")]
     public class EntityRelationshipMaster : EntityRelationship, IMdmRedirectedRelationship
     {
         /// <summary>
@@ -257,7 +257,7 @@ namespace SanteDB.Persistence.MDM.Model
             master.PreviousVersionKey = this.m_masterRecord.PreviousVersionKey;
             master.StatusConceptKey = this.m_masterRecord.StatusConceptKey;
             master.Key = this.m_masterRecord.Key;
-            master.VersionKey = this.m_recordOfTruth?.VersionKey ?? this.m_masterRecord.VersionKey;
+            master.VersionKey = this.m_masterRecord.VersionKey;
             master.VersionSequence = this.m_masterRecord.VersionSequence;
             return master;
         }
