@@ -197,6 +197,9 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 {
                     localQuery.Add($"relationship[{MdmConstants.MasterRecordRelationship}].source@{typeof(TModel).Name}.statusConcept", StatusKeys.ActiveStates.Select(o => o.ToString()));
                 }
+                localQuery.Add("statusConcept", StatusKeys.ActiveStates.Select(o => o.ToString()));
+                localQuery.Add("obsoletionTime", "null");
+
                 e.Cancel = true; // We want to cancel the callers query
 
                 //// Trim the local query
@@ -394,9 +397,19 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 }
                 else
                 {
-                    var localKey = store.Key;
+                    // Backup the core properties
+                    var oldStore = store.Clone() as TModel;
                     store = e.Data.Clone() as TModel;
-                    store.Key = localKey;
+                    store.Key = oldStore.Key;
+                    if(store is IHasState state && oldStore is IHasState oldState)
+                    {
+                        state.StatusConceptKey = oldState.StatusConceptKey;
+                    }
+                    if(store is Entity storeEnt && oldStore is Entity oldEnt)
+                    {
+                        storeEnt.DeterminerConceptKey = oldEnt.DeterminerConceptKey;
+                        storeEnt.ClassConceptKey = oldEnt.ClassConceptKey;
+                    }
                 }
 
                 // So - this is complex but here is a description of why we do the next line of code:
@@ -429,10 +442,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                         {
                             irelationships.RemoveRelationship(itm);
                         }
-                        else
-                        {
-                            itm.SourceEntityKey = store.Key;
-                        }
+                        
                     }
                 }
 
@@ -450,13 +460,15 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     versioned.VersionKey = null;
                     versioned.PreviousVersionKey = null;
                 }
+
+
+                store.StripAssociatedItemSources();
             }
             else if (!store.Key.HasValue)
             {
                 store.Key = Guid.NewGuid(); // Ensure that we have a key for the object.
             }
 
-            store.StripAssociatedItemSources();
 
             // Is this a ROT?
             if (this.m_dataManager.IsRecordOfTruth(e.Data))

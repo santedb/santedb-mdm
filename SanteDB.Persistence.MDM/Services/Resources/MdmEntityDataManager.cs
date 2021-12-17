@@ -159,8 +159,11 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         public override TModel CreateLocalFor(TModel masterRecord)
         {
             var retVal = new TModel();
-            retVal.SemanticCopy(masterRecord);
-            retVal.SemanticCopy(masterRecord); // HACK: First pass sometimes misses data
+            Guid? originalClass = retVal.ClassConceptKey, originalDeterminer = retVal.DeterminerConceptKey;
+            retVal.SemanticCopyNullFields(masterRecord);
+            retVal.SemanticCopyNullFields(masterRecord); // HACK: First pass sometimes misses data
+            retVal.ClassConceptKey = originalClass;
+            retVal.DeterminerConceptKey = originalDeterminer;
             retVal.Key = Guid.NewGuid();
             retVal.VersionKey = Guid.NewGuid();
             retVal.Relationships.RemoveAll(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship || o.RelationshipTypeKey == MdmConstants.MasterRecordOfTruthRelationship);
@@ -581,7 +584,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 retVal.AddFirst(data);
             }
 
-            return context;
+            return retVal;
         }
 
         /// <summary>

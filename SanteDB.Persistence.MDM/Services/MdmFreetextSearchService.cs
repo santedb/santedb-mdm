@@ -23,6 +23,7 @@ using SanteDB.Core;
 using SanteDB.Core.Configuration;
 using SanteDB.Core.Model;
 using SanteDB.Core.Model.Acts;
+using SanteDB.Core.Model.Constants;
 using SanteDB.Core.Model.Entities;
 using SanteDB.Core.Model.Query;
 using SanteDB.Core.Security;
@@ -68,9 +69,9 @@ namespace SanteDB.Persistence.MDM.Services
                 var principal = AuthenticationContext.Current.Principal;
 
                 var searchFilters = new List<Expression<Func<Entity, bool>>>(term.Length);
-                searchFilters.Add(QueryExpressionParser.BuildLinqExpression<Entity>(new NameValueCollection() { { "classConcept", MdmConstants.MasterRecordClassification.ToString() }, { "identifier.value", term } }));
-                searchFilters.Add(QueryExpressionParser.BuildLinqExpression<Entity>(new NameValueCollection() { { "classConcept", MdmConstants.MasterRecordClassification.ToString() }, { $"relationship[{MdmConstants.MasterRecordRelationship}].source.name.component.value", term.Select(o => $":(approx|\"{o}\")") } }));
-                searchFilters.Add(QueryExpressionParser.BuildLinqExpression<Entity>(new NameValueCollection() { { "classConcept", MdmConstants.MasterRecordClassification.ToString() }, { $"relationship[{MdmConstants.MasterRecordRelationship}].source.identifier.value", term } }));
+                searchFilters.Add(QueryExpressionParser.BuildLinqExpression<Entity>(new NameValueCollection() { { "classConcept", MdmConstants.MasterRecordClassification.ToString() }, { "identifier.value", term }, { "statusConcept", StatusKeys.ActiveStates.Select(o=>o.ToString()) } }));
+                searchFilters.Add(QueryExpressionParser.BuildLinqExpression<Entity>(new NameValueCollection() { { "classConcept", MdmConstants.MasterRecordClassification.ToString() }, { $"relationship[{MdmConstants.MasterRecordRelationship}].source.name.component.value", term.Select(o => $":(approx|\"{o}\")") }, { "statusConcept", StatusKeys.ActiveStates.Select(o => o.ToString()) } }));
+                searchFilters.Add(QueryExpressionParser.BuildLinqExpression<Entity>(new NameValueCollection() { { "classConcept", MdmConstants.MasterRecordClassification.ToString() }, { $"relationship[{MdmConstants.MasterRecordRelationship}].source.identifier.value", term }, { "statusConcept", StatusKeys.ActiveStates.Select(o => o.ToString()) } }));
                 var results = idps.Union(searchFilters.ToArray(), queryId, offset, count, out totalResults, principal);
                 var mdmDataManager = MdmDataManagerFactory.GetDataManager<TEntity>();
                 return results.AsParallel().AsOrdered().Select(o => mdmDataManager.CreateMasterContainerForMasterEntity(o).Synthesize(principal)).OfType<TEntity>().ToList();
