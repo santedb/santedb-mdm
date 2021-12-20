@@ -24,6 +24,7 @@ using SanteDB.Core.Configuration;
 using SanteDB.Core.Event;
 using SanteDB.Core.Model;
 using SanteDB.Core.Model.Acts;
+using SanteDB.Core.Model.Constants;
 using SanteDB.Core.Model.Entities;
 using SanteDB.Core.Model.Query;
 using SanteDB.Core.Security;
@@ -86,9 +87,9 @@ namespace SanteDB.Persistence.MDM.Services
                 var principal = AuthenticationContext.Current.Principal;
 
                 var searchFilters = new List<Expression<Func<TEntity, bool>>>(term.Length);
-                var results = idps.Query(QueryExpressionParser.BuildLinqExpression<TEntity>(new NameValueCollection() { { "classConcept", MdmConstants.MasterRecordClassification.ToString() }, { "identifier.value", term } }), AuthenticationContext.Current.Principal)
-                    .Union(QueryExpressionParser.BuildLinqExpression<TEntity>(new NameValueCollection() { { "classConcept", MdmConstants.MasterRecordClassification.ToString() }, { $"relationship[{MdmConstants.MasterRecordRelationship}].source.name.component.value", term.Select(o => $":(approx|\"{o}\")") } }))
-                    .Union(QueryExpressionParser.BuildLinqExpression<TEntity>(new NameValueCollection() { { "classConcept", MdmConstants.MasterRecordClassification.ToString() }, { $"relationship[{MdmConstants.MasterRecordRelationship}].source.identifier.value", term } }));
+                var results = idps.Query(QueryExpressionParser.BuildLinqExpression<TEntity>(new NameValueCollection() { { "statusConcept" : StatusKeys.ActiveStates.Select(s => s.ToString()).ToList() },  { "classConcept", MdmConstants.MasterRecordClassification.ToString() }, { "identifier.value", term } }), AuthenticationContext.Current.Principal)
+                    .Union(QueryExpressionParser.BuildLinqExpression<TEntity>(new NameValueCollection() { { "statusConcept" : StatusKeys.ActiveStates.Select(s => s.ToString()).ToList() }, { "classConcept", MdmConstants.MasterRecordClassification.ToString() }, { $"relationship[{MdmConstants.MasterRecordRelationship}].source.name.component.value", term.Select(o => $":(approx|\"{o}\")") } }))
+                    .Union(QueryExpressionParser.BuildLinqExpression<TEntity>(new NameValueCollection() { { "statusConcept" : StatusKeys.ActiveStates.Select(s => s.ToString()).ToList() }, { "classConcept", MdmConstants.MasterRecordClassification.ToString() }, { $"relationship[{MdmConstants.MasterRecordRelationship}].source.identifier.value", term } }));
 
                 this.Queried?.Invoke(this, new FreeTextQueryResultEventArgs<TEntity>(AuthenticationContext.Current.Principal, term, results));
                 return new MdmEntityResultSet<TEntity>(results, AuthenticationContext.Current.Principal);
