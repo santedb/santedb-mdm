@@ -178,8 +178,6 @@ namespace SanteDB.Persistence.MDM.Rest
             else
             {
                 result = merger.GetMergeCandidates((Guid)scopingKey);
-                totalCount = result.Count();
-                result = result.Skip(offset).Take(count);
             }
 
             return result;

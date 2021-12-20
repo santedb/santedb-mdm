@@ -132,36 +132,41 @@ namespace SanteDB.Persistence.MDM.Services
             // Identifiers in which entity has the unique authority
             var uqIdentifiers = identifiers.Identifiers.OfType<IExternalIdentifier>().Where(o => this.m_uniqueAuthorities.Contains(o.Authority.Key ?? Guid.Empty));
             if (uqIdentifiers?.Any(i => i.Authority == null) == true)
+            {
                 throw new InvalidOperationException("Some identifiers are missing authorities, cannot perform identity match");
+            }
 
-                if (uqIdentifiers?.Any() != true)
-                    return new List<IRecordMatchResult<T>>();
-                else
+            if (uqIdentifiers?.Any() != true)
+            {
+                return new List<IRecordMatchResult<T>>();
+            }
+            else
+            {
+                try
                 {
-                    try
+                    collector?.LogStartAction("block-identity");
+                    // TODO: Build this using Expression trees rather than relying on the parsing methods
+                    NameValueCollection nvc = new NameValueCollection();
+                    foreach (var itm in uqIdentifiers)
+                        nvc.Add($"identifier[{itm.Authority.Key}].value", itm.Value);
+
+                    var filterExpression = QueryExpressionParser.BuildLinqExpression<T>(nvc);
+                    // Now we want to filter returning the masters
+                    using (AuthenticationContext.EnterSystemContext())
                     {
-                        collector?.LogStartAction("block-identity");
-                        // TODO: Build this using Expression trees rather than relying on the parsing methods
-                        NameValueCollection nvc = new NameValueCollection();
-                        foreach (var itm in uqIdentifiers)
-                            nvc.Add($"identifier[{itm.Authority.Key}].value", itm.Value);
-
-                var filterExpression = QueryExpressionParser.BuildLinqExpression<T>(nvc);
-                // Now we want to filter returning the masters
-                using (AuthenticationContext.EnterSystemContext())
-                {
-                    var repository = ApplicationServiceContext.Current.GetService<IRepositoryService<T>>();
-                    var retVal = repository.Find(filterExpression).Where(o => !ignoreKeys.Contains(o.Key.Value)).OfType<T>().Select(o => new MdmIdentityMatchResult<T>(entity, o, "$identity"));
+                        var repository = ApplicationServiceContext.Current.GetService<IRepositoryService<T>>();
+                        var retVal = repository.Find(filterExpression).Where(o => !ignoreKeys.Contains(o.Key.Value)).OfType<T>().Select(o => new MdmIdentityMatchResult<T>(entity, o, "$identity"));
                         collector?.LogSample(filterExpression.ToString(), retVal.Count());
-                        return retVal
+                        return retVal;
                     }
                 }
+                finally
+                {
+                    collector?.LogEnd();
                 }
-            finally
-            {
-                collector?.LogEnd();
             }
         }
+
 
         /// <summary>
         /// Perform a blocking stage setting
@@ -197,10 +202,10 @@ namespace SanteDB.Persistence.MDM.Services
                 if (!(input is IHasIdentifiers identifiers))
                     throw new InvalidOperationException($"Cannot perform identity match on {typeof(T)}");
 
-            // Identifiers in which entity has the unique authority
-            var uqIdentifiers = identifiers.Identifiers.OfType<IExternalIdentifier>().Where(o => this.m_uniqueAuthorities.Contains(o.Authority.Key ?? Guid.Empty));
-            if (uqIdentifiers?.Any(i => i.Authority.Key == null) == true)
-                throw new InvalidOperationException("Some identifiers are missing authorities, cannot perform identity match");
+                // Identifiers in which entity has the unique authority
+                var uqIdentifiers = identifiers.Identifiers.OfType<IExternalIdentifier>().Where(o => this.m_uniqueAuthorities.Contains(o.Authority.Key ?? Guid.Empty));
+                if (uqIdentifiers?.Any(i => i.Authority.Key == null) == true)
+                    throw new InvalidOperationException("Some identifiers are missing authorities, cannot perform identity match");
 
                 if (uqIdentifiers?.Any() != true)
                     return blocks.Select(o => new MdmIdentityMatchResult<T>(input, o, "$identity", RecordMatchClassification.NonMatch, 0.0f));

@@ -110,7 +110,7 @@ namespace SanteDB.Persistence.MDM.Test
             throw new NotImplementedException();
         }
 
-        public IEnumerable<T> Block<T>(T input, string configurationId, IEnumerable<Guid> ignoreList, IRecordMatchingDiagnosticSession collector = null) where T : IdentifiedData
+        public IQueryResultSet<T> Block<T>(T input, string configurationId, IEnumerable<Guid> ignoreList, IRecordMatchingDiagnosticSession collector = null) where T : IdentifiedData
         {
             throw new NotImplementedException();
         }

@@ -353,7 +353,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         public override IQueryResultSet<ITargetedAssociation> GetGlobalMergeCandidates()
         {
-            return this.m_dataManager.GetAllMdmCandidateLocals(offset, count, out totalCount);
+            return this.m_dataManager.GetAllMdmCandidateLocals();
         }
 
         /// <summary>

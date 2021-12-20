@@ -271,7 +271,7 @@ namespace SanteDB.Persistence.MDM.Services
                         this.m_entityRelationshipService.Delete(itm.Key.Value, e.Mode, e.Principal, this.m_configuration.MasterDataDeletionMode);
                     }
 
-                        break;
+                    break;
 
                 case MdmConstants.RECORD_OF_TRUTH_RELATIONSHIP:
                     // Is the ROT being assigned, and if so is there another ?
@@ -309,6 +309,55 @@ namespace SanteDB.Persistence.MDM.Services
             }
         }
 
+        /// <summary>
+        /// Recheck relationship
+        /// </summary>
+        private void RecheckRelationship(ITargetedVersionedExtension targetedAssociation, TransactionMode mode, IPrincipal principal)
+        {
+            if (targetedAssociation is IdentifiedData idData)
+            {
+                switch (targetedAssociation.AssociationTypeKey.ToString())
+                {
+                    case MdmConstants.MASTER_RECORD_RELATIONSHIP:
+                        // Is the data obsoleted (removed)? If so, then ensure we don't have a hanging master
+                        if (targetedAssociation.ObsoleteVersionSequenceId.HasValue || idData.BatchOperation == Core.Model.DataTypes.BatchOperationType.Delete)
+                        {
+                            if (this.m_entityRelationshipService.Count(r => r.TargetEntityKey == targetedAssociation.TargetEntityKey && !StatusKeys.InactiveStates.Contains(r.TargetEntity.StatusConceptKey.Value) && r.SourceEntityKey != targetedAssociation.SourceEntityKey && r.ObsoleteVersionSequenceId == null) == 0)
+                            {
+                                // TODO: Replace this with the Delete() call instead - since it is an orphan and we don't know why
+                                this.m_entityService.Delete(targetedAssociation.TargetEntityKey.Value, mode, principal, DeleteMode.PermanentDelete);
+                            }
+                            return; // no need to de-dup check on obsoleted object
+                        }
+
+                        // MDM relationship should be the only active relationship between
+                        // So when:
+                        // A =[MDM-Master]=> B
+                        // You cannot have:
+                        // A =[MDM-Duplicate]=> B
+                        // A =[MDM-Original]=> B
+                        foreach (var itm in this.m_entityRelationshipService.Query(q => q.RelationshipTypeKey != MdmConstants.MasterRecordRelationship && q.SourceEntityKey == targetedAssociation.SourceEntityKey && q.TargetEntityKey == targetedAssociation.TargetEntityKey && q.ObsoleteVersionSequenceId == null, principal))
+                        {
+                            itm.BatchOperation = Core.Model.DataTypes.BatchOperationType.Delete;
+                            this.m_entityRelationshipService.Update(itm, mode, principal);
+                        }
+
+                        break;
+
+                    case MdmConstants.RECORD_OF_TRUTH_RELATIONSHIP:
+                        // Is the ROT being assigned, and if so is there another ?
+                        if (!targetedAssociation.ObsoleteVersionSequenceId.HasValue || idData.BatchOperation == Core.Model.DataTypes.BatchOperationType.Delete)
+                        {
+                            foreach (var rotRel in this.m_entityRelationshipService.Query(r => r.SourceEntityKey == targetedAssociation.SourceEntityKey && r.TargetEntityKey != targetedAssociation.TargetEntityKey && r.ObsoleteVersionSequenceId == null, principal))
+                            {
+                                //Obsolete other ROTs (there can only be one)
+                                this.m_entityRelationshipService.Delete(rotRel.Key.Value, mode, principal, DeleteMode.PermanentDelete);
+                            }
+                        }
+                        break;
+                }
+            }
+        }
         /// <summary>
         /// Fired when the MDM Subscription has been executed
         /// </summary>
