@@ -385,7 +385,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// create/update a master</remarks>
         internal virtual void OnPrePersistenceValidate(object sender, DataPersistingEventArgs<TModel> e)
         {
-            var originalKey = e.Data.Key;
+            var originalKey = e.Data.Key ?? Guid.NewGuid();
             var store = e.Data;
             // Is the existing object a master?
             if (this.m_dataManager.IsMaster(e.Data))
