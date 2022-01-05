@@ -176,7 +176,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// <summary>
         /// Order by specified <paramref name="sortExpression"/>
         /// </summary>
-        public IOrderableQueryResultSet<TModel> OrderBy(Expression<Func<TModel, dynamic>> sortExpression)
+        public IOrderableQueryResultSet<TModel> OrderBy<TKey>(Expression<Func<TModel, TKey>> sortExpression)
         {
             if (this.m_wrappedResultSet is IOrderableQueryResultSet<TModel> orderable)
             {
@@ -191,7 +191,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// <summary>
         /// Order result set by descending
         /// </summary>
-        public IOrderableQueryResultSet<TModel> OrderByDescending(Expression<Func<TModel, dynamic>> sortExpression)
+        public IOrderableQueryResultSet<TModel> OrderByDescending<TKey>(Expression<Func<TModel, TKey>> sortExpression)
         {
             if (this.m_wrappedResultSet is IOrderableQueryResultSet<TModel> orderable)
             {
