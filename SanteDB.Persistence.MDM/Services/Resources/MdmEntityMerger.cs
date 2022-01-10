@@ -372,7 +372,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 while (offset < totalResults)
                 {
                     var results = this.m_entityPersistence.Query(o => StatusKeys.ActiveStates.Contains(o.StatusConceptKey.Value) && o.DeterminerConceptKey != MdmConstants.RecordOfTruthDeterminer, queryId, offset, batchSize, out totalResults, AuthenticationContext.SystemPrincipal);
-                    this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)offset / (float)totalResults, "Rematching"));
+                    this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)offset / (float)totalResults, $"Rematching {offset:#,###,###} of {totalResults:#,###,###}"));
 
                     var batchMatch = new Bundle(results.AsParallel().WithDegreeOfParallelism(8).SelectMany(itm => this.m_dataManager.MdmTxMatchMasters(itm, new IdentifiedData[0])));
                     this.m_batchPersistence.Insert(batchMatch, TransactionMode.Commit, AuthenticationContext.SystemPrincipal);
@@ -382,6 +382,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             }
             catch (Exception e)
             {
+                throw new Exception("Error running detect of global merge candidiates", e);
             }
         }
 
