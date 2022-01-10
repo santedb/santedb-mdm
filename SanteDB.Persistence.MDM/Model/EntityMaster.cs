@@ -198,7 +198,17 @@ namespace SanteDB.Persistence.MDM.Model
         /// </summary>
         public T Synthesize(IPrincipal principal)
         {
-            var master = new T();
+            // TODO: Change this to use DI
+            var adhocCache = ApplicationServiceContext.Current.GetService<IAdhocCacheService>();
+
+            // Already done
+            var master = adhocCache?.Get<T>($"{MdmConstants.MasterCacheKey}.{this.Key}");
+            if(master != null)
+            {
+                return master;
+            }
+
+            master = new T();
             master.CopyObjectData<IdentifiedData>(this.m_masterRecord, overwritePopulatedWithNull: false, ignoreTypeMismatch: true);
 
             // Is there a relationship which is the record of truth
@@ -259,6 +269,9 @@ namespace SanteDB.Persistence.MDM.Model
             master.Key = this.m_masterRecord.Key;
             master.VersionKey = this.m_masterRecord.VersionKey;
             master.VersionSequence = this.m_masterRecord.VersionSequence;
+
+            adhocCache?.Add($"{MdmConstants.MasterCacheKey}.{this.Key}", master, new TimeSpan(1,0,0));
+
             return master;
         }
 

@@ -66,6 +66,9 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         // Batch repository
         private IDataPersistenceService<Bundle> m_batchRepository;
 
+        // Ad-hoc cache
+        private readonly IAdhocCacheService m_adhocCache;
+
         // Data manager
         private MdmDataManager<TModel> m_dataManager;
 
@@ -78,6 +81,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             this.m_dataManager = MdmDataManagerFactory.GetDataManager<TModel>();
             this.m_policyEnforcement = ApplicationServiceContext.Current.GetService<IPolicyEnforcementService>();
             this.m_batchRepository = ApplicationServiceContext.Current.GetService<IDataPersistenceService<Bundle>>();
+            this.m_adhocCache = ApplicationServiceContext.Current.GetService<IAdhocCacheService>();
 
             // Validate the match configuration exists
             var matchConfigService = ApplicationServiceContext.Current.GetService<IRecordMatchingConfigurationService>();
@@ -390,6 +394,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             // Is the existing object a master?
             if (this.m_dataManager.IsMaster(e.Data))
             {
+                this.m_adhocCache?.Remove($"{MdmConstants.MasterCacheKey}.{e.Data.Key}");
                 store = this.m_dataManager.GetLocalFor(e.Data.Key.GetValueOrDefault(), e.Principal); // Get a local for this object
                 if (store == null)
                 {
@@ -467,6 +472,11 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             else if (!store.Key.HasValue)
             {
                 store.Key = Guid.NewGuid(); // Ensure that we have a key for the object.
+            }
+            else
+            {
+                var masterRel = this.m_dataManager.GetMasterRelationshipFor(e.Data.Key.Value);
+                this.m_adhocCache.Remove($"{MdmConstants.MasterCacheKey}.{masterRel?.TargetEntityKey}");
             }
 
 

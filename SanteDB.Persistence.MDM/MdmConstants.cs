@@ -146,5 +146,11 @@ namespace SanteDB.Persistence.MDM
         /// Gets the auto-link setting
         /// </summary>
         public const string AutoLinkSetting = "$mdm.auto-link";
+
+        /// <summary>
+        /// Master cache key for the caching of synthesized masters
+        /// </summary>
+        public const string MasterCacheKey = "mdm.mas";
+
     }
 }
