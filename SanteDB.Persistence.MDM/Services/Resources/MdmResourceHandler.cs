@@ -394,7 +394,6 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             // Is the existing object a master?
             if (this.m_dataManager.IsMaster(e.Data))
             {
-                this.m_adhocCache?.Remove($"{MdmConstants.MasterCacheKey}.{e.Data.Key}");
                 store = this.m_dataManager.GetLocalFor(e.Data.Key.GetValueOrDefault(), e.Principal); // Get a local for this object
                 if (store == null)
                 {
@@ -476,9 +475,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             else
             {
                 var masterRel = this.m_dataManager.GetMasterRelationshipFor(e.Data.Key.Value);
-                this.m_adhocCache.Remove($"{MdmConstants.MasterCacheKey}.{masterRel?.TargetEntityKey}");
             }
-
 
             // Is this a ROT?
             if (this.m_dataManager.IsRecordOfTruth(e.Data))
