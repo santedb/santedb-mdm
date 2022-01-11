@@ -158,6 +158,9 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         protected IDataPersistenceService m_underlyingTypePersistence;
 
+        // Ad-hoc cache
+        protected readonly IAdhocCacheService m_adhocCache;
+
         /// <summary>
         /// Create a new manager base
         /// </summary>
@@ -166,6 +169,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             if (underlyingDataPersistence == null)
                 throw new InvalidOperationException($"Type {typeof(TModel).FullName} does not have a persistence service registered");
             this.m_underlyingTypePersistence = underlyingDataPersistence;
+            this.m_adhocCache = ApplicationServiceContext.Current.GetService<IAdhocCacheService>();
         }
 
         /// <summary>

@@ -597,7 +597,6 @@ namespace SanteDB.Persistence.MDM.Services.Resources
 
             // First, we want to perform a match
             var matchInstructions = this.MdmTxMatchMasters(data, context).ToArray();
-
             // Persist master in the transaction?
             if (!context.Any(r => r.Key == data.Key))
             {
@@ -731,6 +730,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                             BatchOperation = BatchOperationType.InsertOrUpdate
                         }
                         );
+                        this.m_adhocCache?.Remove($"{MdmConstants.MasterCacheKey}.{matchedMaster.Master}");
                     }
                     // The matching engine wants to change the master link
                     else if (matchedMaster.Master != existingMasterRel.TargetEntityKey)
@@ -744,10 +744,14 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                                 Strength = matchedMaster.MatchResult.Strength,
                                 BatchOperation = BatchOperationType.InsertOrUpdate
                             });
+                            this.m_adhocCache?.Remove($"{MdmConstants.MasterCacheKey}.{matchedMaster.Master}");
+
                         }
                         else // old master was not verified, so we re-link
                         {
                             var mdmMatchInstructions = this.MdmTxMasterLink(matchedMaster.Master, local.Key.Value, context.Union(retVal), false);
+                            this.m_adhocCache?.Remove($"{MdmConstants.MasterCacheKey}.{matchedMaster.Master}");
+
                             foreach (var itm in mdmMatchInstructions)
                             {
                                 retVal.AddLast(itm);
@@ -756,6 +760,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                                     existingMasterRel.SemanticCopy(itm);
                                 }
                             }
+
                         }
                     }
                     else
@@ -771,6 +776,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     foreach (var nml in nonMasterLinks)
                     {
                         retVal.AddLast(new EntityRelationship(MdmConstants.CandidateLocalRelationship, local.Key, nml.Master, MdmConstants.AutomagicClassification) { Strength = nml.MatchResult.Strength, BatchOperation = BatchOperationType.Insert });
+                        this.m_adhocCache?.Remove($"{MdmConstants.MasterCacheKey}.{nml.Master}");
+
                     }
                 }
 
@@ -779,6 +786,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 foreach (var nmc in nonMasterCandidates)
                 {
                     retVal.AddLast(new EntityRelationship(MdmConstants.CandidateLocalRelationship, local.Key, nmc.Master, MdmConstants.AutomagicClassification) { Strength = nmc.MatchResult.Strength, BatchOperation = BatchOperationType.Insert });
+                    this.m_adhocCache?.Remove($"{MdmConstants.MasterCacheKey}.{nmc.Master}");
+
                 }
             }
 
@@ -822,12 +831,16 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                             existingMasterRel.BatchOperation = BatchOperationType.Delete;
                             retVal.AddLast(new EntityRelationship(MdmConstants.CandidateLocalRelationship, local.Key, existingMasterRel.TargetEntityKey, MdmConstants.AutomagicClassification) { Strength = bestMatch.Strength, BatchOperation = BatchOperationType.Insert });
                             retVal.AddLast(new EntityRelationship(MdmConstants.OriginalMasterRelationship, local.Key, existingMasterRel.TargetEntityKey, MdmConstants.AutomagicClassification) { Strength = bestMatch.Strength, BatchOperation = BatchOperationType.Insert });
+                            this.m_adhocCache?.Remove($"{MdmConstants.MasterCacheKey}.{existingMasterRel.TargetEntityKey}");
+
                         }
                         break;
 
                     case RecordMatchClassification.NonMatch:
                         existingMasterRel.BatchOperation = BatchOperationType.Delete;
                         retVal.AddLast(new EntityRelationship(MdmConstants.OriginalMasterRelationship, local.Key, existingMasterRel.TargetEntityKey, MdmConstants.AutomagicClassification) { Strength = bestMatch.Strength });
+                        this.m_adhocCache?.Remove($"{MdmConstants.MasterCacheKey}.{existingMasterRel.TargetEntityKey}");
+
                         break;
 
                     case RecordMatchClassification.Match:
