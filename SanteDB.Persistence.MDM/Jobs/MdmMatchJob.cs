@@ -142,10 +142,10 @@ namespace SanteDB.Persistence.MDM.Jobs
                 {
                     this.LastStarted = DateTime.Now;
                     this.CurrentState = JobStateType.Running;
-                    var clear = parameters.Length > 0 ? (bool)parameters[0] : false;
+                    var clear = parameters.Length > 0 ? (bool?)parameters[0] : false;
                     this.m_tracer.TraceInfo("Starting batch run of MDM Matching ");
                    
-                    if (clear)
+                    if (clear.GetValueOrDefault())
                     {
                         this.m_tracer.TraceVerbose("Batch instruction indicates clear of all links");
                         this.m_mergeService.Reset(true, false);
