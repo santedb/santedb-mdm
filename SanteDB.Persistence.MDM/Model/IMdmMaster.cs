@@ -49,11 +49,11 @@ namespace SanteDB.Persistence.MDM.Model
         /// <summary>
         /// Constructs the master record from local records
         /// </summary>
-        T Synthesize(IPrincipal principal);
+        new T Synthesize(IPrincipal principal);
 
         /// <summary>
         /// Gets the local records
         /// </summary>
-        IEnumerable<T> LocalRecords { get; }
+        new IEnumerable<T> LocalRecords { get; }
     }
 }
