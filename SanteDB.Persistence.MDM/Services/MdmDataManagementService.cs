@@ -208,7 +208,7 @@ namespace SanteDB.Persistence.MDM.Services
                     // Add job
                     var jobType = typeof(MdmMatchJob<>).MakeGenericType(itm.Type);
                     var job = this.m_serviceManager.CreateInjected(jobType) as IJob;
-                    this.m_jobManager?.AddJob(job, TimeSpan.MaxValue, JobStartType.Never);
+                    this.m_jobManager?.AddJob(job, JobStartType.Never);
                 }
 
                 // Add an entity relationship and act relationship watcher to the persistence layer for after update

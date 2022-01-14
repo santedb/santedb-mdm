@@ -198,17 +198,8 @@ namespace SanteDB.Persistence.MDM.Model
         /// </summary>
         public T Synthesize(IPrincipal principal)
         {
-            // TODO: Change this to use DI
-            var adhocCache = ApplicationServiceContext.Current.GetService<IAdhocCacheService>();
-
-            // Already done
-            var master = adhocCache?.Get<T>($"{MdmConstants.MasterCacheKey}.{this.Key}");
-            if(master != null)
-            {
-                return master;
-            }
-
-            master = new T();
+            
+            var master = new T();
             master.CopyObjectData<IdentifiedData>(this.m_masterRecord, overwritePopulatedWithNull: false, ignoreTypeMismatch: true);
 
             // Is there a relationship which is the record of truth
@@ -270,7 +261,6 @@ namespace SanteDB.Persistence.MDM.Model
             master.VersionKey = this.m_masterRecord.VersionKey;
             master.VersionSequence = this.m_masterRecord.VersionSequence;
 
-            adhocCache?.Add($"{MdmConstants.MasterCacheKey}.{this.Key}", master, new TimeSpan(1,0,0));
 
             return master;
         }
@@ -295,7 +285,8 @@ namespace SanteDB.Persistence.MDM.Model
             {
                 if (this.m_localRecords == null)
                 {
-                    this.m_localRecords = EntitySource.Current.Provider.Query<EntityRelationship>(o => o.TargetEntityKey == this.Key && o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship).Select(o => o.LoadProperty<T>("SourceEntity")).ToList();
+                    this.m_localRecords = EntitySource.Current.Provider.Query<EntityRelationship>(o => o.TargetEntityKey == this.Key && o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship).Select(o => o.SourceEntityKey)
+                        .AsParallel().Select(o=> EntitySource.Current.Provider.Get<T>(o)).ToList();
                 }
                 return this.m_localRecords;
             }

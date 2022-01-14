@@ -60,32 +60,34 @@ namespace SanteDB.Persistence.MDM.Services
         /// </summary>
         public IEnumerable<TEntity> Search<TEntity>(string[] term, Guid queryId, int offset, int? count, out int totalResults, ModelSort<TEntity>[] orderBy) where TEntity : IdentifiedData, new()
         {
+            
+            var searchTerm = String.Join(" and ", term);
+            
             // Perform the queries on the terms
             if (this.m_configuration.ResourceTypes.Any(rt => rt.Type == typeof(TEntity))) // Under MDM control
             {
-                var idps = ApplicationServiceContext.Current.GetService<IUnionQueryDataPersistenceService<Entity>>();
-                if (idps == null)
-                    throw new InvalidOperationException("Cannot find a UNION query repository service");
                 var principal = AuthenticationContext.Current.Principal;
+                // HACK: Change this method to detect the type
+                var idps = ApplicationServiceContext.Current.GetService<IDataPersistenceService<Entity>>();
+                if (idps == null)
+                    throw new InvalidOperationException("Cannot find a query repository service");
 
-                var searchFilters = new List<Expression<Func<Entity, bool>>>(term.Length);
-                searchFilters.Add(QueryExpressionParser.BuildLinqExpression<Entity>(new NameValueCollection() { { "classConcept", MdmConstants.MasterRecordClassification.ToString() }, { "identifier.value", term }, { "statusConcept", StatusKeys.ActiveStates.Select(o=>o.ToString()) } }));
-                searchFilters.Add(QueryExpressionParser.BuildLinqExpression<Entity>(new NameValueCollection() { { "classConcept", MdmConstants.MasterRecordClassification.ToString() }, { $"relationship[{MdmConstants.MasterRecordRelationship}].source.name.component.value", term.Select(o => $":(approx|\"{o}\")") }, { "statusConcept", StatusKeys.ActiveStates.Select(o => o.ToString()) } }));
-                searchFilters.Add(QueryExpressionParser.BuildLinqExpression<Entity>(new NameValueCollection() { { "classConcept", MdmConstants.MasterRecordClassification.ToString() }, { $"relationship[{MdmConstants.MasterRecordRelationship}].source.identifier.value", term }, { "statusConcept", StatusKeys.ActiveStates.Select(o => o.ToString()) } }));
-                var results = idps.Union(searchFilters.ToArray(), queryId, offset, count, out totalResults, principal);
+                var expression = QueryExpressionParser.BuildLinqExpression<Entity>(new NameValueCollection() {
+                    { "classConcept", MdmConstants.MasterRecordClassification.ToString() },
+                    { "relationship[97730a52-7e30-4dcd-94cd-fd532d111578].source.id", $":(freetext|{searchTerm})" }
+                });
+                var results = idps.Query(expression, offset, count, out totalResults, principal);
                 var mdmDataManager = MdmDataManagerFactory.GetDataManager<TEntity>();
                 return results.AsParallel().AsOrdered().Select(o => mdmDataManager.CreateMasterContainerForMasterEntity(o).Synthesize(principal)).OfType<TEntity>().ToList();
             }
             else
             {
-                // TODO: Add an event so that observers can handle any events before disclosure
-                var idps = ApplicationServiceContext.Current.GetService<IUnionQueryDataPersistenceService<TEntity>>();
+                // Does the provider support freetext search clauses?
+                var idps = ApplicationServiceContext.Current.GetService<IDataPersistenceService<TEntity>>();
                 if (idps == null)
-                    throw new InvalidOperationException("Cannot find a UNION query repository service");
-                var searchFilters = new List<Expression<Func<TEntity, bool>>>(term.Length);
-                searchFilters.Add(QueryExpressionParser.BuildLinqExpression<TEntity>(new NameValueCollection() { { "name.component.value", term.Select(o => $":(approx|\"{o}\")") } }));
-                searchFilters.Add(QueryExpressionParser.BuildLinqExpression<TEntity>(new NameValueCollection() { { "identifier.value", term } }));
-                return idps.Union(searchFilters.ToArray(), queryId, offset, count, out totalResults, AuthenticationContext.Current.Principal, orderBy);
+                    throw new InvalidOperationException("Cannot find a query repository service");
+
+                return idps.Query(o => o.FreetextSearch(searchTerm), offset, count, out totalResults, AuthenticationContext.Current.Principal, orderBy);
             }
         }
     }
