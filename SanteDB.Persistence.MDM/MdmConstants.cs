@@ -146,5 +146,6 @@ namespace SanteDB.Persistence.MDM
         /// Gets the auto-link setting
         /// </summary>
         public const string AutoLinkSetting = "$mdm.auto-link";
+
     }
 }

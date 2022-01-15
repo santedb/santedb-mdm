@@ -196,6 +196,7 @@ namespace SanteDB.Persistence.MDM.Model
         /// </summary>
         public T Synthesize(IPrincipal principal)
         {
+            
             var master = new T();
             master.CopyObjectData<IdentifiedData>(this.m_masterRecord, overwritePopulatedWithNull: false, ignoreTypeMismatch: true);
 
@@ -257,6 +258,8 @@ namespace SanteDB.Persistence.MDM.Model
             master.Key = this.m_masterRecord.Key;
             master.VersionKey = this.m_masterRecord.VersionKey;
             master.VersionSequence = this.m_masterRecord.VersionSequence;
+
+
             return master;
         }
 
@@ -280,7 +283,8 @@ namespace SanteDB.Persistence.MDM.Model
             {
                 if (this.m_localRecords == null)
                 {
-                    this.m_localRecords = EntitySource.Current.Provider.Query<EntityRelationship>(o => o.TargetEntityKey == this.Key && o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship).Select(o => o.LoadProperty<T>("SourceEntity")).ToList();
+                    this.m_localRecords = EntitySource.Current.Provider.Query<EntityRelationship>(o => o.TargetEntityKey == this.Key && o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship).Select(o => o.SourceEntityKey)
+                        .AsParallel().Select(o=> EntitySource.Current.Provider.Get<T>(o)).ToList();
                 }
                 return this.m_localRecords;
             }

@@ -81,32 +81,27 @@ namespace SanteDB.Persistence.MDM.Services
             // Perform the queries on the terms
             if (this.m_configuration.ResourceTypes.Any(rt => rt.Type == typeof(TEntity))) // Under MDM control
             {
-                var idps = ApplicationServiceContext.Current.GetService<IDataPersistenceService<TEntity>>();
-                if (idps == null)
-                    throw new InvalidOperationException("Cannot find a UNION query repository service");
                 var principal = AuthenticationContext.Current.Principal;
+                // HACK: Change this method to detect the type
+                var idps = ApplicationServiceContext.Current.GetService<IDataPersistenceService<Entity>>();
+                if (idps == null)
+                    throw new InvalidOperationException("Cannot find a query repository service");
 
-                var searchFilters = new List<Expression<Func<TEntity, bool>>>(term.Length);
-                var results = idps.Query(QueryExpressionParser.BuildLinqExpression<TEntity>(new NameValueCollection() { { "statusConcept" , StatusKeys.ActiveStates.Select(s => s.ToString()).ToList() },  { "classConcept", MdmConstants.MasterRecordClassification.ToString() }, { "identifier.value", term } }), AuthenticationContext.Current.Principal)
-                    .Union(QueryExpressionParser.BuildLinqExpression<TEntity>(new NameValueCollection() { { "statusConcept" , StatusKeys.ActiveStates.Select(s => s.ToString()).ToList() }, { "classConcept", MdmConstants.MasterRecordClassification.ToString() }, { $"relationship[{MdmConstants.MasterRecordRelationship}].source.name.component.value", term.Select(o => $":(approx|\"{o}\")") } }))
-                    .Union(QueryExpressionParser.BuildLinqExpression<TEntity>(new NameValueCollection() { { "statusConcept" , StatusKeys.ActiveStates.Select(s => s.ToString()).ToList() }, { "classConcept", MdmConstants.MasterRecordClassification.ToString() }, { $"relationship[{MdmConstants.MasterRecordRelationship}].source.identifier.value", term } }));
-
-                this.Queried?.Invoke(this, new FreeTextQueryResultEventArgs<TEntity>(AuthenticationContext.Current.Principal, term, results));
-                return new MdmEntityResultSet<TEntity>(results, AuthenticationContext.Current.Principal);
+                var expression = QueryExpressionParser.BuildLinqExpression<Entity>(new NameValueCollection() {
+                    { "classConcept", MdmConstants.MasterRecordClassification.ToString() },
+                    { "relationship[97730a52-7e30-4dcd-94cd-fd532d111578].source.id", $":(freetext|{searchTerm})" }
+                });
+                var results = idps.Query(expression, principal);
+                return new MdmEntityResultSet<TEntity>(results, principal);
             }
             else
             {
-                // TODO: Add an event so that observers can handle any events before disclosure
+                // Does the provider support freetext search clauses?
                 var idps = ApplicationServiceContext.Current.GetService<IDataPersistenceService<TEntity>>();
                 if (idps == null)
-                    throw new InvalidOperationException("Cannot find a UNION query repository service");
-                var searchFilters = new List<Expression<Func<TEntity, bool>>>(term.Length);
+                    throw new InvalidOperationException("Cannot find a query repository service");
 
-                var results = idps.Query(QueryExpressionParser.BuildLinqExpression<TEntity>(new NameValueCollection() { { "name.component.value", term.Select(o => $":(approx|\"{o}\")") } }), AuthenticationContext.Current.Principal)
-                   .Union(QueryExpressionParser.BuildLinqExpression<TEntity>(new NameValueCollection() { { "identifier.value", term } }));
-                this.Queried?.Invoke(this, new FreeTextQueryResultEventArgs<TEntity>(AuthenticationContext.Current.Principal, term, results));
-
-                return results;
+                return idps.Query(o => o.FreetextSearch(searchTerm), AuthenticationContext.Current.Principal, orderBy);
             }
         }
     }

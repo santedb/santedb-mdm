@@ -66,6 +66,9 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         // Batch repository
         private IDataPersistenceService<Bundle> m_batchRepository;
 
+        // Ad-hoc cache
+        private readonly IAdhocCacheService m_adhocCache;
+
         // Data manager
         private MdmDataManager<TModel> m_dataManager;
 
@@ -78,6 +81,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             this.m_dataManager = MdmDataManagerFactory.GetDataManager<TModel>();
             this.m_policyEnforcement = ApplicationServiceContext.Current.GetService<IPolicyEnforcementService>();
             this.m_batchRepository = ApplicationServiceContext.Current.GetService<IDataPersistenceService<Bundle>>();
+            this.m_adhocCache = ApplicationServiceContext.Current.GetService<IAdhocCacheService>();
 
             // Validate the match configuration exists
             var matchConfigService = ApplicationServiceContext.Current.GetService<IRecordMatchingConfigurationService>();
@@ -386,7 +390,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// create/update a master</remarks>
         internal virtual void OnPrePersistenceValidate(object sender, DataPersistingEventArgs<TModel> e)
         {
-            var originalKey = e.Data.Key;
+            var originalKey = e.Data.Key ?? (Guid?)Guid.NewGuid();
             var store = e.Data;
             // Is the existing object a master?
             if (this.m_dataManager.IsMaster(e.Data))
@@ -469,7 +473,10 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             {
                 store.Key = Guid.NewGuid(); // Ensure that we have a key for the object.
             }
-
+            else
+            {
+                var masterRel = this.m_dataManager.GetMasterRelationshipFor(e.Data.Key.Value);
+            }
 
             // Is this a ROT?
             if (this.m_dataManager.IsRecordOfTruth(e.Data))

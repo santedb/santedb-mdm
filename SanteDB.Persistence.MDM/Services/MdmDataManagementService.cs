@@ -56,10 +56,22 @@ using System.Security.Principal;
 namespace SanteDB.Persistence.MDM.Services
 {
     /// <summary>
-    /// The MdmRecordDaemon is responsible for subscribing to MDM targets in the configuration
-    /// and linking/creating master records whenever a record of that type is created.
+    /// An implementation of the <see cref="IDataManagementPattern"/> which keeps multiple copies of 
+    /// source records and maintains linkages with a single master record.
     /// </summary>
-    [ServiceProvider("MIDM Data Repository")]
+    /// <remarks>
+    /// <para>The MDM data management service provides the <see href="https://help.santesuite.org/santedb/data-storage-patterns/master-data-storage">Master Data Storage</see> pattern
+    /// for SanteDB. This service is responsible for creating subscribers to listen to events from the <see cref="IRepositoryService"/> layer in SanteDB
+    /// and take appropriate actions to seggregate source information form record of truth information. Additionally, this service registers implementations
+    /// of <see cref="IFreetextSearchService"/>, <see cref="IRecordMatchingService"/>, <see cref="IRecordMergingService"/> and <see cref="ISubscriptionExecutor"/> functionality to ensure the freetext and subscription requests are 
+    /// properly handled and synthesized.</para>
+    /// </remarks>
+    /// <seealso cref="MdmFreetextSearchService"/>
+    /// <seealso cref="MdmDataManagerFactory"/>
+    /// <seealso cref="MdmRecordMatchingService"/>
+    /// <seealso cref="MdmResourceMerger{TModel}"/>
+    /// <seealso cref="MdmResourceHandler{TModel}"/>
+    [ServiceProvider("MDM Data Repository")]
     public class MdmDataManagementService : IDaemonService, IDisposable, IDataManagementPattern
     {
         /// <summary>
