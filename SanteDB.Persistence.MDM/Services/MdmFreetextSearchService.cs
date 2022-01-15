@@ -57,39 +57,23 @@ namespace SanteDB.Persistence.MDM.Services
         private ResourceManagementConfigurationSection m_configuration = ApplicationServiceContext.Current.GetService<IConfigurationManager>().GetSection<ResourceManagementConfigurationSection>();
 
         /// <summary>
-        /// Fired before querying
-        /// </summary>
-        public event EventHandler<FreeTextQueryEventArgsBase> Querying;
-
-        /// <summary>
-        /// Fired after querying
-        /// </summary>
-        public event EventHandler<FreeTextQueryEventArgsBase> Queried;
-
-        /// <summary>
         /// Search for the specified entity
         /// </summary>
         public IQueryResultSet<TEntity> SearchEntity<TEntity>(string[] term) where TEntity : Entity, new()
         {
-            var preEvent = new FreeTextQueryRequestEventArgs<TEntity>(AuthenticationContext.Current.Principal, term);
-            this.Querying?.Invoke(this, preEvent);
-            if (preEvent.Cancel)
-            {
-                return preEvent.Results;
-            }
 
             // Perform the queries on the terms
             if (this.m_configuration.ResourceTypes.Any(rt => rt.Type == typeof(TEntity))) // Under MDM control
             {
                 var principal = AuthenticationContext.Current.Principal;
                 // HACK: Change this method to detect the type
-                var idps = ApplicationServiceContext.Current.GetService<IDataPersistenceService<Entity>>();
+                var idps = ApplicationServiceContext.Current.GetService<IDataPersistenceService<TEntity>>();
                 if (idps == null)
                     throw new InvalidOperationException("Cannot find a query repository service");
 
-                var expression = QueryExpressionParser.BuildLinqExpression<Entity>(new NameValueCollection() {
+                var expression = QueryExpressionParser.BuildLinqExpression<TEntity>(new NameValueCollection() {
                     { "classConcept", MdmConstants.MasterRecordClassification.ToString() },
-                    { "relationship[97730a52-7e30-4dcd-94cd-fd532d111578].source.id", $":(freetext|{searchTerm})" }
+                    { "relationship[97730a52-7e30-4dcd-94cd-fd532d111578].source.id", $":(freetext|{String.Join(" ", term)})" }
                 });
                 var results = idps.Query(expression, principal);
                 return new MdmEntityResultSet<TEntity>(results, principal);
@@ -101,7 +85,8 @@ namespace SanteDB.Persistence.MDM.Services
                 if (idps == null)
                     throw new InvalidOperationException("Cannot find a query repository service");
 
-                return idps.Query(o => o.FreetextSearch(searchTerm), AuthenticationContext.Current.Principal, orderBy);
+                var searchTerm = String.Join(" ", term);
+                return idps.Query(o => o.FreetextSearch(searchTerm), AuthenticationContext.Current.Principal);
             }
         }
     }
