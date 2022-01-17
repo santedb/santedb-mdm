@@ -1307,6 +1307,6 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// <summary>
         /// Create master container for the specified object
         /// </summary>
-        public override IMdmMaster CreateMasterContainerForMasterEntity(IIdentifiedEntity masterObject) => new EntityMaster<TModel>(masterObject as Entity);
+        public override IMdmMaster CreateMasterContainerForMasterEntity(IIdentifiedData masterObject) => new EntityMaster<TModel>(masterObject as Entity);
     }
 }

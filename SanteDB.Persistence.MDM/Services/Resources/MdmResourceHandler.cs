@@ -459,7 +459,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     taggable.RemoveTag(MdmConstants.MdmRotIndicatorTag);
                     taggable.RemoveTag(MdmConstants.MdmResourceTag);
                 }
-                if (store is IVersionedEntity versioned)
+                if (store is IVersionedData versioned)
                 {
                     versioned.VersionSequence = null;
                     versioned.VersionKey = null;
