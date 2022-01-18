@@ -85,6 +85,10 @@ namespace SanteDB.Persistence.MDM.Jobs
         /// </summary>
         public string Name => $"Background Matching Job for {typeof(T).Name}";
 
+
+        /// <inheritdoc/>
+        public string Description => $"Starts a background process which re-processes detected duplicate SOURCE records for {typeof(T).Name}";
+
         /// <summary>
         /// Can cancel the job?
         /// </summary>
