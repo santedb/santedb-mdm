@@ -194,7 +194,7 @@ namespace SanteDB.Persistence.MDM.Model
         }
 
         /// <summary>
-        /// Get the constructed master reord
+        /// Get the constructed master record
         /// </summary>
         public T Synthesize(IPrincipal principal)
         {
@@ -286,7 +286,7 @@ namespace SanteDB.Persistence.MDM.Model
                 if (this.m_localRecords == null)
                 {
                     this.m_localRecords = EntitySource.Current.Provider.Query<EntityRelationship>(o => o.TargetEntityKey == this.Key && o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship).Select(o => o.SourceEntityKey)
-                        .AsParallel().Select(o=> EntitySource.Current.Provider.Get<T>(o)).ToList();
+                        .Select(o=> EntitySource.Current.Provider.Get<T>(o)).ToList();
                 }
                 return this.m_localRecords;
             }
