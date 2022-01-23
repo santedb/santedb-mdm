@@ -214,7 +214,6 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     {
                         case "identifier":
                             break;
-
                         default:
                             query.Remove(itm.Key);
                             break;
