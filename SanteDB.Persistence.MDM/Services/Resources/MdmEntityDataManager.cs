@@ -506,7 +506,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 VersionKey = null,
                 CreatedByKey = Guid.Parse(AuthenticationContext.SystemApplicationSid),
                 DeterminerConceptKey = DeterminerKeys.Specific,
-                TypeConceptKey = local.ClassConceptKey
+                TypeConceptKey = local.ClassConceptKey,
+                StatusConceptKey = StatusKeys.New
             };
             local.Relationships.Add(new EntityRelationship(MdmConstants.MasterRecordRelationship, local.Key, retVal.Key, MdmConstants.SystemClassification));
             return retVal;
@@ -750,6 +751,9 @@ namespace SanteDB.Persistence.MDM.Services.Resources
 
                             foreach (var itm in mdmMatchInstructions)
                             {
+                                if (itm is EntityRelationship er && er.ClassificationKey == MdmConstants.SystemClassification) // This is not system it is auto
+                                    er.ClassificationKey = MdmConstants.AutomagicClassification;
+
                                 retVal.AddLast(itm);
                                 if (itm.SemanticEquals(existingMasterRel))
                                 {

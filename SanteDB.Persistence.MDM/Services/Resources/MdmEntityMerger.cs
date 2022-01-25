@@ -491,7 +491,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
 
                 // TODO: When the persistence refactor is done - change this to use the bulk method
                 var classKeys = typeof(TEntity).GetCustomAttributes<ClassConceptKeyAttribute>(false).Select(o => Guid.Parse(o.ClassConcept));
-                Expression<Func<EntityRelationship, bool>> purgeExpression = o => classKeys.Contains( o.SourceEntity.ClassConceptKey.Value) && o.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship && o.ObsoleteVersionSequenceId == null;
+                Expression<Func<EntityRelationship, bool>> purgeExpression = o => classKeys.Contains( o.SourceEntity.ClassConceptKey.Value) && o.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship && o.RelationshipTypeKey == MdmConstants.MasterRecordClassification && o.ClassificationKey == MdmConstants.AutomagicClassification && o.ObsoleteVersionSequenceId == null;
                 if (this.m_relationshipPersistence is IBulkDataPersistenceService ibds)
                 {
                     ibds.Purge(TransactionMode.Commit, AuthenticationContext.SystemPrincipal, purgeExpression);

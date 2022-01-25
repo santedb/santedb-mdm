@@ -329,10 +329,8 @@ namespace SanteDB.Persistence.MDM.Services
             {
                 foreach (var rel in itm.Relationships.OfType<ITargetedVersionedExtension>())
                 {
-                    this.m_dataCachingService.Remove(rel as IdentifiedData);
                     this.RecheckRelationship(rel, e.Mode, e.Principal);
                 }
-                this.m_dataCachingService.Remove(itm as IdentifiedData);
             }
         }
 
