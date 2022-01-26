@@ -380,7 +380,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 // Fetch all locals
                 // TODO: Update to the new persistence layer
                 Guid queryId = Guid.NewGuid();
-                int offset = 0, totalResults = 1, batchSize = 20;
+                int offset = 0, totalResults = 1, batchSize = 30;
 
                 var processStack = new ConcurrentStack<TEntity>();
                 var qps = this.m_entityPersistence as IFastQueryDataPersistenceService<TEntity>;
@@ -397,7 +397,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
 
                 this.m_threadPool.QueueUserWorkItem(_ =>
                 {
-                    var processList = new TEntity[Environment.ProcessorCount];
+                    var processList = new TEntity[Environment.ProcessorCount * 2];
                     int idx = 0;
                     while ((!completeProcessing || !fetchQueue.IsEmpty) && !this.m_disposed)
                     {
@@ -448,7 +448,6 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                                 this.m_batchPersistence.Insert(bundle, TransactionMode.Commit, AuthenticationContext.SystemPrincipal);
                             }
                         }
-                        fetchEvent.Set(); // Notify the queue
 
                         writeEvent.Reset();
                     }
@@ -470,7 +469,11 @@ namespace SanteDB.Persistence.MDM.Services.Resources
 
                 this.m_tracer.TraceVerbose("DetectGlobalMergeCandidate: Finished reading data - waiting for merge process to complete");
                 completeProcessing = true; // let threads die
-                doneEvent.Wait();
+                while (!writeQueue.IsEmpty || !fetchQueue.IsEmpty)
+                {
+                    doneEvent.Wait();
+                    doneEvent.Reset();
+                }
                 this.m_tracer.TraceVerbose("DetectGlobalMergeCandidate: Completed matching");
             }
             catch (Exception e)
