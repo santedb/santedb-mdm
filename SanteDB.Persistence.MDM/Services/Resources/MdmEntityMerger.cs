@@ -410,6 +410,9 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     while ((!completeProcessing || !fetchQueue.IsEmpty) && !this.m_disposed)
                     {
                         fetchEvent.Wait();
+
+                        this.m_tracer.TraceVerbose("DetectGlobalMergeCandidiate (MatcherThread): Received notification of results available");
+
                         if (writeQueue.IsEmpty || fetchQueue.Count > 50)
                         { // wait for write queue to empty  
                             while (fetchQueue.TryDequeue(out var candidate))
@@ -417,8 +420,9 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                                 processList[idx++] = candidate;
                                 if (idx == processList.Length)
                                 {
-                                    this.m_threadPool.QueueUserWorkItem<TEntity[]>(o =>
+                                    this.m_threadPool.QueueUserWorkItem(o =>
                                     {
+                                        this.m_tracer.TraceVerbose("DetectGlobalMergeCandidate (MatcherWorkerThread): Processing {0} objects via matchers", o.Length);
                                         writeQueue.Enqueue(new Bundle(o.SelectMany(r => this.m_dataManager.MdmTxMatchMasters(r, new IdentifiedData[0]))));
                                         writeEvent.Set();
                                         Interlocked.Add(ref completeProcess, o.Length);
@@ -440,6 +444,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     {
                         writeEvent.Wait();
 
+                        this.m_tracer.TraceVerbose("DetectGlobalMergeCandidiate (WriterThread): Received notification of write");
+
                         var batchBundle = new Bundle();
                         while (writeQueue.TryDequeue(out var bundle))
                         {
@@ -456,6 +462,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
 
                 while (offset < totalResults)
                 {
+                    this.m_tracer.TraceVerbose("DetectGlobalMergeCandidiate: Fetching {0} to {1} of {2}", offset, offset + batchSize, totalResults);
                     foreach (var itm in qps.QueryFast(o => StatusKeys.ActiveStates.Contains(o.StatusConceptKey.Value) && o.DeterminerConceptKey != MdmConstants.RecordOfTruthDeterminer, queryId, offset, batchSize, out totalResults, AuthenticationContext.SystemPrincipal))
                     {
                         fetchQueue.Enqueue(itm);
@@ -465,12 +472,13 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     offset += batchSize;
                 }
 
+                this.m_tracer.TraceVerbose("DetectGlobalMergeCandidate: Finished reading data - waiting for merge process to complete");
                 while (!writeQueue.IsEmpty || !fetchQueue.IsEmpty)
                 {
-                    this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)completeProcess / (float)totalResults, $"Finalizing ({writeQueue.Count + fetchQueue.Count:#,###,###} remain)"));
                     Thread.Sleep(1000);
                 }
                 completeProcessing = true; // let threads die
+                this.m_tracer.TraceVerbose("DetectGlobalMergeCandidate: Completed matching");
             }
             catch (Exception e)
             {
