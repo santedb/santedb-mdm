@@ -388,7 +388,6 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 var writeQueue = new ConcurrentQueue<Bundle>();
                 using (var fetchEvent = new ManualResetEventSlim(false))
                 using (var writeEvent = new ManualResetEventSlim(false))
-                using (var doneEvent = new ManualResetEventSlim(false))
                 {
 
                     bool completeProcessing = false;
@@ -413,7 +412,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                                 {
                                     // The way that Windows does thread management is different than in Mono
                                     // this method does not work well for processing on lower processor counts
-                                    if (Environment.ProcessorCount < 4)
+                                    if (Environment.ProcessorCount >= 4)
                                     {
                                         this.m_threadPool.QueueUserWorkItem(o =>
                                         {
@@ -462,7 +461,6 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                             writeEvent.Reset();
                         }
 
-                        doneEvent.Set();
                     });
 
                     while (offset < totalResults)
@@ -477,12 +475,14 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     }
 
                     this.m_tracer.TraceVerbose("DetectGlobalMergeCandidate: Finished reading data - waiting for merge process to complete");
-                    completeProcessing = true; // let threads die
                     while (!writeQueue.IsEmpty || !fetchQueue.IsEmpty)
                     {
-                        doneEvent.Wait();
-                        doneEvent.Reset();
+                        this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs(1.0f, $"Finalizing match results (Writer: {writeQueue.Count})"));
+                        Thread.Sleep(500);
                     }
+                    writeEvent.Set();
+                    fetchEvent.Set();
+                    completeProcessing = true; // let threads die
                     this.m_tracer.TraceVerbose("DetectGlobalMergeCandidate: Completed matching");
                 }
             }
