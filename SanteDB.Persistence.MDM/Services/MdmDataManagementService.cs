@@ -352,7 +352,7 @@ namespace SanteDB.Persistence.MDM.Services
 
             // Results contain LOCAL records most likely
             // We have a resource type that matches
-            e.Results = e.Results.AsParallel().AsOrdered().Select((res) =>
+            e.Results = e.Results.Select((res) =>
             {
                 if (!this.m_configuration.ResourceTypes.Any(o => o.Type == res.GetType())) return res;
                 // Result is taggable and a tag exists for MDM
