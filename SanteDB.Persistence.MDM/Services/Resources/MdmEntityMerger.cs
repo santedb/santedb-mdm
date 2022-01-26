@@ -380,7 +380,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 // Fetch all locals
                 // TODO: Update to the new persistence layer
                 Guid queryId = Guid.NewGuid();
-                int offset = 0, totalResults = 1, batchSize = Environment.ProcessorCount * 10;
+                int offset = 0, totalResults = 1, batchSize = 20;
 
                 var processStack = new ConcurrentStack<TEntity>();
                 var qps = this.m_entityPersistence as IFastQueryDataPersistenceService<TEntity>;
@@ -397,7 +397,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
 
                 this.m_threadPool.QueueUserWorkItem(_ =>
                 {
-                    var processList = new TEntity[Environment.ProcessorCount * 2];
+                    var processList = new TEntity[Environment.ProcessorCount];
                     int idx = 0;
                     while ((!completeProcessing || !fetchQueue.IsEmpty) && !this.m_disposed)
                     {
@@ -417,10 +417,11 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                                         this.m_tracer.TraceVerbose("DetectGlobalMergeCandidate (MatcherWorkerThread): Processing {0} objects via matchers", o.Length);
                                         writeQueue.Enqueue(new Bundle(o.SelectMany(r => this.m_dataManager.MdmTxMatchMasters(r, new IdentifiedData[0]))));
                                         writeEvent.Set();
-                                        var dr = Interlocked.Add(ref completeProcess, o.Length);
-                                        this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)dr / (float)totalResults, $"Matching {dr:#,###,###} of {totalResults:#,###,###} (Writer: {writeQueue.Count})"));
                                     }, processList.ToArray());
                                     idx = 0;
+                                    completeProcess += processList.Length;
+                                    this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)completeProcess / (float)totalResults, $"Matching ~{completeProcess:#,###,###} of {totalResults:#,###,###} (Writer: {writeQueue.Count})"));
+
                                 }
                             }
                         }
