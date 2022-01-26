@@ -380,7 +380,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 // Fetch all locals
                 // TODO: Update to the new persistence layer
                 Guid queryId = Guid.NewGuid();
-                int offset = 0, totalResults = 1, batchSize = 1000;
+                int offset = 0, totalResults = 1, batchSize = Environment.ProcessorCount * 10;
 
                 var processStack = new ConcurrentStack<TEntity>();
                 var qps = this.m_entityPersistence as IFastQueryDataPersistenceService<TEntity>;
@@ -388,21 +388,13 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 var writeQueue = new ConcurrentQueue<Bundle>();
                 var fetchEvent = new ManualResetEventSlim(false);
                 var writeEvent = new ManualResetEventSlim(false);
+                var doneEvent = new ManualResetEventSlim(false);
                 long completeProcess = 0;
                 bool completeProcessing = false;
 
                 // Matcher queue
                 this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs(0f, $"Gathering sources..."));
 
-                this.m_threadPool.QueueUserWorkItem(_ =>
-                {
-                    while (!completeProcessing&& !this.m_disposed)
-                    {
-                        var dr = Interlocked.Read(ref completeProcess);
-                        this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)dr / (float)totalResults, $"Matching {dr:#,###,###} of {totalResults:#,###,###} (Writer: {writeQueue.Count})"));
-                        Thread.Sleep(1000);
-                    }
-                });
                 this.m_threadPool.QueueUserWorkItem(_ =>
                 {
                     var processList = new TEntity[Environment.ProcessorCount * 2];
@@ -413,7 +405,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
 
                         this.m_tracer.TraceVerbose("DetectGlobalMergeCandidiate (MatcherThread): Received notification of results available");
 
-                        if (writeQueue.IsEmpty || fetchQueue.Count > 50)
+                        if (writeQueue.IsEmpty || fetchQueue.Count > 500)
                         { // wait for write queue to empty  
                             while (fetchQueue.TryDequeue(out var candidate))
                             {
@@ -425,7 +417,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                                         this.m_tracer.TraceVerbose("DetectGlobalMergeCandidate (MatcherWorkerThread): Processing {0} objects via matchers", o.Length);
                                         writeQueue.Enqueue(new Bundle(o.SelectMany(r => this.m_dataManager.MdmTxMatchMasters(r, new IdentifiedData[0]))));
                                         writeEvent.Set();
-                                        Interlocked.Add(ref completeProcess, o.Length);
+                                        var dr = Interlocked.Add(ref completeProcess, o.Length);
+                                        this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)dr / (float)totalResults, $"Matching {dr:#,###,###} of {totalResults:#,###,###} (Writer: {writeQueue.Count})"));
                                     }, processList.ToArray());
                                     idx = 0;
                                 }
@@ -458,6 +451,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
 
                         writeEvent.Reset();
                     }
+
+                    doneEvent.Set();
                 });
 
                 while (offset < totalResults)
@@ -473,11 +468,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 }
 
                 this.m_tracer.TraceVerbose("DetectGlobalMergeCandidate: Finished reading data - waiting for merge process to complete");
-                while (!writeQueue.IsEmpty || !fetchQueue.IsEmpty)
-                {
-                    Thread.Sleep(1000);
-                }
                 completeProcessing = true; // let threads die
+                doneEvent.Wait();
                 this.m_tracer.TraceVerbose("DetectGlobalMergeCandidate: Completed matching");
             }
             catch (Exception e)
