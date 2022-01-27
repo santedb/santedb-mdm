@@ -443,7 +443,6 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             if (masterQuery.Any() && this.m_entityPersistenceService is IUnionQueryDataPersistenceService<Entity> unionQuery)
             {
                 var masterLinq = QueryExpressionParser.BuildLinqExpression<Entity>(masterQuery, null, false);
-
                 return unionQuery.Union(new Expression<Func<Entity, bool>>[] { localEntityLinq, masterLinq }, queryId.GetValueOrDefault(), offset, count, out totalResults, AuthenticationContext.SystemPrincipal, newOrderBy?.ToArray()).Select(this.Synthesize);
             }
             else if (this.m_entityPersistenceService is IStoredQueryDataPersistenceService<Entity> storedQuery)
@@ -507,7 +506,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 VersionKey = null,
                 CreatedByKey = Guid.Parse(AuthenticationContext.SystemApplicationSid),
                 DeterminerConceptKey = DeterminerKeys.Specific,
-                TypeConceptKey = local.ClassConceptKey
+                TypeConceptKey = local.ClassConceptKey,
+                StatusConceptKey = StatusKeys.New
             };
             local.Relationships.Add(new EntityRelationship(MdmConstants.MasterRecordRelationship, local.Key, retVal.Key, MdmConstants.SystemClassification));
             return retVal;
@@ -702,7 +702,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 // Group the match results by their outcome
                 var matchResultGrouping = matchResults
                     .Where(o => o.Record.Key != local.Key) // cannot match with itself
-                    .Select(o => new MasterMatch(this.GetMasterFor(o.Record, context).Key.Value, o))
+                    .Select(o => new MasterMatch(this.IsMaster(o.Record) ? o.Record.Key.Value : this.GetMasterRelationshipFor(o.Record, context).TargetEntityKey.Value, o))
                     .GroupBy(o => o.MatchResult.Classification)
                     .ToDictionary(o => o.Key, o => o.Distinct());
 
@@ -751,6 +751,9 @@ namespace SanteDB.Persistence.MDM.Services.Resources
 
                             foreach (var itm in mdmMatchInstructions)
                             {
+                                if (itm is EntityRelationship er && er.ClassificationKey == MdmConstants.SystemClassification) // This is not system it is auto
+                                    er.ClassificationKey = MdmConstants.AutomagicClassification;
+
                                 retVal.AddLast(itm);
                                 if (itm.SemanticEquals(existingMasterRel))
                                 {
@@ -846,7 +849,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             {
                 // Return a master at the top of the return list
                 yield return this.EstablishMasterFor(local);
-                retVal.AddLast(local.Relationships.SingleOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship));
+                retVal.AddLast(local.Relationships.LastOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship));
                 retVal.Last().BatchOperation = BatchOperationType.Insert;
             }
 

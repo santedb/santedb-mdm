@@ -85,6 +85,10 @@ namespace SanteDB.Persistence.MDM.Jobs
         /// </summary>
         public string Name => $"Background Matching Job for {typeof(T).Name}";
 
+
+        /// <inheritdoc/>
+        public string Description => $"Starts a background process which re-processes detected duplicate SOURCE records for {typeof(T).Name}";
+
         /// <summary>
         /// Can cancel the job?
         /// </summary>
@@ -148,7 +152,8 @@ namespace SanteDB.Persistence.MDM.Jobs
                     if (clear.GetValueOrDefault())
                     {
                         this.m_tracer.TraceVerbose("Batch instruction indicates clear of all links");
-                        this.m_mergeService.Reset(true, false);
+                        this.m_mergeService.ClearGlobalIgnoreFlags();
+                        this.m_mergeService.ClearGlobalMergeCanadidates();
                     }
                     else
                     {

@@ -22,6 +22,7 @@ using Newtonsoft.Json;
 using SanteDB.Core;
 using SanteDB.Core.Model;
 using SanteDB.Core.Model.Acts;
+using SanteDB.Core.Model.Attributes;
 using SanteDB.Core.Model.DataTypes;
 using SanteDB.Core.Model.EntityLoader;
 using SanteDB.Core.Model.Interfaces;
@@ -40,6 +41,8 @@ namespace SanteDB.Persistence.MDM.Model
     /// <summary>
     /// Represents the master record of an act
     /// </summary>
+    [XmlType(Namespace = "http://santedb.org/model")]
+    [NonCached]
     public class ActMaster<T> : Act, IMdmMaster<T>
         where T : IdentifiedData, new()
     {

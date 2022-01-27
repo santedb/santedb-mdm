@@ -153,7 +153,7 @@ namespace SanteDB.Persistence.MDM.Model
     /// Represents a master record of an entity
     /// </summary>
     [XmlType(Namespace = "http://santedb.org/model")]
-    [XmlInclude(typeof(EntityRelationshipMaster))]
+    [XmlInclude(typeof(EntityRelationshipMaster)), NonCached]
     public class EntityMaster<T> : Entity, IMdmMaster<T>
         where T : Entity, new()
     {
@@ -194,7 +194,7 @@ namespace SanteDB.Persistence.MDM.Model
         }
 
         /// <summary>
-        /// Get the constructed master reord
+        /// Get the constructed master record
         /// </summary>
         public T Synthesize(IPrincipal principal)
         {
@@ -216,7 +216,6 @@ namespace SanteDB.Persistence.MDM.Model
                 {
                     master.SemanticCopy(originalMasterFor);
                 }
-                return master;
             }
             else if (this.m_recordOfTruth == null) // We have to create a synthetic record
             {
@@ -253,7 +252,11 @@ namespace SanteDB.Persistence.MDM.Model
             master.Tags.Add(new EntityTag(MdmConstants.MdmTypeTag, "M")); // This is a master
             master.Tags.Add(new EntityTag(MdmConstants.MdmResourceTag, typeof(T).Name)); // The original resource of the master
             master.Tags.Add(new EntityTag(MdmConstants.MdmGeneratedTag, "true")); // This object was generated
-            master.Tags.Add(new EntityTag(SanteDBConstants.AlternateKeysTag, String.Join(",", locals.Select(o => o.Key.ToString()))));
+            if (locals.Any())
+            {
+                master.Tags.Add(new EntityTag(SanteDBConstants.AlternateKeysTag, String.Join(",", locals.Select(o => o.Key.ToString()))));
+            }
+
             master.CreationTime = this.ModifiedOn;
             master.PreviousVersionKey = this.m_masterRecord.PreviousVersionKey;
             master.StatusConceptKey = this.m_masterRecord.StatusConceptKey;
@@ -268,7 +271,7 @@ namespace SanteDB.Persistence.MDM.Model
         /// <summary>
         /// Modified on
         /// </summary>
-        public override DateTimeOffset ModifiedOn => this.m_recordOfTruth?.ModifiedOn ?? this.m_localRecords?.OrderByDescending(o => o.ModifiedOn).OfType<BaseEntityData>().FirstOrDefault().ModifiedOn ?? DateTime.Now;
+        public override DateTimeOffset ModifiedOn => this.m_recordOfTruth?.ModifiedOn ?? this.LocalRecords?.OrderByDescending(o => o.ModifiedOn).OfType<BaseEntityData>().FirstOrDefault()?.ModifiedOn ?? this.m_masterRecord.ModifiedOn;
 
         /// <summary>
         /// Get the version tag
@@ -285,8 +288,10 @@ namespace SanteDB.Persistence.MDM.Model
             {
                 if (this.m_localRecords == null)
                 {
-                    this.m_localRecords = EntitySource.Current.Provider.Query<EntityRelationship>(o => o.TargetEntityKey == this.Key && o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship).Select(o => o.SourceEntityKey)
-                        .AsParallel().Select(o=> EntitySource.Current.Provider.Get<T>(o)).ToList();
+                    using (AuthenticationContext.EnterSystemContext())
+                    {
+                        this.m_localRecords = EntitySource.Current.Provider.Query<T>(o => o.Relationships.Any(r => r.TargetEntityKey == this.Key && r.RelationshipTypeKey == MdmConstants.MasterRecordRelationship)).ToList();
+                    }
                 }
                 return this.m_localRecords;
             }
