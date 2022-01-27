@@ -408,11 +408,10 @@ namespace SanteDB.Persistence.MDM.Services.Resources
 
                             while (fetchQueue.TryDequeue(out var candidate))
                             {
-                                finalizeEvent.Reset(); // instruct the main thread that we're not done - ask it to hold
-                                if (idx == processList.Length || fetchQueue.IsEmpty)
+                                processList[idx++] = candidate;
+                                if (idx == processList.Length)
                                 {
-                                    // The way that Windows does thread management is different than in Mono
-                                    // this method does not work well for processing on lower processor counts
+                                    this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)completeProcess / (float)totalResults, $"Matching {completeProcess:#,###,###} of {totalResults:#,###,###} (Writer: {writeQueue.Count})"));
                                     if (Environment.ProcessorCount >= 4)
                                     {
                                         this.m_threadPool.QueueUserWorkItem(o =>
@@ -420,23 +419,23 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                                             this.m_tracer.TraceVerbose("DetectGlobalMergeCandidate (MatcherWorkerThread): Processing {0} objects via matchers", o.Length);
                                             writeQueue.Enqueue(new Bundle(o.SelectMany(r => this.m_dataManager.MdmTxMatchMasters(r, new IdentifiedData[0]))));
                                             writeEvent.Set();
-                                            finalizeEvent.Set(); // Instruct the main thread that we're done
+                                            Interlocked.Add(ref completeProcess, o.Length);
                                         }, processList.Take(idx).ToArray());
                                     }
                                     else
                                     {
-                                        this.m_tracer.TraceVerbose("DetectGlobalMergeCandidate (MatcherThread): Processing {0} objects via matchers", idx);
                                         writeQueue.Enqueue(new Bundle(processList.Take(idx).SelectMany(r => this.m_dataManager.MdmTxMatchMasters(r, new IdentifiedData[0]))));
                                         writeEvent.Set();
-                                        finalizeEvent.Set(); // Instruct the main thread that we're done
+                                        completeProcess += idx;
                                     }
                                     idx = 0;
-                                    completeProcess += processList.Length;
-                                    this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)completeProcess / (float)totalResults, $"Matching {completeProcess:#,###,###} of {totalResults:#,###,###} (Writer: {writeQueue.Count})"));
                                 }
                             }
                             fetchEvent.Reset();
                         }
+
+                        writeQueue.Enqueue(new Bundle(processList.Take(idx).SelectMany(r => this.m_dataManager.MdmTxMatchMasters(r, new IdentifiedData[0]))));
+                        writeEvent.Set();
                     });
 
                     this.m_threadPool.QueueUserWorkItem(_ =>
@@ -446,11 +445,11 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                             writeEvent.Wait();
 
                             this.m_tracer.TraceVerbose("DetectGlobalMergeCandidiate (WriterThread): Received notification of write");
+                            finalizeEvent.Reset();
 
                             var batchBundle = new Bundle();
                             while (writeQueue.TryDequeue(out var bundle))
                             {
-                                finalizeEvent.Reset(); // instruct the main thread that we're on hold
                                 if (bundle.Item.Count > 0)
                                 {
                                     this.m_batchPersistence.Insert(bundle, TransactionMode.Commit, AuthenticationContext.SystemPrincipal);
@@ -475,11 +474,15 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     }
 
                     this.m_tracer.TraceVerbose("DetectGlobalMergeCandidate: Finished reading data - waiting for merge process to complete");
-                    while (!writeQueue.IsEmpty || !fetchQueue.IsEmpty)
+                    do
                     {
-                        this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs(1.0f, $"Finalizing match results (Writer: {writeQueue.Count})"));
-                        finalizeEvent.Wait();
+                        finalizeEvent.Wait(1000);
+                        writeEvent.Set();
+                        fetchEvent.Set();
+                        finalizeEvent.Reset();
                     }
+                    while (!writeQueue.IsEmpty || !fetchQueue.IsEmpty);
+
                     completeProcessing = true; // let threads die
                     this.m_tracer.TraceVerbose("DetectGlobalMergeCandidate: Completed matching");
                 }
