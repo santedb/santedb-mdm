@@ -506,7 +506,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
 
                 // TODO: When the persistence refactor is done - change this to use the bulk method
                 var classKeys = typeof(TEntity).GetCustomAttributes<ClassConceptKeyAttribute>(false).Select(o => Guid.Parse(o.ClassConcept));
-                Expression<Func<EntityRelationship, bool>> purgeExpression = o => classKeys.Contains(o.SourceEntity.ClassConceptKey.Value) && o.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship && o.RelationshipTypeKey == MdmConstants.MasterRecordClassification && o.ClassificationKey == MdmConstants.AutomagicClassification && o.ObsoleteVersionSequenceId == null;
+                Expression<Func<EntityRelationship, bool>> purgeExpression = o => classKeys.Contains(o.SourceEntity.ClassConceptKey.Value) && o.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship && o.ClassificationKey == MdmConstants.AutomagicClassification && o.ObsoleteVersionSequenceId == null;
                 if (this.m_relationshipPersistence is IBulkDataPersistenceService ibds)
                 {
                     ibds.Purge(TransactionMode.Commit, AuthenticationContext.SystemPrincipal, purgeExpression);
@@ -542,18 +542,28 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             {
                 this.m_pepService.Demand(MdmPermissionPolicyIdentifiers.UnrestrictedMdm);
 
-                this.m_tracer.TraceInfo("Clearing MDM ignore flags...");
+                this.m_tracer.TraceInfo("Clearing MDM ignore candidates...");
 
                 // TODO: When the persistence refactor is done - change this to use the bulk method
-                Guid queryId = Guid.NewGuid();
-                int offset = 0, totalResults = 1, batchSize = 50;
-                while (offset < totalResults)
+                var classKeys = typeof(TEntity).GetCustomAttributes<ClassConceptKeyAttribute>(false).Select(o => Guid.Parse(o.ClassConcept));
+                Expression<Func<EntityRelationship, bool>> purgeExpression = o => classKeys.Contains(o.SourceEntity.ClassConceptKey.Value) && o.RelationshipTypeKey == MdmConstants.IgnoreCandidateRelationship && o.ObsoleteVersionSequenceId == null;
+                if (this.m_relationshipPersistence is IBulkDataPersistenceService ibds)
                 {
-                    var results = this.m_relationshipPersistence.Query(o => o.RelationshipTypeKey == MdmConstants.IgnoreCandidateRelationship && o.ObsoleteVersionSequenceId == null, queryId, offset, batchSize, out totalResults, AuthenticationContext.SystemPrincipal); ;
-                    var batch = new Bundle(results.Select(o => { o.BatchOperation = BatchOperationType.Delete; return o; }));
-                    this.m_batchPersistence.Update(batch, TransactionMode.Commit, AuthenticationContext.SystemPrincipal);
-                    offset += batchSize;
-                    this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)offset / (float)totalResults, "Clearing ignore links"));
+                    ibds.Purge(TransactionMode.Commit, AuthenticationContext.SystemPrincipal, purgeExpression);
+                }
+                else
+                {
+                    Guid queryId = Guid.NewGuid();
+                    int offset = 0, totalResults = 1, batchSize = 500;
+                    while (offset < totalResults)
+                    {
+                        this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)offset / (float)totalResults, "Clearing ignore flags"));
+
+                        var results = this.m_relationshipPersistence.Query(purgeExpression, queryId, offset, batchSize, out totalResults, AuthenticationContext.SystemPrincipal); ;
+                        var batch = new Bundle(results.Select(o => { o.BatchOperation = BatchOperationType.Delete; return o; }));
+                        this.m_batchPersistence.Update(batch, TransactionMode.Commit, AuthenticationContext.SystemPrincipal);
+                        offset += batchSize;
+                    }
                 }
             }
             catch (Exception e)

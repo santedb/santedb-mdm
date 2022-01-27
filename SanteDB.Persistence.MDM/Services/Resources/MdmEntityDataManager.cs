@@ -849,7 +849,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             {
                 // Return a master at the top of the return list
                 yield return this.EstablishMasterFor(local);
-                retVal.AddLast(local.Relationships.SingleOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship));
+                retVal.AddLast(local.Relationships.LastOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship));
                 retVal.Last().BatchOperation = BatchOperationType.Insert;
             }
 
