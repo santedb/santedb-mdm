@@ -1270,7 +1270,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 throw new ArgumentException("MdmTxDetectCandidiates expects MASTER record");
 
             // Get the ignore list
-            var ignoreList = this.m_relationshipService.Query(o => o.TargetEntityKey == master.Key && o.RelationshipTypeKey == MdmConstants.IgnoreCandidateRelationship, AuthenticationContext.SystemPrincipal).Select(o => this.GetMasterRelationshipFor(o.SourceEntityKey.Value, context).TargetEntityKey.Value);
+            var ignoreList = this.m_relationshipService.Query(o => o.TargetEntityKey == master.Key && o.RelationshipTypeKey == MdmConstants.IgnoreCandidateRelationship, AuthenticationContext.SystemPrincipal).Select(o=>o.SourceEntityKey.Value);//.Select(o => this.GetMasterRelationshipFor(o.SourceEntityKey.Value, context).TargetEntityKey.Value);
 
             // iterate through configuration
             foreach (var config in this.m_matchingConfigurationService.Configurations.Where(o => o.AppliesTo.Contains(typeof(TModel)) && o.Metadata.State == MatchConfigurationStatus.Active))
@@ -1281,7 +1281,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 // Return the results which are not the master
                 foreach (var r in results.Where(r => r.Classification != RecordMatchClassification.NonMatch && r.Record.Key != master.Key))
                 {
-                    foreach (var local in this.GetAssociatedLocals(r.Record.Key.Value))
+                    foreach (var local in this.GetAssociatedLocals(r.Record.Key.Value).Where(q=>!ignoreList.Contains(q.SourceEntityKey.Value)))
                     {
                         var src = local.LoadProperty(o => o.SourceEntity) as Entity;
                         if (src.DeterminerConceptKey != MdmConstants.RecordOfTruthDeterminer)

@@ -457,7 +457,10 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                                 finalizeEvent.Set(); // instruct the main thread that we're done
                             }
 
-                            writeEvent.Reset();
+                            if (!completeProcessing)
+                            {
+                                writeEvent.Reset();
+                            }
                         }
 
                     });
