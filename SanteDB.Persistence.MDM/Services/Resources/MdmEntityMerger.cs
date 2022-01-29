@@ -412,7 +412,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     // Worker Thread
                     this.m_threadPool.QueueUserWorkItem(_ =>
                     {
-                        var processList = new TEntity[Environment.ProcessorCount * 4];
+                        var processList = new TEntity[5];
                         int idx = 0;
                         while ((!completeProcessing || !fetchQueue.IsEmpty) && !this.m_disposed && haltException == null)
                         {
@@ -427,15 +427,21 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                                         processList[idx++] = candidate;
                                         if (idx == processList.Length)
                                         {
-                                            if (processList.Length >= 20) // unless there are 20 items it doesn't make sense to do them in parallel
+                                            if (Environment.ProcessorCount >= 4) // unless there are 20 items it doesn't make sense to do them in parallel
                                             {
                                                 this.m_threadPool.QueueUserWorkItem(o =>
                                                 {
-                                                    Interlocked.Increment(ref inProcess);
-                                                    writeQueue.Enqueue(new Bundle(o.AsParallel().SelectMany(r => this.m_dataManager.MdmTxMatchMasters(r, new IdentifiedData[0]))));
-                                                    Interlocked.Decrement(ref inProcess);
-                                                    Interlocked.Add(ref completeProcess, o.Length);
-                                                    writeEvent.Set();
+                                                    try
+                                                    {
+                                                        Interlocked.Increment(ref inProcess);
+                                                        writeQueue.Enqueue(new Bundle(o.SelectMany(r => this.m_dataManager.MdmTxMatchMasters(r, new IdentifiedData[0]))));
+                                                        Interlocked.Add(ref completeProcess, o.Length);
+                                                        writeEvent.Set();
+                                                    }
+                                                    finally
+                                                    {
+                                                        Interlocked.Decrement(ref inProcess);
+                                                    }
                                                 }, processList.ToArray());
                                             }
                                             else
@@ -484,6 +490,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                                         this.m_batchPersistence.Insert(bundle, TransactionMode.Commit, AuthenticationContext.SystemPrincipal);
                                     }
                                 }
+                                
                                 writeEvent.Reset();
                             }
                             catch (ObjectDisposedException)
