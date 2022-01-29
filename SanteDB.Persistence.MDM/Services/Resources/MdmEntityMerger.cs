@@ -419,44 +419,40 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                             try
                             {
                                 fetchEvent.Wait();
-
-                                if (inProcess <= Environment.ProcessorCount) // throttling
+                                while (fetchQueue.TryDequeue(out var candidate))
                                 {
-                                    while (fetchQueue.TryDequeue(out var candidate))
+                                    processList[idx++] = candidate;
+                                    if (idx == processList.Length)
                                     {
-                                        processList[idx++] = candidate;
-                                        if (idx == processList.Length)
+                                        if (inProcess <= Environment.ProcessorCount && Environment.ProcessorCount >= 4) // Is it worth it to dole out work?
                                         {
-                                            if (Environment.ProcessorCount >= 4) // unless there are 20 items it doesn't make sense to do them in parallel
+                                            this.m_threadPool.QueueUserWorkItem(o =>
                                             {
-                                                this.m_threadPool.QueueUserWorkItem(o =>
+                                                try
                                                 {
-                                                    try
-                                                    {
-                                                        Interlocked.Increment(ref inProcess);
-                                                        writeQueue.Enqueue(new Bundle(o.SelectMany(r => this.m_dataManager.MdmTxMatchMasters(r, new IdentifiedData[0]))));
-                                                        Interlocked.Add(ref completeProcess, o.Length);
-                                                        writeEvent.Set();
-                                                    }
-                                                    finally
-                                                    {
-                                                        Interlocked.Decrement(ref inProcess);
-                                                    }
-                                                }, processList.ToArray());
-                                            }
-                                            else
-                                            {
-                                                writeQueue.Enqueue(new Bundle(processList.SelectMany(r => this.m_dataManager.MdmTxMatchMasters(r, new IdentifiedData[0]))));
-                                                Interlocked.Add(ref completeProcess, idx);
-                                                writeEvent.Set();
-                                            }
-                                            idx = 0;
+                                                    Interlocked.Increment(ref inProcess);
+                                                    writeQueue.Enqueue(new Bundle(o.SelectMany(r => this.m_dataManager.MdmTxMatchMasters(r, new IdentifiedData[0]))));
+                                                    Interlocked.Add(ref completeProcess, o.Length);
+                                                    writeEvent.Set();
+                                                }
+                                                finally
+                                                {
+                                                    Interlocked.Decrement(ref inProcess);
+                                                }
+                                            }, processList.ToArray());
                                         }
+                                        else // Nope so just do it here
+                                        {
+                                            writeQueue.Enqueue(new Bundle(processList.SelectMany(r => this.m_dataManager.MdmTxMatchMasters(r, new IdentifiedData[0]))));
+                                            Interlocked.Add(ref completeProcess, idx);
+                                            writeEvent.Set();
+                                        }
+                                        idx = 0;
                                     }
                                 }
                                 fetchEvent.Reset();
                             }
-                            catch(ObjectDisposedException)
+                            catch (ObjectDisposedException)
                             {
                                 // Allow to die
                             }
@@ -490,14 +486,14 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                                         this.m_batchPersistence.Insert(bundle, TransactionMode.Commit, AuthenticationContext.SystemPrincipal);
                                     }
                                 }
-                                
+
                                 writeEvent.Reset();
                             }
                             catch (ObjectDisposedException)
                             {
 
                             }
-                            catch(Exception e)
+                            catch (Exception e)
                             {
                                 haltException = e;
                                 break;
@@ -523,7 +519,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                         this.m_tracer.TraceVerbose("DetectGlobalMergeCandidate: Finished reading data - waiting for merge process to complete");
                         do
                         {
-                            if(haltException != null)
+                            if (haltException != null)
                             {
                                 throw haltException;
                             }
@@ -536,7 +532,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     finally
                     {
                         completeProcessing = true; // let threads die
-                        
+
                     }
                     this.m_tracer.TraceVerbose("DetectGlobalMergeCandidate: Completed matching");
                 }
