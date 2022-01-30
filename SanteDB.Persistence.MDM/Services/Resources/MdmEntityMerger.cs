@@ -66,7 +66,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         private IStoredQueryDataPersistenceService<TEntity> m_entityPersistence;
 
         // Relationship persistence
-        private IStoredQueryDataPersistenceService<EntityRelationship> m_relationshipPersistence;
+        private IFastQueryDataPersistenceService<EntityRelationship> m_relationshipPersistence;
         private readonly IThreadPoolService m_threadPool;
 
         // Pep service
@@ -83,7 +83,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// <summary>
         /// Creates a new entity merger service
         /// </summary>
-        public MdmEntityMerger(IDataPersistenceService<Bundle> batchService, IThreadPoolService threadPool, IPolicyEnforcementService policyEnforcement, IStoredQueryDataPersistenceService<TEntity> persistenceService, IStoredQueryDataPersistenceService<EntityRelationship> relationshipPersistence)
+        public MdmEntityMerger(IDataPersistenceService<Bundle> batchService, IThreadPoolService threadPool, IPolicyEnforcementService policyEnforcement, IStoredQueryDataPersistenceService<TEntity> persistenceService, IFastQueryDataPersistenceService<EntityRelationship> relationshipPersistence)
         {
             this.m_dataManager = MdmDataManagerFactory.GetDataManager<TEntity>();
             this.m_batchPersistence = batchService;
@@ -386,7 +386,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 var qps = this.m_entityPersistence as IFastQueryDataPersistenceService<TEntity>;
                 var fetchQueue = new ConcurrentQueue<TEntity>();
                 var writeQueue = new ConcurrentQueue<Bundle>();
-                long completeProcess = 0, inProcess = 0;
+                long completeProcess = 0;
                 Exception haltException = null;
 
                 using (var fetchEvent = new ManualResetEventSlim(false))
@@ -401,10 +401,16 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     // Monitor thread
                     this.m_threadPool.QueueUserWorkItem(_ =>
                     {
+                        var sw = new Stopwatch();
+                        sw.Start();
                         while (!completeProcessing && !this.m_disposed)
                         {
                             var dr = Interlocked.Read(ref completeProcess);
-                            this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)dr / (float)totalResults, $"Matching {completeProcess:#,###,###} of {totalResults:#,###,###} (Writer: {writeQueue.Count})"));
+
+                            sw.Stop();
+                            var rps = ( dr / (float)sw.ElapsedTicks) + 0.000001f;
+                            this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)dr / (float)totalResults, $"Matching {completeProcess:#,###,###} of {totalResults:#,###,###} - {rps * TimeSpan.TicksPerSecond:#0}/s - ETA {new TimeSpan((long)((totalResults - completeProcess) / rps)):d\\.hh\\:mm\\:ss} (Out: {writeQueue.Count})"));
+                            sw.Start();
                             Thread.Sleep(1000);
                         }
                     });
@@ -412,52 +418,63 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     // Worker Thread
                     this.m_threadPool.QueueUserWorkItem(_ =>
                     {
-                        var processList = new TEntity[5];
-                        int idx = 0;
+                        var processList = new TEntity[Environment.ProcessorCount];
+                        int idx = 0, inProcess = 0; // index and in-process requests
                         while ((!completeProcessing || !fetchQueue.IsEmpty) && !this.m_disposed && haltException == null)
                         {
                             try
                             {
-                                fetchEvent.Wait();
-                                while (fetchQueue.TryDequeue(out var candidate))
+                                fetchEvent.Wait(1000);
+                                if (inProcess <= Environment.ProcessorCount * 4)
                                 {
-                                    processList[idx++] = candidate;
-                                    if (idx == processList.Length)
+                                    while (fetchQueue.TryDequeue(out var candidate))
                                     {
-                                        if (inProcess <= Environment.ProcessorCount && Environment.ProcessorCount >= 4) // Is it worth it to dole out work?
+                                        processList[idx++] = candidate;
+                                        if (idx == processList.Length)
                                         {
-                                            this.m_threadPool.QueueUserWorkItem(o =>
+                                            if (Environment.ProcessorCount >= 2) // Is it worth it to dole out work?
                                             {
-                                                try
+                                                Interlocked.Increment(ref inProcess);
+                                                this.m_threadPool.QueueUserWorkItem(o =>
                                                 {
-                                                    Interlocked.Increment(ref inProcess);
-                                                    writeQueue.Enqueue(new Bundle(o.SelectMany(r => this.m_dataManager.MdmTxMatchMasters(r, new IdentifiedData[0]))));
-                                                    Interlocked.Add(ref completeProcess, o.Length);
-                                                    writeEvent.Set();
-                                                }
-                                                finally
+                                                    try
+                                                    {
+                                                        if (!this.m_disposed)
+                                                            writeQueue.Enqueue(new Bundle(o.SelectMany(r => this.m_dataManager.MdmTxMatchMasters(r, new IdentifiedData[0]))));
+                                                        Interlocked.Add(ref completeProcess, o.Length);
+                                                        writeEvent.Set();
+                                                    }
+                                                    finally
+                                                    {
+                                                        Interlocked.Decrement(ref inProcess);
+                                                    }
+                                                }, processList.ToArray());
+
+                                                if (inProcess > Environment.ProcessorCount * 4)
                                                 {
-                                                    Interlocked.Decrement(ref inProcess);
+                                                    idx = 0;
+                                                    break;
                                                 }
-                                            }, processList.ToArray());
+                                            }
+                                            else // Nope so just do it here
+                                            {
+                                                writeQueue.Enqueue(new Bundle(processList.SelectMany(r => this.m_dataManager.MdmTxMatchMasters(r, new IdentifiedData[0]))));
+                                                Interlocked.Add(ref completeProcess, idx);
+                                                writeEvent.Set();
+                                            }
+                                            idx = 0;
                                         }
-                                        else // Nope so just do it here
-                                        {
-                                            writeQueue.Enqueue(new Bundle(processList.SelectMany(r => this.m_dataManager.MdmTxMatchMasters(r, new IdentifiedData[0]))));
-                                            Interlocked.Add(ref completeProcess, idx);
-                                            writeEvent.Set();
-                                        }
-                                        idx = 0;
                                     }
                                 }
                                 fetchEvent.Reset();
                             }
                             catch (ObjectDisposedException)
                             {
-                                // Allow to die
+                                break;
                             }
                             catch (Exception e)
                             {
+                                this.m_tracer.TraceError("Cannot complement the background merging of patients");
                                 haltException = e;
                                 break;
                             }
@@ -474,11 +491,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                         {
                             try
                             {
-                                writeEvent.Wait();
-
-                                this.m_tracer.TraceVerbose("DetectGlobalMergeCandidiate (WriterThread): Received notification of write");
-
-                                var batchBundle = new Bundle();
+                                writeEvent.Wait(100);
                                 while (writeQueue.TryDequeue(out var bundle))
                                 {
                                     if (bundle.Item.Count > 0)
@@ -486,12 +499,11 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                                         this.m_batchPersistence.Insert(bundle, TransactionMode.Commit, AuthenticationContext.SystemPrincipal);
                                     }
                                 }
-
                                 writeEvent.Reset();
                             }
                             catch (ObjectDisposedException)
                             {
-
+                                break;
                             }
                             catch (Exception e)
                             {
@@ -500,6 +512,11 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                             }
                         }
 
+                        // Finish writing out results
+                        while (writeQueue.TryDequeue(out var bundle))
+                        {
+                            this.m_batchPersistence.Insert(bundle, TransactionMode.Commit, AuthenticationContext.SystemPrincipal);
+                        }
                     });
 
                     // Main program loop - 
@@ -527,7 +544,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                             writeEvent.Set();
                             fetchEvent.Set();
                         }
-                        while (!writeQueue.IsEmpty || !fetchQueue.IsEmpty || inProcess > 0);
+                        while (!writeQueue.IsEmpty || !fetchQueue.IsEmpty);
                     }
                     finally
                     {
@@ -557,24 +574,69 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 // TODO: When the persistence refactor is done - change this to use the bulk method
                 var classKeys = typeof(TEntity).GetCustomAttributes<ClassConceptKeyAttribute>(false).Select(o => Guid.Parse(o.ClassConcept));
                 Expression<Func<EntityRelationship, bool>> purgeExpression = o => classKeys.Contains(o.SourceEntity.ClassConceptKey.Value) && o.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship && o.ClassificationKey == MdmConstants.AutomagicClassification && o.ObsoleteVersionSequenceId == null;
-                if (this.m_relationshipPersistence is IBulkDataPersistenceService ibds)
+                int offset = 0, totalResults = 1, batchSize = 500;
+                var uuid = Guid.NewGuid();
+                // Delete thread
+                using (var fetchEvent = new ManualResetEventSlim(false))
                 {
-                    ibds.Purge(TransactionMode.Commit, AuthenticationContext.SystemPrincipal, purgeExpression);
-                }
-                else
-                {
-                    Guid queryId = Guid.NewGuid();
-                    int offset = 0, totalResults = 1, batchSize = 500;
+                    ConcurrentQueue<EntityRelationship> fetchQueue = new ConcurrentQueue<EntityRelationship>();
+                    bool completeProcessing = false;
+                    this.m_threadPool.QueueUserWorkItem(_ =>
+                    {
+                        int idx = 0, complete = 0;
+                        var processList = new EntityRelationship[25];
+                        while (!completeProcessing && !this.m_disposed)
+                        {
+                            fetchEvent.Wait(1000);
+                            while (fetchQueue.TryDequeue(out var erd))
+                            {
+                                processList[idx++] = erd;
+                                if (idx == processList.Length)
+                                {
+                                    try
+                                    {
+                                        this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)complete / (float)totalResults, $"Clearing Candidates ({complete} of {totalResults})"));
+                                        var batch = new Bundle(processList.Select(o => { o.BatchOperation = BatchOperationType.Delete; return o; }));
+                                        this.m_batchPersistence.Update(batch, TransactionMode.Commit, AuthenticationContext.SystemPrincipal);
+                                        complete += processList.Length;
+                                    }
+                                    catch (Exception e)
+                                    {
+                                        this.m_tracer.TraceWarning("Error updating candidate clear - {0}", e.Message);
+                                    }
+                                    idx = 0;
+
+                                }
+                            }
+                            fetchEvent.Reset();
+                        }
+                    });
+
                     while (offset < totalResults)
                     {
-                        this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)offset / (float)totalResults, "Clearing Candidates"));
-
-                        var results = this.m_relationshipPersistence.Query(purgeExpression, queryId, offset, batchSize, out totalResults, AuthenticationContext.SystemPrincipal); ;
-                        var batch = new Bundle(results.Select(o => { o.BatchOperation = BatchOperationType.Delete; return o; }));
-                        this.m_batchPersistence.Update(batch, TransactionMode.Commit, AuthenticationContext.SystemPrincipal);
+                        foreach (var er in this.m_relationshipPersistence.QueryFast(purgeExpression, uuid, offset, batchSize, out totalResults, AuthenticationContext.SystemPrincipal))
+                        {
+                            fetchQueue.Enqueue(er);
+                        }
+                        fetchEvent.Set();
                         offset += batchSize;
                     }
+
+                    completeProcessing = true; // requeest termination
+                    while (!fetchQueue.IsEmpty)
+                    {
+                        Thread.Sleep(1000);
+                    }
+
+                    // Now purge them
+                    if (this.m_relationshipPersistence is IBulkDataPersistenceService ibps)
+                    {
+                        purgeExpression = o => (o.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship || o.RelationshipTypeKey == MdmConstants.IgnoreCandidateRelationship || o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship) && o.ObsoleteVersionSequenceId != null;
+                        ibps.Purge(TransactionMode.Commit, AuthenticationContext.SystemPrincipal, purgeExpression);
+                    }
+
                 }
+
             }
             catch (Exception e)
             {
