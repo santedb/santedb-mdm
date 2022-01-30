@@ -1281,16 +1281,28 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 // Return the results which are not the master
                 foreach (var r in results.Where(r => r.Classification != RecordMatchClassification.NonMatch && r.Record.Key != master.Key))
                 {
-                    foreach (var local in this.GetAssociatedLocals(r.Record.Key.Value).Where(q=>!ignoreList.Contains(q.SourceEntityKey.Value)))
+                    // We have a master - so we want to get the locals for checking / insert
+                    if(this.IsMaster(r.Record.Key.Value))
                     {
-                        var src = local.LoadProperty(o => o.SourceEntity) as Entity;
-                        if (src.DeterminerConceptKey != MdmConstants.RecordOfTruthDeterminer)
+                        foreach (var local in this.GetAssociatedLocals(r.Record.Key.Value).Where(q => !ignoreList.Contains(q.SourceEntityKey.Value)))
                         {
-                            yield return new EntityRelationship(MdmConstants.CandidateLocalRelationship, local.SourceEntityKey, master.Key, MdmConstants.AutomagicClassification)
+                            var src = local.LoadProperty(o => o.SourceEntity) as Entity;
+                            if (src.DeterminerConceptKey != MdmConstants.RecordOfTruthDeterminer)
                             {
-                                Strength = r.Strength
-                            };
+                                yield return new EntityRelationship(MdmConstants.CandidateLocalRelationship, local.SourceEntityKey, master.Key, MdmConstants.AutomagicClassification)
+                                {
+                                    Strength = r.Strength
+                                };
+                            }
                         }
+                    }
+                    else if(r.Record is TModel tm && tm.DeterminerConceptKey != MdmConstants.RecordOfTruthDeterminer &&
+                        this.GetMasterRelationshipFor(r.Record.Key.Value).TargetEntityKey != master.Key)
+                    {
+                        yield return new EntityRelationship(MdmConstants.CandidateLocalRelationship, r.Record.Key.Value, master.Key, MdmConstants.AutomagicClassification)
+                        {
+                            Strength = r.Strength
+                        };
                     }
                 }
             }
