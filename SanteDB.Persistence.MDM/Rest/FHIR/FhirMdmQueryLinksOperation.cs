@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright (C) 2021 - 2021, SanteSuite Inc. and the SanteSuite Contributors (See NOTICE.md for full copyright notices)
+ * Copyright (C) 2021 - 2022, SanteSuite Inc. and the SanteSuite Contributors (See NOTICE.md for full copyright notices)
  * Copyright (C) 2019 - 2021, Fyfe Software Inc. and the SanteSuite Contributors
  * Portions Copyright (C) 2015-2018 Mohawk College of Applied Arts and Technology
  * 
@@ -15,8 +15,8 @@
  * License for the specific language governing permissions and limitations under 
  * the License.
  * 
- * User: Nityan Khanna & Mo Ibrahim
- * Date: 2021-8-5
+ * User: fyfej
+ * Date: 2021-10-29
  */
 using Hl7.Fhir.Model;
 using RestSrvr;
@@ -28,6 +28,7 @@ using SanteDB.Messaging.FHIR.Extensions;
 using SanteDB.Persistence.MDM;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Text;
@@ -39,6 +40,7 @@ namespace SanteDB.Persistence.MDM.Rest.FHIR
 	/// <summary>
 	/// Represents a FHIR MDM query links operation.
 	/// </summary>
+	[ExcludeFromCodeCoverage]
 	public class FhirMdmQueryLinksOperation : IFhirOperationHandler
 	{
 		/// <summary>
