@@ -37,6 +37,7 @@ using SanteDB.Persistence.MDM.Services.Resources;
 using SanteDB.Rest.Common;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Text;
 
@@ -45,6 +46,7 @@ namespace SanteDB.Persistence.MDM.Rest
     /// <summary>
     /// Exposees the $mdm-candidate API onto the REST layer
     /// </summary>
+    [ExcludeFromCodeCoverage]
     public class MdmLinkResource : IApiChildResourceHandler
     {
         private Tracer m_tracer = Tracer.GetTracer(typeof(MdmLinkResource));
