@@ -41,6 +41,7 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Security.Principal;
+using System.Xml.Serialization;
 
 namespace SanteDB.Persistence.MDM.Services.Resources
 {
@@ -190,15 +191,37 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 }
                 else if (mdmFilter.Contains("M")) // pure master query
                 {
-                    throw new NotImplementedException("Msater queries not supported yet");
+                    throw new NotImplementedException("Master queries not supported yet");
                 }
             }
             else
             {
-                var localQuery = new NameValueCollection(query.ToDictionary(o => $"relationship[{MdmConstants.MasterRecordRelationship}].source@{typeof(TModel).Name}.{o.Key}", o => o.Value));
+
+                // Determine the level of casting required
+                var castStack = new Stack<Type>();
+                var ctype = typeof(TModel);
+                while(ctype != typeof(IdentifiedData))
+                {
+                    if (ctype.GetCustomAttribute<XmlRootAttribute>() != null)
+                        castStack.Push(ctype);
+                    ctype = ctype.BaseType;
+                }
+                // Iterate through the query and determine the level of casting
+                while(castStack.Count > 0)
+                {
+                    ctype = castStack.Pop();
+                    try
+                    {
+                        query.Select(o => QueryExpressionParser.BuildPropertySelector(ctype, o.Key)).ToArray();
+                        break;
+                    }
+                    catch { }
+                }
+                
+                var localQuery = new NameValueCollection(query.ToDictionary(o => $"relationship[{MdmConstants.MasterRecordRelationship}].source@{ctype.Name}.{o.Key}", o => o.Value));
                 if (!query.TryGetValue("statusConcept", out _))
                 {
-                    localQuery.Add($"relationship[{MdmConstants.MasterRecordRelationship}].source@{typeof(TModel).Name}.statusConcept", StatusKeys.ActiveStates.Select(o => o.ToString()));
+                    localQuery.Add($"relationship[{MdmConstants.MasterRecordRelationship}].source@{ctype.Name}.statusConcept", StatusKeys.ActiveStates.Select(o => o.ToString()));
                 }
                 localQuery.Add("statusConcept", StatusKeys.ActiveStates.Select(o => o.ToString()));
                 localQuery.Add("obsoletionTime", "null");
