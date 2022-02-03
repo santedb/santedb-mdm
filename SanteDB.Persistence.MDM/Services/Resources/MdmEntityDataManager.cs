@@ -1,24 +1,23 @@
 ﻿/*
- * Copyright (C) 2021 - 2021, SanteSuite Inc. and the SanteSuite Contributors (See NOTICE.md for full copyright notices)
+ * Copyright (C) 2021 - 2022, SanteSuite Inc. and the SanteSuite Contributors (See NOTICE.md for full copyright notices)
  * Copyright (C) 2019 - 2021, Fyfe Software Inc. and the SanteSuite Contributors
  * Portions Copyright (C) 2015-2018 Mohawk College of Applied Arts and Technology
- *
- * Licensed under the Apache License, Version 2.0 (the "License"); you
- * may not use this file except in compliance with the License. You may
- * obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
+ * 
+ * Licensed under the Apache License, Version 2.0 (the "License"); you 
+ * may not use this file except in compliance with the License. You may 
+ * obtain a copy of the License at 
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0 
+ * 
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
- * License for the specific language governing permissions and limitations under
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the 
+ * License for the specific language governing permissions and limitations under 
  * the License.
- *
+ * 
  * User: fyfej
- * Date: 2021-8-5
+ * Date: 2021-10-29
  */
-
 using SanteDB.Core;
 using SanteDB.Core.BusinessRules;
 using SanteDB.Core.Configuration;
@@ -481,7 +480,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 VersionKey = null,
                 CreatedByKey = Guid.Parse(AuthenticationContext.SystemApplicationSid),
                 DeterminerConceptKey = DeterminerKeys.Specific,
-                TypeConceptKey = local.ClassConceptKey
+                TypeConceptKey = local.ClassConceptKey,
+                StatusConceptKey = StatusKeys.New
             };
             local.Relationships.Add(new EntityRelationship(MdmConstants.MasterRecordRelationship, local.Key, retVal.Key, MdmConstants.SystemClassification));
             return retVal;
@@ -580,6 +580,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     o.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship ||
                     o.RelationshipTypeKey == MdmConstants.IgnoreCandidateRelationship);
                 // Add them from the match instructions
+
                 data.Relationships.AddRange(matchInstructions.OfType<EntityRelationship>().Where(o => o.SourceEntityKey == data.Key));
 
                 yield return data;
@@ -653,7 +654,10 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             // 1. The LOCAL under consideration has an explicit ignore key to a MASTER, or
             IQueryResultSet<EntityRelationship> ignoreSet = this.m_relationshipService.Query(o => o.SourceEntityKey == local.Key && o.RelationshipTypeKey == MdmConstants.IgnoreCandidateRelationship, AuthenticationContext.SystemPrincipal);
             // 2. The LOCAL's MASTER is the target of an IGNORE of another local - then those LOCAL MASTERs are ignored or there is an ACTIVE CANDIDIATE
-            ignoreSet = ignoreSet.Union(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship && o.SourceEntity.Relationships.Where(s => s.RelationshipTypeKey == MdmConstants.IgnoreCandidateRelationship || s.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship).Any(s => s.TargetEntityKey == existingMasterRel.TargetEntityKey));
+            if (existingMasterRel)
+            {
+                ignoreSet = ignoreSet.Union(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship && o.SourceEntity.Relationships.Where(s => s.RelationshipTypeKey == MdmConstants.IgnoreCandidateRelationship || s.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship).Any(s => s.TargetEntityKey == existingMasterRel.TargetEntityKey));
+            }
             var ignoreList = ignoreSet.Select(o => o.TargetEntityKey.Value);
 
             ignoreList = ignoreList.Union(context.OfType<EntityRelationship>().Where(o => o.RelationshipTypeKey == MdmConstants.IgnoreCandidateRelationship && o.BatchOperation != BatchOperationType.Delete).Select(o => o.TargetEntityKey.Value)).ToArray();
@@ -681,7 +685,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 // Group the match results by their outcome
                 var matchResultGrouping = matchResults
                     .Where(o => o.Record.Key != local.Key) // cannot match with itself
-                    .Select(o => new MasterMatch(this.GetMasterFor(o.Record, context).Key.Value, o))
+                    .Select(o => new MasterMatch(this.IsMaster(o.Record) ? o.Record.Key.Value : this.GetMasterRelationshipFor(o.Record, context).TargetEntityKey.Value, o))
                     .GroupBy(o => o.MatchResult.Classification)
                     .ToDictionary(o => o.Key, o => o.Distinct());
 
@@ -730,6 +734,9 @@ namespace SanteDB.Persistence.MDM.Services.Resources
 
                             foreach (var itm in mdmMatchInstructions)
                             {
+                                if (itm is EntityRelationship er && er.ClassificationKey == MdmConstants.SystemClassification) // This is not system it is auto
+                                    er.ClassificationKey = MdmConstants.AutomagicClassification;
+
                                 retVal.AddLast(itm);
                                 if (itm.SemanticEquals(existingMasterRel))
                                 {
@@ -847,8 +854,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     yield return masterRelationships.First(); // Return
                     if (originalRelationships.Any()) // There is an original relationship so send that back
                         yield return originalRelationships.First();
-                    if (candidateRelationships.Any(r => !r.ObsoleteVersionSequenceId.HasValue)) // There is a candidate which is active so send that back
-                        yield return candidateRelationships.FirstOrDefault(o => !o.ObsoleteVersionSequenceId.HasValue);
+                    if (candidateRelationships.Any(r => !r.ObsoleteVersionSequenceId.HasValue || r.BatchOperation == BatchOperationType.Delete)) // There is a candidate which is active so send that back
+                        yield return candidateRelationships.FirstOrDefault(o => !o.ObsoleteVersionSequenceId.HasValue || o.BatchOperation == BatchOperationType.Delete);
                 }
                 // There is a master to be deleted but not all of them (i.e. there is an active one between L and M)
                 // so we just want to keep the current active
@@ -857,7 +864,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     var masterRel = masterRelationships.First(o => o.ObsoleteVersionSequenceId.HasValue);
                     masterRel.ObsoleteVersionSequenceId = null; // Don't delete it
                     masterRel.BatchOperation = BatchOperationType.Update;
-                    masterRel.Strength = masterRelationships.First(o => !o.ObsoleteVersionSequenceId.HasValue).Strength;
+                    masterRel.Strength = masterRelationships.First(o => !o.ObsoleteVersionSequenceId.HasValue || o.BatchOperation == BatchOperationType.Delete).Strength;
                     yield return masterRel;
                 }
                 else if (masterRelationships.Any(o => !o.ObsoleteVersionSequenceId.HasValue || o.BatchOperation != BatchOperationType.Delete)) // There's a master relationship which is new and not to be deleted
@@ -1249,7 +1256,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 throw new ArgumentException("MdmTxDetectCandidiates expects MASTER record");
 
             // Get the ignore list
-            var ignoreList = this.m_relationshipService.Query(o => o.TargetEntityKey == master.Key && o.RelationshipTypeKey == MdmConstants.IgnoreCandidateRelationship, AuthenticationContext.SystemPrincipal).Select(o => this.GetMasterRelationshipFor(o.SourceEntityKey.Value, context).TargetEntityKey.Value);
+            var ignoreList = this.m_relationshipService.Query(o => o.TargetEntityKey == master.Key && o.RelationshipTypeKey == MdmConstants.IgnoreCandidateRelationship, AuthenticationContext.SystemPrincipal).Select(o=>o.SourceEntityKey.Value);//.Select(o => this.GetMasterRelationshipFor(o.SourceEntityKey.Value, context).TargetEntityKey.Value);
 
             // iterate through configuration
             foreach (var config in this.m_matchingConfigurationService.Configurations.Where(o => o.AppliesTo.Contains(typeof(TModel)) && o.Metadata.State == MatchConfigurationStatus.Active))
@@ -1260,16 +1267,28 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 // Return the results which are not the master
                 foreach (var r in results.Where(r => r.Classification != RecordMatchClassification.NonMatch && r.Record.Key != master.Key))
                 {
-                    foreach (var local in this.GetAssociatedLocals(r.Record.Key.Value).OfType<EntityRelationship>())
+                    // We have a master - so we want to get the locals for checking / insert
+                    if(this.IsMaster(r.Record.Key.Value))
                     {
-                        var src = local.LoadProperty(o => o.SourceEntity);
-                        if (src.DeterminerConceptKey != MdmConstants.RecordOfTruthDeterminer)
+                        foreach (var local in this.GetAssociatedLocals(r.Record.Key.Value).Where(q => !ignoreList.Contains(q.SourceEntityKey.Value)))
                         {
-                            yield return new EntityRelationship(MdmConstants.CandidateLocalRelationship, local.SourceEntityKey, master.Key, MdmConstants.AutomagicClassification)
+                            var src = local.LoadProperty(o => o.SourceEntity) as Entity;
+                            if (src.DeterminerConceptKey != MdmConstants.RecordOfTruthDeterminer)
                             {
-                                Strength = r.Strength
-                            };
+                                yield return new EntityRelationship(MdmConstants.CandidateLocalRelationship, local.SourceEntityKey, master.Key, MdmConstants.AutomagicClassification)
+                                {
+                                    Strength = r.Strength
+                                };
+                            }
                         }
+                    }
+                    else if(r.Record is TModel tm && tm.DeterminerConceptKey != MdmConstants.RecordOfTruthDeterminer &&
+                        this.GetMasterRelationshipFor(r.Record.Key.Value).TargetEntityKey != master.Key)
+                    {
+                        yield return new EntityRelationship(MdmConstants.CandidateLocalRelationship, r.Record.Key.Value, master.Key, MdmConstants.AutomagicClassification)
+                        {
+                            Strength = r.Strength
+                        };
                     }
                 }
             }

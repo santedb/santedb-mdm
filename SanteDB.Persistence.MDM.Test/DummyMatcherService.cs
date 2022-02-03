@@ -67,6 +67,22 @@ namespace SanteDB.Persistence.MDM.Test
         }
 
         /// <summary>
+        /// Match
+        /// </summary>
+        public IEnumerable<IRecordMatchResult> Match(IdentifiedData input, string configurationName, IEnumerable<Guid> ignoreList, IRecordMatchingDiagnosticSession collector = null)
+        {
+            throw new NotImplementedException();
+        }
+
+        /// <summary>
+        /// Classify
+        /// </summary>
+        public IEnumerable<IRecordMatchResult> Classify(IdentifiedData input, IEnumerable<IdentifiedData> blocks, String configurationName, IRecordMatchingDiagnosticSession collector = null)
+        {
+            throw new NotImplementedException();
+        }
+
+        /// <summary>
         /// Perform a score
         /// </summary>
         public IRecordMatchResult<T> Score<T>(T input, Expression<Func<T, bool>> query, string configurationName, IRecordMatchingDiagnosticSession collector = null) where T : IdentifiedData
@@ -84,28 +100,7 @@ namespace SanteDB.Persistence.MDM.Test
             throw new NotImplementedException();
         }
 
-        public IEnumerable<IRecordMatchResult> Match(IdentifiedData input, string configurationId, IEnumerable<Guid> ignoreList, IRecordMatchingDiagnosticSession collector = null)
-        {
-            return this.Match<IdentifiedData>(input, configurationId, ignoreList, collector);
-        }
-
-        public IEnumerable<IRecordMatchResult> Classify(IdentifiedData input, IEnumerable<IdentifiedData> blocks, string configurationId, IRecordMatchingDiagnosticSession collector = null)
-        {
-            return this.Classify<IdentifiedData>(input, blocks, configurationId, collector);
-
-        }
-
-        public IRecordMatchingConfiguration GetConfiguration(string configurationId)
-        {
-            throw new NotImplementedException();
-        }
-
-        public IRecordMatchingConfiguration SaveConfiguration(IRecordMatchingConfiguration configuration)
-        {
-            throw new NotImplementedException();
-        }
-
-        public IRecordMatchingConfiguration DeleteConfiguration(string configurationId)
+        public IRecordMatchingDiagnosticSession CreateDiagnosticSession()
         {
             throw new NotImplementedException();
         }

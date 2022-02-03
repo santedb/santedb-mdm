@@ -367,7 +367,7 @@ namespace SanteDB.Persistence.MDM.Test
                 savedLocal.DateOfBirth = DateTime.Parse("1984-04-11");
                 savedLocal.Tags.Clear();
                 savedLocal = this.m_patientRepository.Save(savedLocal);
-                Assert.AreEqual(queriedMaster.Key, savedLocal.Relationships.FirstOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship)?.TargetEntityKey);
+                Assert.AreEqual(queriedMaster.Key, savedLocal.LoadProperty(o=>o.Relationships).FirstOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship)?.TargetEntityKey);
                 var afterUpdateMaster = this.m_patientRepository.Find(o => o.Identifiers.Any(i => i.Value == "MDM-04")).FirstOrDefault();
                 Assert.AreEqual(afterUpdateMaster.Key, queriedMaster.Key);
                 Assert.AreNotEqual(queriedMaster.DateOfBirth, afterUpdateMaster.DateOfBirth);
