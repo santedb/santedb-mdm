@@ -196,38 +196,32 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             }
             else
             {
-                var localQuery = new NameValueCollection(query.ToDictionary(o => {
 
-                    var typeStack = new Stack<Type>();
-                    var t = typeof(TModel);
-                    while(t != typeof(IdentifiedData))
+                // Determine the level of casting required
+                var castStack = new Stack<Type>();
+                var ctype = typeof(TModel);
+                while(ctype != typeof(IdentifiedData))
+                {
+                    if (ctype.GetCustomAttribute<XmlRootAttribute>() != null)
+                        castStack.Push(ctype);
+                    ctype = ctype.BaseType;
+                }
+                // Iterate through the query and determine the level of casting
+                while(castStack.Count > 0)
+                {
+                    ctype = castStack.Pop();
+                    try
                     {
-                        if (t.GetCustomAttribute<XmlRootAttribute>() != null)
-                        {
-                            typeStack.Push(t);
-                        }
-                        t = t.BaseType;
+                        query.Select(o => QueryExpressionParser.BuildPropertySelector(ctype, o.Key)).ToArray();
+                        break;
                     }
-
-                    // Do we need to cast?
-                    while(typeStack.Count > 0)
-                    {
-                        var type = typeStack.Pop();
-                        try
-                        {
-                            QueryExpressionParser.BuildPropertySelector(typeof(TModel), $"relationship[{MdmConstants.MasterRecordRelationship}].source@{type.Name}.{o.Key}");
-                            return $"relationship[{MdmConstants.MasterRecordRelationship}].source@{type.Name}.{o.Key}";
-                        }
-                        catch
-                        {
-                        }
-                    }
-                            return $"relationship[{MdmConstants.MasterRecordRelationship}].source@{typeof(TModel).Name}.{o.Key}";
-
-                }, o => o.Value));
+                    catch { }
+                }
+                
+                var localQuery = new NameValueCollection(query.ToDictionary(o => $"relationship[{MdmConstants.MasterRecordRelationship}].source@{ctype.Name}.{o.Key}", o => o.Value));
                 if (!query.TryGetValue("statusConcept", out _))
                 {
-                    localQuery.Add($"relationship[{MdmConstants.MasterRecordRelationship}].source@{typeof(TModel).Name}.statusConcept", StatusKeys.ActiveStates.Select(o => o.ToString()));
+                    localQuery.Add($"relationship[{MdmConstants.MasterRecordRelationship}].source@{ctype.Name}.statusConcept", StatusKeys.ActiveStates.Select(o => o.ToString()));
                 }
                 localQuery.Add("statusConcept", StatusKeys.ActiveStates.Select(o => o.ToString()));
                 localQuery.Add("obsoletionTime", "null");
