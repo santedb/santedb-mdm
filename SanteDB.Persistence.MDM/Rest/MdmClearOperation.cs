@@ -6,6 +6,7 @@ using SanteDB.Core.Services;
 using SanteDB.Rest.Common;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Text;
 
 namespace SanteDB.Persistence.MDM.Rest
@@ -13,6 +14,7 @@ namespace SanteDB.Persistence.MDM.Rest
     /// <summary>
     /// MDM Clear operation
     /// </summary>
+    [ExcludeFromCodeCoverage] // REST operations require a REST client to test
     public class MdmClearOperation : MdmOperationBase
     {
         /// <summary>

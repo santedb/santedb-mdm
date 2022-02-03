@@ -21,6 +21,7 @@
 using SanteDB.Core.Model;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -30,6 +31,7 @@ namespace SanteDB.Persistence.MDM.Exceptions
     /// <summary>
     /// Represents an underlying exception in the MDM layer
     /// </summary>
+    [ExcludeFromCodeCoverage]
     public class MdmException : InvalidOperationException
     {
 

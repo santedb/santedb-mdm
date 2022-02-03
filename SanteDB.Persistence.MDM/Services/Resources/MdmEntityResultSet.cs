@@ -22,7 +22,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         where TModel : Entity, new()
     {
         // Wrapped result set
-        private readonly IQueryResultSet<TModel> m_wrappedResultSet;
+        private readonly IQueryResultSet<Entity> m_wrappedResultSet;
 
         // Principal consuming this result set
         private readonly IPrincipal m_principal;
@@ -31,7 +31,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// Creates a new mdm query result set
         /// </summary>
         /// <param name="wrappedResultSet">The result set as filtered ready to be converted to <see cref="EntityMaster{T}"/></param>
-        internal MdmEntityResultSet(IQueryResultSet<TModel> wrappedResultSet, IPrincipal asPrincipal)
+        internal MdmEntityResultSet(IQueryResultSet<Entity> wrappedResultSet, IPrincipal asPrincipal)
         {
             this.m_wrappedResultSet = wrappedResultSet;
             this.m_principal = asPrincipal;
@@ -55,21 +55,30 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// <summary>
         /// Get the first result set
         /// </summary>
-        public TModel First() => new EntityMaster<TModel>(this.m_wrappedResultSet.First()).Synthesize(this.m_principal);
+        public TModel First()
+        {
+            using (DataPersistenceControlContext.Create(LoadMode.SyncLoad))
+            {
+                return new EntityMaster<TModel>(this.m_wrappedResultSet.First()).Synthesize(this.m_principal);
+            }
+        }
 
         /// <summary>
         /// Get the first or default
         /// </summary>
         public TModel FirstOrDefault()
         {
-            var fd = this.m_wrappedResultSet.FirstOrDefault();
-            if (fd == null)
+            using (DataPersistenceControlContext.Create(LoadMode.SyncLoad))
             {
-                return null;
-            }
-            else
-            {
-                return new EntityMaster<TModel>(fd).Synthesize(this.m_principal);
+                var fd = this.m_wrappedResultSet.FirstOrDefault();
+                if (fd == null)
+                {
+                    return null;
+                }
+                else
+                {
+                    return new EntityMaster<TModel>(fd).Synthesize(this.m_principal);
+                }
             }
         }
 
@@ -78,30 +87,42 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         public IEnumerator<TModel> GetEnumerator()
         {
-            foreach (var itm in this.m_wrappedResultSet)
+            using (DataPersistenceControlContext.Create(LoadMode.SyncLoad))
             {
-                yield return new EntityMaster<TModel>(itm).Synthesize(this.m_principal);
+                foreach (var itm in this.m_wrappedResultSet)
+                {
+                    yield return new EntityMaster<TModel>(itm).Synthesize(this.m_principal);
+                }
             }
         }
 
         /// <summary>
         /// Retrieve a single object
         /// </summary>
-        public TModel Single() => new EntityMaster<TModel>(this.m_wrappedResultSet.Single()).Synthesize(this.m_principal);
+        public TModel Single()
+        {
+            using (DataPersistenceControlContext.Create(LoadMode.SyncLoad))
+            {
+                return new EntityMaster<TModel>(this.m_wrappedResultSet.Single()).Synthesize(this.m_principal);
+            }
+        }
 
         /// <summary>
         /// Get single or default
         /// </summary>
         public TModel SingleOrDefault()
         {
-            var sd = this.m_wrappedResultSet.SingleOrDefault();
-            if (sd == null)
+            using (DataPersistenceControlContext.Create(LoadMode.SyncLoad))
             {
-                return null;
-            }
-            else
-            {
-                return new EntityMaster<TModel>(sd).Synthesize(this.m_principal);
+                var sd = this.m_wrappedResultSet.SingleOrDefault();
+                if (sd == null)
+                {
+                    return null;
+                }
+                else
+                {
+                    return new EntityMaster<TModel>(sd).Synthesize(this.m_principal);
+                }
             }
         }
 
@@ -120,7 +141,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         public IQueryResultSet<TModel> Where(Expression<Func<TModel, bool>> query)
         {
-            return new MdmEntityResultSet<TModel>(this.m_wrappedResultSet.Where(query), this.m_principal);
+            return new MdmEntityResultSet<TModel>(this.m_wrappedResultSet.Where(new ExpressionReturnVisitor<TModel, Entity, bool>(query).Convert()), this.m_principal);
         }
 
         #region Non-Generic
@@ -170,7 +191,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         public IEnumerable<TReturn> Select<TReturn>(Expression<Func<TModel, TReturn>> selector)
         {
-            return this.m_wrappedResultSet.Select(selector);
+            return this.m_wrappedResultSet.Select(new ExpressionReturnVisitor<TModel, Entity, TReturn>(selector).Convert());
         }
 
         /// <summary>
@@ -178,9 +199,9 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         public IOrderableQueryResultSet<TModel> OrderBy<TKey>(Expression<Func<TModel, TKey>> sortExpression)
         {
-            if (this.m_wrappedResultSet is IOrderableQueryResultSet<TModel> orderable)
+            if (this.m_wrappedResultSet is IOrderableQueryResultSet<Entity> orderable)
             {
-                return new MdmEntityResultSet<TModel>(orderable.OrderBy(sortExpression), this.m_principal);
+                return new MdmEntityResultSet<TModel>(orderable.OrderBy(new ExpressionReturnVisitor<TModel, Entity, TKey>(sortExpression).Convert()), this.m_principal);
             }
             else
             {
@@ -193,9 +214,9 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         public IOrderableQueryResultSet<TModel> OrderByDescending<TKey>(Expression<Func<TModel, TKey>> sortExpression)
         {
-            if (this.m_wrappedResultSet is IOrderableQueryResultSet<TModel> orderable)
+            if (this.m_wrappedResultSet is IOrderableQueryResultSet<Entity> orderable)
             {
-                return new MdmEntityResultSet<TModel>(orderable.OrderByDescending(sortExpression), this.m_principal);
+                return new MdmEntityResultSet<TModel>(orderable.OrderByDescending(new ExpressionReturnVisitor<TModel, Entity, TKey>(sortExpression).Convert()), this.m_principal);
             }
             else
             {
@@ -216,7 +237,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         IEnumerable<TReturn> IQueryResultSet<TModel>.Select<TReturn>(Expression<Func<TModel, TReturn>> selector)
         {
-            return this.m_wrappedResultSet.Select(selector);
+            return this.m_wrappedResultSet.Select(new ExpressionReturnVisitor<TModel, Entity, TReturn>(selector).Convert());
         }
 
         /// <summary>
@@ -297,7 +318,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         public IQueryResultSet<TModel> Intersect(Expression<Func<TModel, bool>> filter)
         {
-            return new MdmEntityResultSet<TModel>(this.m_wrappedResultSet.Intersect(filter), this.m_principal);
+            return new MdmEntityResultSet<TModel>(this.m_wrappedResultSet.Intersect(new ExpressionReturnVisitor<TModel, Entity, bool>(filter).Convert()), this.m_principal);
         }
 
         /// <summary>
@@ -310,9 +331,9 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             {
                 return new MdmEntityResultSet<TModel>(this.m_wrappedResultSet.Intersect(otherMdm.m_wrappedResultSet), this.m_principal);
             }
-            else if (this.m_wrappedResultSet.GetType() == other.GetType())
+            else if (other is IQueryResultSet<Entity> qre)
             {
-                return new MdmEntityResultSet<TModel>(this.m_wrappedResultSet.Intersect(other), this.m_principal);
+                return new MdmEntityResultSet<TModel>(this.m_wrappedResultSet.Intersect(qre), this.m_principal);
             }
             else
             {
@@ -325,7 +346,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         public IQueryResultSet<TModel> Union(Expression<Func<TModel, bool>> filter)
         {
-            return new MdmEntityResultSet<TModel>(this.m_wrappedResultSet.Union(filter), this.m_principal);
+            return new MdmEntityResultSet<TModel>(this.m_wrappedResultSet.Union(new ExpressionReturnVisitor<TModel, Entity, bool>(filter).Convert()), this.m_principal);
         }
 
         /// <summary>
@@ -353,9 +374,9 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             {
                 return new MdmEntityResultSet<TModel>(this.m_wrappedResultSet.Union(otherMdm.m_wrappedResultSet), this.m_principal);
             }
-            else if (this.m_wrappedResultSet.GetType() == other.GetType())
+            else if (other is IQueryResultSet<Entity> qre)
             {
-                return new MdmEntityResultSet<TModel>(this.m_wrappedResultSet.Union(other), this.m_principal);
+                return new MdmEntityResultSet<TModel>(this.m_wrappedResultSet.Union(qre), this.m_principal);
             }
             else
             {

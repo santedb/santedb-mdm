@@ -203,6 +203,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 }
                 localQuery.Add("statusConcept", StatusKeys.ActiveStates.Select(o => o.ToString()));
                 localQuery.Add("obsoletionTime", "null");
+                localQuery.Add("classConcept", MdmConstants.MasterRecordClassification.ToString());
 
                 e.Cancel = true; // We want to cancel the callers query
 

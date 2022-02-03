@@ -27,6 +27,7 @@ using SanteDB.Core.Model.Parameters;
 using SanteDB.Core.Services;
 using SanteDB.Rest.Common;
 using System;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 
 namespace SanteDB.Persistence.MDM.Rest
@@ -34,6 +35,7 @@ namespace SanteDB.Persistence.MDM.Rest
     /// <summary>
     /// MDM Operation Base
     /// </summary>
+    [ExcludeFromCodeCoverage] // REST operations require a REST client to test
     public abstract class MdmOperationBase : IApiChildOperation
     {
         // Operation base

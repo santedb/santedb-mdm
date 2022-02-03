@@ -29,6 +29,7 @@ using SanteDB.Messaging.FHIR.Extensions;
 using SanteDB.Persistence.MDM;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Text;
@@ -40,6 +41,7 @@ namespace SanteDB.Persistence.MDM.Rest.FHIR
     /// <summary>
     /// Represents a FHIR MDM query links operation.
     /// </summary>
+    [ExcludeFromCodeCoverage] // REST operations require a REST client to test
     public class FhirMdmQueryLinksOperation : IFhirOperationHandler
     {
         /// <summary>

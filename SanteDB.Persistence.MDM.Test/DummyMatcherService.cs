@@ -39,7 +39,7 @@ namespace SanteDB.Persistence.MDM.Test
         /// <summary>
         /// Perform blocking
         /// </summary>
-        public IQueryResultSet<T> Block<T>(T input, string configurationName, IEnumerable<Guid> ignoreList) where T : IdentifiedData
+        public IQueryResultSet<T> Block<T>(T input, string configurationName, IEnumerable<Guid> ignoreList, IRecordMatchingDiagnosticSession collector = null) where T : IdentifiedData
         {
             if (input.GetType() == typeof(Patient))
             {
@@ -52,7 +52,7 @@ namespace SanteDB.Persistence.MDM.Test
         /// <summary>
         /// Classify the patient records
         /// </summary>
-        public IEnumerable<IRecordMatchResult<T>> Classify<T>(T input, IEnumerable<T> blocks, string configurationName) where T : IdentifiedData
+        public IEnumerable<IRecordMatchResult<T>> Classify<T>(T input, IEnumerable<T> blocks, string configurationName, IRecordMatchingDiagnosticSession collector = null) where T : IdentifiedData
         {
             return blocks.Select(o => new DummyMatchResult<T>(input, o));
         }
@@ -60,32 +60,16 @@ namespace SanteDB.Persistence.MDM.Test
         /// <summary>
         /// Match existing records with others
         /// </summary>
-        public IEnumerable<IRecordMatchResult<T>> Match<T>(T input, string configurationName, IEnumerable<Guid> ignoreList) where T : IdentifiedData
+        public IEnumerable<IRecordMatchResult<T>> Match<T>(T input, string configurationName, IEnumerable<Guid> ignoreList, IRecordMatchingDiagnosticSession collector = null) where T : IdentifiedData
         {
             Assert.AreEqual("default", configurationName);
-            return this.Classify(input, this.Block(input, configurationName, ignoreList), configurationName);
-        }
-
-        /// <summary>
-        /// Match
-        /// </summary>
-        public IEnumerable<IRecordMatchResult> Match(IdentifiedData input, string configurationName, IEnumerable<Guid> ignoreList)
-        {
-            throw new NotImplementedException();
-        }
-
-        /// <summary>
-        /// Classify
-        /// </summary>
-        public IEnumerable<IRecordMatchResult> Classify(IdentifiedData input, IEnumerable<IdentifiedData> blocks, String configurationName)
-        {
-            throw new NotImplementedException();
+            return this.Classify(input, this.Block(input, configurationName, ignoreList, collector), configurationName, collector);
         }
 
         /// <summary>
         /// Perform a score
         /// </summary>
-        public IRecordMatchResult<T> Score<T>(T input, Expression<Func<T, bool>> query, string configurationName) where T : IdentifiedData
+        public IRecordMatchResult<T> Score<T>(T input, Expression<Func<T, bool>> query, string configurationName, IRecordMatchingDiagnosticSession collector = null) where T : IdentifiedData
         {
             if (input.GetType() == typeof(Patient))
             {
@@ -93,6 +77,22 @@ namespace SanteDB.Persistence.MDM.Test
                 return new DummyMatchResult<T>(input, input);
             }
             else return null;
+        }
+
+        public IRecordMatchingDiagnosticSession CreateDiagnosticSession()
+        {
+            throw new NotImplementedException();
+        }
+
+        public IEnumerable<IRecordMatchResult> Match(IdentifiedData input, string configurationId, IEnumerable<Guid> ignoreList, IRecordMatchingDiagnosticSession collector = null)
+        {
+            return this.Match<IdentifiedData>(input, configurationId, ignoreList, collector);
+        }
+
+        public IEnumerable<IRecordMatchResult> Classify(IdentifiedData input, IEnumerable<IdentifiedData> blocks, string configurationId, IRecordMatchingDiagnosticSession collector = null)
+        {
+            return this.Classify<IdentifiedData>(input, blocks, configurationId, collector);
+
         }
 
         public IRecordMatchingConfiguration GetConfiguration(string configurationId)
@@ -106,36 +106,6 @@ namespace SanteDB.Persistence.MDM.Test
         }
 
         public IRecordMatchingConfiguration DeleteConfiguration(string configurationId)
-        {
-            throw new NotImplementedException();
-        }
-
-        public IQueryResultSet<T> Block<T>(T input, string configurationId, IEnumerable<Guid> ignoreList, IRecordMatchingDiagnosticSession collector = null) where T : IdentifiedData
-        {
-            throw new NotImplementedException();
-        }
-
-        public IEnumerable<IRecordMatchResult<T>> Classify<T>(T input, IEnumerable<T> blocks, string configurationId, IRecordMatchingDiagnosticSession collector = null) where T : IdentifiedData
-        {
-            throw new NotImplementedException();
-        }
-
-        public IEnumerable<IRecordMatchResult<T>> Match<T>(T input, string configurationId, IEnumerable<Guid> ignoreList, IRecordMatchingDiagnosticSession collector = null) where T : IdentifiedData
-        {
-            throw new NotImplementedException();
-        }
-
-        public IEnumerable<IRecordMatchResult> Match(IdentifiedData input, string configurationId, IEnumerable<Guid> ignoreList, IRecordMatchingDiagnosticSession collector = null)
-        {
-            throw new NotImplementedException();
-        }
-
-        public IEnumerable<IRecordMatchResult> Classify(IdentifiedData input, IEnumerable<IdentifiedData> blocks, string configurationId, IRecordMatchingDiagnosticSession collector = null)
-        {
-            throw new NotImplementedException();
-        }
-
-        public IRecordMatchingDiagnosticSession CreateDiagnosticSession()
         {
             throw new NotImplementedException();
         }

@@ -198,7 +198,7 @@ namespace SanteDB.Persistence.MDM.Model
         {
             
             var master = new T();
-            master.CopyObjectData<IdentifiedData>(this.m_masterRecord, overwritePopulatedWithNull: false, ignoreTypeMismatch: true);
+            master.CopyObjectData<IdentifiedData>(this.m_masterRecord, onlyNullFields: true, overwritePopulatedWithNull: false, ignoreTypeMismatch: true);
 
             // Is there a relationship which is the record of truth
             var pep = ApplicationServiceContext.Current.GetService<IPrivacyEnforcementService>();
@@ -227,6 +227,7 @@ namespace SanteDB.Persistence.MDM.Model
                 master.Tags.Add(new EntityTag(MdmConstants.MdmRotIndicatorTag, "true"));
             }
 
+            Array.ForEach(locals, l => master.CopyAnnotations(l));
             // HACK: Copy targets for relationships and refactor them - Find a cleaner way to do this
             var relationships = new List<EntityRelationship>();
             foreach (var rel in master.LoadCollection(o => o.Relationships).Where(r => r.SourceEntityKey == master.Key)
@@ -241,7 +242,7 @@ namespace SanteDB.Persistence.MDM.Model
                         this.LocalRecords.OfType<Entity>().SelectMany(o => o.Relationships.Where(r => r.TargetEntityKey == this.m_masterRecord.Key || r.SourceEntityKey == this.m_masterRecord.Key))
                     ))
             {
-                if (!relationships.Any(r => r.SemanticEquals(rel) || r.TargetEntityKey == rel.TargetEntityKey && r.RelationshipTypeKey == rel.RelationshipTypeKey))
+                if (!relationships.Any(r => r.SemanticEquals(rel) || r.SourceEntityKey == rel.SourceEntityKey && r.TargetEntityKey == rel.TargetEntityKey && r.RelationshipTypeKey == rel.RelationshipTypeKey))
                     relationships.Add(rel);
             }
             master.Relationships = relationships;
@@ -283,8 +284,14 @@ namespace SanteDB.Persistence.MDM.Model
             {
                 if (this.m_localRecords == null)
                 {
-                    this.m_localRecords = EntitySource.Current.Provider.Query<EntityRelationship>(o => o.TargetEntityKey == this.Key && o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship).Select(o => o.SourceEntityKey)
-                        .AsParallel().Select(o=> EntitySource.Current.Provider.Get<T>(o)).ToList();
+                    this.m_localRecords = EntitySource.Current.Provider.Query<EntityRelationship>(o => o.TargetEntityKey == this.Key && o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship).Select(o => o.SourceEntityKey).ToArray()
+                        .Select(o =>
+                        {
+                            using (DataPersistenceControlContext.Create(LoadMode.SyncLoad))
+                            {
+                                return EntitySource.Current.Provider.Get<T>(o);
+                            }
+                        }).ToList();
                 }
                 return this.m_localRecords;
             }

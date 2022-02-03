@@ -33,6 +33,7 @@ using SanteDB.Persistence.MDM.Model;
 using SanteDB.Persistence.MDM.Services.Resources;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Text;
@@ -67,11 +68,11 @@ namespace SanteDB.Persistence.MDM.Services
             {
                 var principal = AuthenticationContext.Current.Principal;
                 // HACK: Change this method to detect the type
-                var idps = ApplicationServiceContext.Current.GetService<IDataPersistenceService<TEntity>>();
+                var idps = ApplicationServiceContext.Current.GetService<IDataPersistenceService<Entity>>();
                 if (idps == null)
                     throw new InvalidOperationException("Cannot find a query repository service");
 
-                var expression = QueryExpressionParser.BuildLinqExpression<TEntity>(new NameValueCollection() {
+                var expression = QueryExpressionParser.BuildLinqExpression<Entity>(new NameValueCollection() {
                     { "classConcept", MdmConstants.MasterRecordClassification.ToString() },
                     { "relationship[97730a52-7e30-4dcd-94cd-fd532d111578].source.id", $":(freetext|{String.Join(" ", term)})" }
                 });

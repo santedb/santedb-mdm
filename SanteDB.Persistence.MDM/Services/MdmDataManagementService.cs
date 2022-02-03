@@ -182,8 +182,7 @@ namespace SanteDB.Persistence.MDM.Services
                 string typeName = $"{rt.Name}Master";
                 if (typeof(Entity).IsAssignableFrom(rt))
                     rt = typeof(EntityMaster<>).MakeGenericType(rt);
-                else if (typeof(Act).IsAssignableFrom(rt))
-                    rt = typeof(ActMaster<>).MakeGenericType(rt);
+                
                 ModelSerializationBinder.RegisterModelType(typeName, rt);
             }
 
@@ -265,7 +264,7 @@ namespace SanteDB.Persistence.MDM.Services
                     // Is the data obsoleted (removed)? If so, then ensure we don't have a hanging master
                     if (e.Data.ObsoleteVersionSequenceId.HasValue || e.Data.BatchOperation == Core.Model.DataTypes.BatchOperationType.Delete)
                     {
-                        if (!this.m_entityRelationshipService.Query(r => r.TargetEntityKey == e.Data.TargetEntityKey && !StatusKeys.InactiveStates.Contains(r.TargetEntity.StatusConceptKey.Value) && r.SourceEntityKey != e.Data.SourceEntityKey && r.ObsoleteVersionSequenceId == null, AuthenticationContext.SystemPrincipal).Any())
+                        if (!this.m_entityRelationshipService.Query(r => r.TargetEntityKey == e.Data.TargetEntityKey && !StatusKeys.InactiveStates.Contains(r.SourceEntity.StatusConceptKey.Value) && r.SourceEntityKey != e.Data.SourceEntityKey && r.ObsoleteVersionSequenceId == null, AuthenticationContext.SystemPrincipal).Any())
                         {
                             this.m_entityService.Delete(e.Data.TargetEntityKey.Value, e.Mode, e.Principal, this.m_configuration.MasterDataDeletionMode);
                         }
@@ -334,10 +333,9 @@ namespace SanteDB.Persistence.MDM.Services
                         // Is the data obsoleted (removed)? If so, then ensure we don't have a hanging master
                         if (targetedAssociation.ObsoleteVersionSequenceId.HasValue || idData.BatchOperation == Core.Model.DataTypes.BatchOperationType.Delete)
                         {
-                            if (this.m_entityRelationshipService.Count(r => r.TargetEntityKey == targetedAssociation.TargetEntityKey && !StatusKeys.InactiveStates.Contains(r.TargetEntity.StatusConceptKey.Value) && r.SourceEntityKey != targetedAssociation.SourceEntityKey && r.ObsoleteVersionSequenceId == null) == 0)
+                            if (!this.m_entityRelationshipService.Query(r => r.TargetEntityKey == targetedAssociation.TargetEntityKey && !StatusKeys.InactiveStates.Contains(r.SourceEntity.StatusConceptKey.Value) && r.SourceEntityKey != targetedAssociation.SourceEntityKey && r.ObsoleteVersionSequenceId == null, AuthenticationContext.SystemPrincipal).Any())
                             {
-                                // TODO: Replace this with the Delete() call instead - since it is an orphan and we don't know why
-                                this.m_entityService.Delete(targetedAssociation.TargetEntityKey.Value, mode, principal, DeleteMode.PermanentDelete);
+                                this.m_entityService.Delete(targetedAssociation.TargetEntityKey.Value, mode, principal, this.m_configuration.MasterDataDeletionMode);
                             }
                             return; // no need to de-dup check on obsoleted object
                         }
@@ -363,7 +361,7 @@ namespace SanteDB.Persistence.MDM.Services
                             foreach (var rotRel in this.m_entityRelationshipService.Query(r => r.SourceEntityKey == targetedAssociation.SourceEntityKey && r.TargetEntityKey != targetedAssociation.TargetEntityKey && r.ObsoleteVersionSequenceId == null, principal))
                             {
                                 //Obsolete other ROTs (there can only be one)
-                                this.m_entityRelationshipService.Delete(rotRel.Key.Value, mode, principal, DeleteMode.PermanentDelete);
+                                this.m_entityRelationshipService.Delete(rotRel.Key.Value, mode, principal, this.m_configuration.MasterDataDeletionMode);
                             }
                         }
                         break;
