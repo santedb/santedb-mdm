@@ -446,10 +446,10 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             }
             else if (this.m_entityPersistenceService is IStoredQueryDataPersistenceService<Entity> storedQuery)
             {
-                return storedQuery.Query(localEntityLinq, queryId.GetValueOrDefault(), offset, count ?? 100, out totalResults, AuthenticationContext.SystemPrincipal, newOrderBy?.ToArray()).Select(this.Synthesize);
+                return storedQuery.Query(localEntityLinq, queryId.GetValueOrDefault(), offset, count ?? 25, out totalResults, AuthenticationContext.SystemPrincipal, newOrderBy?.ToArray()).Select(this.Synthesize);
             }
             else
-                return this.m_entityPersistenceService.Query(localEntityLinq, offset, count ?? 100, out totalResults, AuthenticationContext.SystemPrincipal, newOrderBy?.ToArray()).Select(this.Synthesize);
+                return this.m_entityPersistenceService.Query(localEntityLinq, offset, count ?? 25, out totalResults, AuthenticationContext.SystemPrincipal, newOrderBy?.ToArray()).Select(this.Synthesize);
         }
 
         /// <summary>

@@ -289,7 +289,7 @@ namespace SanteDB.Persistence.MDM.Model
                 {
                     using (AuthenticationContext.EnterSystemContext())
                     {
-                        this.m_localRecords = EntitySource.Current.Provider.Query<T>(o => o.Relationships.Any(r => r.TargetEntityKey == this.Key && r.RelationshipTypeKey == MdmConstants.MasterRecordRelationship)).ToList();
+                        this.m_localRecords = EntitySource.Current.Provider.Query<EntityRelationship>(r => r.TargetEntityKey == this.Key && r.RelationshipTypeKey == MdmConstants.MasterRecordRelationship).Select(o=>(T)o.LoadProperty(p=>p.SourceEntity)).ToList();
                     }
                 }
                 return this.m_localRecords;

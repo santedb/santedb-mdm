@@ -41,6 +41,7 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Security.Principal;
+using System.Xml.Serialization;
 
 namespace SanteDB.Persistence.MDM.Services.Resources
 {
@@ -190,12 +191,40 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 }
                 else if (mdmFilter.Contains("M")) // pure master query
                 {
-                    throw new NotImplementedException("Msater queries not supported yet");
+                    throw new NotImplementedException("Master queries not supported yet");
                 }
             }
             else
             {
-                var localQuery = new NameValueCollection(query.ToDictionary(o => $"relationship[{MdmConstants.MasterRecordRelationship}].source@{typeof(TModel).Name}.{o.Key}", o => o.Value));
+                var localQuery = new NameValueCollection(query.ToDictionary(o => {
+
+                    var typeStack = new Stack<Type>();
+                    var t = typeof(TModel);
+                    while(t != typeof(IdentifiedData))
+                    {
+                        if (t.GetCustomAttribute<XmlRootAttribute>() != null)
+                        {
+                            typeStack.Push(t);
+                        }
+                        t = t.BaseType;
+                    }
+
+                    // Do we need to cast?
+                    while(typeStack.Count > 0)
+                    {
+                        var type = typeStack.Pop();
+                        try
+                        {
+                            QueryExpressionParser.BuildPropertySelector(typeof(TModel), $"relationship[{MdmConstants.MasterRecordRelationship}].source@{type.Name}.{o.Key}");
+                            return $"relationship[{MdmConstants.MasterRecordRelationship}].source@{type.Name}.{o.Key}";
+                        }
+                        catch
+                        {
+                        }
+                    }
+                            return $"relationship[{MdmConstants.MasterRecordRelationship}].source@{typeof(TModel).Name}.{o.Key}";
+
+                }, o => o.Value));
                 if (!query.TryGetValue("statusConcept", out _))
                 {
                     localQuery.Add($"relationship[{MdmConstants.MasterRecordRelationship}].source@{typeof(TModel).Name}.statusConcept", StatusKeys.ActiveStates.Select(o => o.ToString()));
