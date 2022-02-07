@@ -218,7 +218,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     catch { }
                 }
                 
-                var localQuery = new NameValueCollection(query.ToDictionary(o => $"relationship[{MdmConstants.MasterRecordRelationship}].source@{ctype.Name}.{o.Key}", o => o.Value));
+                var localQuery = new NameValueCollection(query.ToDictionary(o => $"relationship[{MdmConstants.MasterRecordRelationship}].source@{ctype.Name}.{o.Key}", o => new List<string>(o.Value)));
                 if (!query.TryGetValue("statusConcept", out _))
                 {
                     localQuery.Add($"relationship[{MdmConstants.MasterRecordRelationship}].source@{ctype.Name}.statusConcept", StatusKeys.ActiveStates.Select(o => o.ToString()));
@@ -236,6 +236,17 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     {
                         case "identifier":
                             break;
+                        case "id":
+                            itm.Value.RemoveAll(o => o == "!null" || o.StartsWith("!"));
+                            if(itm.Value.Any())
+                            {
+                                break;
+                            }
+                            else
+                            {
+                                query.Remove(itm.Key);
+                            }
+                            break;
                         default:
                             query.Remove(itm.Key);
                             break;
@@ -245,6 +256,9 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 if (query.Any())
                 {
                     query.Add("classConcept", MdmConstants.MasterRecordClassification.ToString());
+                    if (query.TryGetValue("statusConcept", out var status)) {
+                        query.Add("statusConcept", status);
+                    }
                 }
 
                 // We are wrapping an entity, so we query entity masters
