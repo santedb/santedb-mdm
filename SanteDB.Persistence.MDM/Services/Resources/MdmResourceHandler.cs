@@ -222,8 +222,12 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 if (!query.TryGetValue("statusConcept", out _))
                 {
                     localQuery.Add($"relationship[{MdmConstants.MasterRecordRelationship}].source@{ctype.Name}.statusConcept", StatusKeys.ActiveStates.Select(o => o.ToString()));
+                    localQuery.Add("statusConcept", StatusKeys.ActiveStates.Select(o => o.ToString()));
                 }
-                localQuery.Add("statusConcept", StatusKeys.ActiveStates.Select(o => o.ToString()));
+                else
+                {
+                    localQuery.Add("statusConcept", query["statusConcept"]);
+                }
                 localQuery.Add("obsoletionTime", "null");
 
                 e.Cancel = true; // We want to cancel the callers query
@@ -256,8 +260,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 if (query.Any())
                 {
                     query.Add("classConcept", MdmConstants.MasterRecordClassification.ToString());
-                    if (query.TryGetValue("statusConcept", out var status)) {
-                        query.Add("statusConcept", status);
+                    if (localQuery.TryGetValue("statusConcept", out var status)) {
+                        localQuery.Add("statusConcept", status);
                     }
                 }
 
