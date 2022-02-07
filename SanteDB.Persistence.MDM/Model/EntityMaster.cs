@@ -289,7 +289,30 @@ namespace SanteDB.Persistence.MDM.Model
                 {
                     using (AuthenticationContext.EnterSystemContext())
                     {
-                        this.m_localRecords = EntitySource.Current.Provider.Query<EntityRelationship>(r => r.TargetEntityKey == this.Key && r.RelationshipTypeKey == MdmConstants.MasterRecordRelationship).Select(o=>(T)o.LoadProperty(p=>p.SourceEntity)).ToList();
+                        this.m_localRecords = EntitySource.Current.Provider.Query<EntityRelationship>(r => r.TargetEntityKey == this.Key && r.RelationshipTypeKey == MdmConstants.MasterRecordRelationship).Select(o=>(T)o.LoadProperty(p=>p.SourceEntity)).Select(t=>
+                        {
+                            t.LoadProperty(o => o.Addresses);
+                            t.LoadProperty(o => o.Extensions);
+                            t.LoadProperty(o => o.Identifiers);
+                            t.LoadProperty(o => o.Names);
+                            t.LoadProperty(o => o.Notes);
+                            t.LoadProperty(o => o.Policies);
+                            t.LoadProperty(o => o.Relationships);
+                            t.LoadProperty(o => o.Tags);
+                            t.LoadProperty(o => o.Telecoms);
+                            
+                            switch(t)
+                            {
+                                case Person psn:
+                                    psn.LoadProperty(o => o.LanguageCommunication);
+                                    break;
+                                case Place plc:
+                                    plc.LoadProperty(o => o.Services);
+                                    break;
+                            }
+
+                            return t;
+                        }).ToList();
                     }
                 }
                 return this.m_localRecords;
