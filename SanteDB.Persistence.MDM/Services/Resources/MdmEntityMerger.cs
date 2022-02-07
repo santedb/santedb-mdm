@@ -272,7 +272,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                         this.m_tracer.TraceInfo("LOCAL({0})>LOCAL({0}) MERGE", victim.Key, survivor.Key);
 
                         // Obsolete the victim - the victim is obsolete since it was accurate and is no longer the accurate
-                        victim.StatusConceptKey = StatusKeys.Obsolete;
+                        victim.StatusConceptKey = StatusKeys.Inactive;
                         transactionBundle.Add(victim);
 
                         // Obsolete the old identifiers over
