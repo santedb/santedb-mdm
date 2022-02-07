@@ -215,6 +215,10 @@ namespace SanteDB.Persistence.MDM.Model
                 {
                     master.SemanticCopy(originalMasterFor);
                 }
+                else
+                {
+                    return null;
+                }
             }
             else if (this.m_recordOfTruth == null) // We have to create a synthetic record
             {

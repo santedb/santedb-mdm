@@ -261,7 +261,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 {
                     query.Add("classConcept", MdmConstants.MasterRecordClassification.ToString());
                     if (localQuery.TryGetValue("statusConcept", out var status)) {
-                        localQuery.Add("statusConcept", status);
+                        query.Add("statusConcept", status);
                     }
                 }
 
