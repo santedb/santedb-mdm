@@ -519,7 +519,6 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             // Is this a ROT?
             if (this.m_dataManager.IsRecordOfTruth(e.Data))
             {
-                this.m_policyEnforcement.Demand(MdmPermissionPolicyIdentifiers.EstablishRecordOfTruth);
                 store = this.m_dataManager.PromoteRecordOfTruth(store);
             }
 
