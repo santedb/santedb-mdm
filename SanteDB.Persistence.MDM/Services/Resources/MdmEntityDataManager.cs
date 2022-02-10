@@ -197,6 +197,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             var rotRelationship = local.LoadCollection(o => o.Relationships).FirstOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordOfTruthRelationship) ??
                 master.LoadCollection(o => o.Relationships).SingleOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordOfTruthRelationship);
 
+            this.m_policyEnforcement.Demand(MdmPermissionPolicyIdentifiers.EditRecordOfTruth);
+
             if (rotRelationship == null)
             {
                 this.m_policyEnforcement.Demand(MdmPermissionPolicyIdentifiers.EstablishRecordOfTruth);
