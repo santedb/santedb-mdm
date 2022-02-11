@@ -451,14 +451,14 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             if (masterQuery.Any() && this.m_entityPersistenceService is IUnionQueryDataPersistenceService<Entity> unionQuery)
             {
                 var masterLinq = QueryExpressionParser.BuildLinqExpression<Entity>(masterQuery, null, false);
-                return unionQuery.Union(new Expression<Func<Entity, bool>>[] { localEntityLinq, masterLinq }, queryId.GetValueOrDefault(), offset, count, out totalResults, AuthenticationContext.SystemPrincipal, newOrderBy?.ToArray()).Select(this.Synthesize);
+                return unionQuery.Union(new Expression<Func<Entity, bool>>[] { localEntityLinq, masterLinq }, queryId.GetValueOrDefault(), offset, count, out totalResults, AuthenticationContext.SystemPrincipal, newOrderBy?.ToArray()).Select(this.Synthesize).ToList();
             }
             else if (this.m_entityPersistenceService is IStoredQueryDataPersistenceService<Entity> storedQuery)
             {
-                return storedQuery.Query(localEntityLinq, queryId.GetValueOrDefault(), offset, count ?? 25, out totalResults, AuthenticationContext.SystemPrincipal, newOrderBy?.ToArray()).Select(this.Synthesize);
+                return storedQuery.Query(localEntityLinq, queryId.GetValueOrDefault(), offset, count ?? 25, out totalResults, AuthenticationContext.SystemPrincipal, newOrderBy?.ToArray()).Select(this.Synthesize).ToList();
             }
             else
-                return this.m_entityPersistenceService.Query(localEntityLinq, offset, count ?? 25, out totalResults, AuthenticationContext.SystemPrincipal, newOrderBy?.ToArray()).Select(this.Synthesize);
+                return this.m_entityPersistenceService.Query(localEntityLinq, offset, count ?? 25, out totalResults, AuthenticationContext.SystemPrincipal, newOrderBy?.ToArray()).Select(this.Synthesize).ToList();
         }
 
         /// <summary>
@@ -1282,7 +1282,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 throw new ArgumentException("MdmTxDetectCandidiates expects MASTER record");
 
             // Get the ignore list
-            var ignoreList = this.m_relationshipService.Query(o => o.TargetEntityKey == master.Key && o.RelationshipTypeKey == MdmConstants.IgnoreCandidateRelationship, AuthenticationContext.SystemPrincipal).Select(o=>o.SourceEntityKey.Value);//.Select(o => this.GetMasterRelationshipFor(o.SourceEntityKey.Value, context).TargetEntityKey.Value);
+            var ignoreList = this.m_relationshipService.Query(o => o.TargetEntityKey == master.Key && o.RelationshipTypeKey == MdmConstants.IgnoreCandidateRelationship, AuthenticationContext.SystemPrincipal).Select(o => o.SourceEntityKey.Value);//.Select(o => this.GetMasterRelationshipFor(o.SourceEntityKey.Value, context).TargetEntityKey.Value);
 
             // iterate through configuration
             foreach (var config in this.m_matchingConfigurationService.Configurations.Where(o => o.AppliesTo.Contains(typeof(TModel)) && o.Metadata.State == MatchConfigurationStatus.Active))
@@ -1294,7 +1294,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 foreach (var r in results.Where(r => r.Classification != RecordMatchClassification.NonMatch && r.Record.Key != master.Key))
                 {
                     // We have a master - so we want to get the locals for checking / insert
-                    if(this.IsMaster(r.Record.Key.Value))
+                    if (this.IsMaster(r.Record.Key.Value))
                     {
                         foreach (var local in this.GetAssociatedLocals(r.Record.Key.Value).Where(q => !ignoreList.Contains(q.SourceEntityKey.Value)))
                         {
@@ -1308,7 +1308,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                             }
                         }
                     }
-                    else if(r.Record is TModel tm && tm.DeterminerConceptKey != MdmConstants.RecordOfTruthDeterminer &&
+                    else if (r.Record is TModel tm && tm.DeterminerConceptKey != MdmConstants.RecordOfTruthDeterminer &&
                         this.GetMasterRelationshipFor(r.Record.Key.Value).TargetEntityKey != master.Key)
                     {
                         yield return new EntityRelationship(MdmConstants.CandidateLocalRelationship, r.Record.Key.Value, master.Key, MdmConstants.AutomagicClassification)

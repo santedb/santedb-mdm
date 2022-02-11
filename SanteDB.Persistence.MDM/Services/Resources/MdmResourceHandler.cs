@@ -266,8 +266,16 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 }
 
                 // We are wrapping an entity, so we query entity masters
-                e.Results = this.m_dataManager.MdmQuery(query, localQuery, e.QueryId, e.Offset, e.Count, out int tr, e.OrderBy).Select(o => o.Synthesize(e.Principal)).OfType<TModel>();
-                e.TotalResults = tr;
+                if (Environment.ProcessorCount > 4)
+                {
+                    e.Results = this.m_dataManager.MdmQuery(query, localQuery, e.QueryId, e.Offset, e.Count, out int tr, e.OrderBy).AsParallel().AsOrdered().Select(o => o.Synthesize(e.Principal)).OfType<TModel>().ToList();
+                    e.TotalResults = tr;
+                }
+                else
+                {
+                    e.Results = this.m_dataManager.MdmQuery(query, localQuery, e.QueryId, e.Offset, e.Count, out int tr, e.OrderBy).Select(o => o.Synthesize(e.Principal)).OfType<TModel>().ToList();
+                    e.TotalResults = tr;
+                }
             }
         }
 

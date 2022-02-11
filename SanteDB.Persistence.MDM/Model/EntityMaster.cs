@@ -189,7 +189,10 @@ namespace SanteDB.Persistence.MDM.Model
         {
             this.CopyObjectData(master, false, true);
             this.m_masterRecord = master;
-            this.m_recordOfTruth = this.LoadCollection<EntityRelationship>("Relationships").FirstOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordOfTruthRelationship)?.LoadProperty(o => o.TargetEntity);
+            using (AuthenticationContext.EnterSystemContext())
+            {
+                this.m_recordOfTruth = this.LoadCollection<EntityRelationship>("Relationships").FirstOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordOfTruthRelationship)?.LoadProperty(o => o.TargetEntity);
+            }
         }
 
         /// <summary>
@@ -267,6 +270,26 @@ namespace SanteDB.Persistence.MDM.Model
             master.VersionKey = this.m_masterRecord.VersionKey;
             master.VersionSequence = this.m_masterRecord.VersionSequence;
 
+            // Set load state
+            master.SetLoaded(o => o.Addresses);
+            master.SetLoaded(o => o.Extensions);
+            master.SetLoaded(o => o.Identifiers);
+            master.SetLoaded(o => o.Names);
+            master.SetLoaded(o => o.Notes);
+            master.SetLoaded(o => o.Policies);
+            master.SetLoaded(o => o.Relationships);
+            master.SetLoaded(o => o.Tags);
+            master.SetLoaded(o => o.Telecoms);
+
+            switch (master)
+            {
+                case Person psn:
+                    psn.SetLoaded(o => o.LanguageCommunication);
+                    break;
+                case Place plc:
+                    plc.SetLoaded(o => o.Services);
+                    break;
+            }
 
             return master;
         }
@@ -295,27 +318,28 @@ namespace SanteDB.Persistence.MDM.Model
                     {
                         this.m_localRecords = EntitySource.Current.Provider.Query<EntityRelationship>(r => r.TargetEntityKey == this.Key && r.RelationshipTypeKey == MdmConstants.MasterRecordRelationship).Select(o=>(T)o.LoadProperty(p=>p.SourceEntity)).Select(t=>
                         {
-                            t.LoadProperty(o => o.Addresses);
-                            t.LoadProperty(o => o.Extensions);
-                            t.LoadProperty(o => o.Identifiers);
-                            t.LoadProperty(o => o.Names);
-                            t.LoadProperty(o => o.Notes);
-                            t.LoadProperty(o => o.Policies);
-                            t.LoadProperty(o => o.Relationships);
-                            t.LoadProperty(o => o.Tags);
-                            t.LoadProperty(o => o.Telecoms);
                             
-                            switch(t)
-                            {
-                                case Person psn:
-                                    psn.LoadProperty(o => o.LanguageCommunication);
-                                    break;
-                                case Place plc:
-                                    plc.LoadProperty(o => o.Services);
-                                    break;
-                            }
+                                t.LoadProperty(o => o.Addresses);
+                                t.LoadProperty(o => o.Extensions);
+                                t.LoadProperty(o => o.Identifiers);
+                                t.LoadProperty(o => o.Names);
+                                t.LoadProperty(o => o.Notes);
+                                t.LoadProperty(o => o.Policies);
+                                t.LoadProperty(o => o.Relationships);
+                                t.LoadProperty(o => o.Tags);
+                                t.LoadProperty(o => o.Telecoms);
 
-                            return t;
+                                switch (t)
+                                {
+                                    case Person psn:
+                                        psn.LoadProperty(o => o.LanguageCommunication);
+                                        break;
+                                    case Place plc:
+                                        plc.LoadProperty(o => o.Services);
+                                        break;
+                                }
+
+                                return t;
                         }).ToList();
                     }
                 }
