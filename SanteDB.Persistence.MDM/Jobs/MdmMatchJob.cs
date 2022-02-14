@@ -48,7 +48,7 @@ namespace SanteDB.Persistence.MDM.Jobs
         where T : IdentifiedData, new()
     {
         // Guid
-        private Guid m_id = Guid.NewGuid();
+        private readonly Guid m_id ;
 
         // Merge service
         private IRecordMergingService<T> m_mergeService;
@@ -59,8 +59,10 @@ namespace SanteDB.Persistence.MDM.Jobs
         /// <summary>
         /// Create a match job
         /// </summary>
-        public MdmMatchJob(IRecordMergingService<T> recordMergingService)
+        public MdmMatchJob(IRecordMergingService<T> recordMergingService, IJobManagerService jobManager)
         {
+            this.m_id = jobManager.Jobs.FirstOrDefault(o => o.GetType() == this.GetType())?.Id ?? Guid.NewGuid();
+
             this.m_mergeService = recordMergingService;
             // Progress change handler
             if (this.m_mergeService is IReportProgressChanged rpt)
