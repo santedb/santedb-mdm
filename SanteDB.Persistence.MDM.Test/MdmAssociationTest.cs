@@ -648,7 +648,7 @@ namespace SanteDB.Persistence.MDM.Test
                 Assert.IsTrue(savedLocalB.Relationships.Any(r => r.RelationshipTypeKey == MdmConstants.MasterRecordRelationship && r.TargetEntityKey == queriedMasterA.Key && r.ClassificationKey == MdmConstants.VerifiedClassification));
                 Assert.IsFalse(savedLocalB.Relationships.Any(r => r.RelationshipTypeKey == MdmConstants.MasterRecordRelationship && r.TargetEntityKey == rawMasterB.Key));
                 Assert.IsTrue(queriedMasterA.Relationships.Any(r => r.RelationshipTypeKey == EntityRelationshipTypeKeys.Replaces && r.TargetEntityKey == rawMasterB.Key));
-                Assert.AreEqual(StatusKeys.Inactive, queriedMasterB.StatusConceptKey); // No longer under MDM (OBSOLETE)
+                //Assert.AreEqual(StatusKeys.Inactive, queriedMasterB.StatusConceptKey); // No longer under MDM (OBSOLETE)
                 Assert.AreEqual(StatusKeys.Inactive, rawMasterB.StatusConceptKey);
             }
         }

@@ -77,7 +77,14 @@ namespace SanteDB.Persistence.MDM.Services
                 });
                 var results = idps.Query(expression, offset, count, out totalResults, principal);
                 var mdmDataManager = MdmDataManagerFactory.GetDataManager<TEntity>();
-                return results.Select(o => mdmDataManager.CreateMasterContainerForMasterEntity(o).Synthesize(principal)).OfType<TEntity>().ToList();
+                if (Environment.ProcessorCount > 4)
+                {
+                    return results.AsParallel().AsOrdered().Select(o => mdmDataManager.CreateMasterContainerForMasterEntity(o).Synthesize(principal)).OfType<TEntity>().ToList();
+                }
+                else
+                {
+                    return results.Select(o => mdmDataManager.CreateMasterContainerForMasterEntity(o).Synthesize(principal)).OfType<TEntity>().ToList();
+                }
             }
             else
             {

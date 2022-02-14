@@ -218,12 +218,16 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     catch { }
                 }
                 
-                var localQuery = new NameValueCollection(query.ToDictionary(o => $"relationship[{MdmConstants.MasterRecordRelationship}].source@{ctype.Name}.{o.Key}", o => o.Value));
+                var localQuery = new NameValueCollection(query.ToDictionary(o => $"relationship[{MdmConstants.MasterRecordRelationship}].source@{ctype.Name}.{o.Key}", o => new List<string>(o.Value)));
                 if (!query.TryGetValue("statusConcept", out _))
                 {
                     localQuery.Add($"relationship[{MdmConstants.MasterRecordRelationship}].source@{ctype.Name}.statusConcept", StatusKeys.ActiveStates.Select(o => o.ToString()));
+                    localQuery.Add("statusConcept", StatusKeys.ActiveStates.Select(o => o.ToString()));
                 }
-                localQuery.Add("statusConcept", StatusKeys.ActiveStates.Select(o => o.ToString()));
+                else
+                {
+                    localQuery.Add("statusConcept", query["statusConcept"]);
+                }
                 localQuery.Add("obsoletionTime", "null");
 
                 e.Cancel = true; // We want to cancel the callers query
@@ -236,6 +240,17 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     {
                         case "identifier":
                             break;
+                        case "id":
+                            itm.Value.RemoveAll(o => o == "!null" || o.StartsWith("!"));
+                            if(itm.Value.Any())
+                            {
+                                break;
+                            }
+                            else
+                            {
+                                query.Remove(itm.Key);
+                            }
+                            break;
                         default:
                             query.Remove(itm.Key);
                             break;
@@ -245,11 +260,22 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 if (query.Any())
                 {
                     query.Add("classConcept", MdmConstants.MasterRecordClassification.ToString());
+                    if (localQuery.TryGetValue("statusConcept", out var status)) {
+                        query.Add("statusConcept", status);
+                    }
                 }
 
                 // We are wrapping an entity, so we query entity masters
-                e.Results = this.m_dataManager.MdmQuery(query, localQuery, e.QueryId, e.Offset, e.Count, out int tr, e.OrderBy).Select(o => o.Synthesize(e.Principal)).OfType<TModel>();
-                e.TotalResults = tr;
+                if (Environment.ProcessorCount > 4)
+                {
+                    e.Results = this.m_dataManager.MdmQuery(query, localQuery, e.QueryId, e.Offset, e.Count, out int tr, e.OrderBy).AsParallel().AsOrdered().Select(o => o.Synthesize(e.Principal)).OfType<TModel>().ToList();
+                    e.TotalResults = tr;
+                }
+                else
+                {
+                    e.Results = this.m_dataManager.MdmQuery(query, localQuery, e.QueryId, e.Offset, e.Count, out int tr, e.OrderBy).Select(o => o.Synthesize(e.Principal)).OfType<TModel>().ToList();
+                    e.TotalResults = tr;
+                }
             }
         }
 
@@ -501,7 +527,6 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             // Is this a ROT?
             if (this.m_dataManager.IsRecordOfTruth(e.Data))
             {
-                this.m_policyEnforcement.Demand(MdmPermissionPolicyIdentifiers.EstablishRecordOfTruth);
                 store = this.m_dataManager.PromoteRecordOfTruth(store);
             }
 
