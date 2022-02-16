@@ -33,6 +33,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -44,7 +45,7 @@ namespace SanteDB.Persistence.MDM.Jobs
     /// </summary>
     /// <typeparam name="T">The type of object to match on</typeparam>
     [DisplayName("MDM Batch Matching Job")]
-    public class MdmMatchJob<T> : IReportProgressJob
+    public class MdmMatchJob<T> : IJob
         where T : IdentifiedData, new()
     {
         // Guid
@@ -52,6 +53,7 @@ namespace SanteDB.Persistence.MDM.Jobs
 
         // Merge service
         private IRecordMergingService<T> m_mergeService;
+        private readonly IJobStateManagerService m_stateManager;
 
         // Tracer
         private Tracer m_tracer = Tracer.GetTracer(typeof(MdmMatchJob<T>));
@@ -59,18 +61,19 @@ namespace SanteDB.Persistence.MDM.Jobs
         /// <summary>
         /// Create a match job
         /// </summary>
-        public MdmMatchJob(IRecordMergingService<T> recordMergingService, IJobManagerService jobManager)
+        public MdmMatchJob(IRecordMergingService<T> recordMergingService, IJobManagerService jobManager, IJobStateManagerService stateManagerService)
         {
-            this.m_id = jobManager.Jobs.FirstOrDefault(o => o.GetType() == this.GetType())?.Id ?? Guid.NewGuid();
+            this.m_id = new Guid(MD5.Create().ComputeHash(Encoding.ASCII.GetBytes(typeof(T).Name)));
 
             this.m_mergeService = recordMergingService;
+            this.m_stateManager = stateManagerService;
+
             // Progress change handler
             if (this.m_mergeService is IReportProgressChanged rpt)
             {
                 rpt.ProgressChanged += (o, p) =>
                 {
-                    this.Progress = p.Progress;
-                    this.StatusText = p.State.ToString();
+                    this.m_stateManager.SetProgress(this, p.State.ToString(), p.Progress);
                 };
             }
 
@@ -96,37 +99,12 @@ namespace SanteDB.Persistence.MDM.Jobs
         public bool CanCancel => false;
 
         /// <summary>
-        /// Gets the current state
-        /// </summary>
-        public JobStateType CurrentState { get; private set; }
-
-        /// <summary>
         /// Gets the parameters for the job
         /// </summary>
         public IDictionary<string, Type> Parameters => new Dictionary<String, Type>()
         {
             { "clearExistingMdmData", typeof(bool) }
         };
-
-        /// <summary>
-        /// Last time the job started
-        /// </summary>
-        public DateTime? LastStarted { get; private set; }
-
-        /// <summary>
-        /// Last time job finished
-        /// </summary>
-        public DateTime? LastFinished { get; private set; }
-
-        /// <summary>
-        /// Progress
-        /// </summary>
-        public float Progress { get; private set; }
-
-        /// <summary>
-        /// Gets or sets the status text
-        /// </summary>
-        public string StatusText { get; private set; }
 
         /// <summary>
         /// Cancel the job
@@ -145,8 +123,7 @@ namespace SanteDB.Persistence.MDM.Jobs
             {
                 using (AuthenticationContext.EnterSystemContext())
                 {
-                    this.LastStarted = DateTime.Now;
-                    this.CurrentState = JobStateType.Running;
+                    this.m_stateManager.SetState(this, JobStateType.Running);
                     var clear = parameters.Length > 0 ? (bool?)parameters[0] : false;
                     this.m_tracer.TraceInfo("Starting batch run of MDM Matching ");
                    
@@ -163,13 +140,13 @@ namespace SanteDB.Persistence.MDM.Jobs
 
                     this.m_mergeService.DetectGlobalMergeCandidates();
 
-                    this.LastFinished = DateTime.Now;
-                    this.CurrentState = JobStateType.Completed;
+                    this.m_stateManager.SetState(this, JobStateType.Completed);
                 }
             }
             catch (Exception ex)
             {
-                this.CurrentState = JobStateType.Aborted;
+                this.m_stateManager.SetState(this, JobStateType.Aborted);
+                this.m_stateManager.SetProgress(this, ex.Message, 0.0f);
                 this.m_tracer.TraceError("Could not run MDM Matching Job: {0}", ex);
             }
         }
