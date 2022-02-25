@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright (C) 2021 - 2021, SanteSuite Inc. and the SanteSuite Contributors (See NOTICE.md for full copyright notices)
+ * Copyright (C) 2021 - 2022, SanteSuite Inc. and the SanteSuite Contributors (See NOTICE.md for full copyright notices)
  * Copyright (C) 2019 - 2021, Fyfe Software Inc. and the SanteSuite Contributors
  * Portions Copyright (C) 2015-2018 Mohawk College of Applied Arts and Technology
  *
@@ -16,7 +16,7 @@
  * the License.
  *
  * User: fyfej
- * Date: 2021-8-5
+ * Date: 2021-10-29
  */
 using SanteDB.Core;
 using SanteDB.Core.Configuration;
@@ -271,7 +271,7 @@ namespace SanteDB.Persistence.MDM.Services
                 var masterLinq = QueryExpressionParser.BuildLinqExpression<TMasterType>(localQuery, null, false);
                 results = qpi.Query(masterLinq, queryId, offset, count, out totalResults, principal);
             }
-            return results.AsParallel().AsOrdered().Select(o => o is Entity ? new EntityMaster<T>((Entity)(object)o).GetMaster(principal) : new ActMaster<T>((Act)(Object)o).GetMaster(principal)).OfType<T>().ToList();
+            return results.Select(o => o is Entity ? new EntityMaster<T>((Entity)(object)o).GetMaster(principal) : new ActMaster<T>((Act)(Object)o).GetMaster(principal)).OfType<T>().ToList();
         }
 
         /// <summary>

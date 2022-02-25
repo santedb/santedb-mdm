@@ -31,7 +31,7 @@ namespace SanteDB.Persistence.MDM.Test
     public class MdmAssociationTest : DataTest
     {
         // Test authority
-        private readonly AssigningAuthority m_testAuthority = new AssigningAuthority("TEST-MDM", "TEST-MDM", "1.2.3.4.9999");
+        private readonly AssigningAuthority m_testAuthority = new AssigningAuthority("TEST-MDM", "TEST-MDM", "1.2.3.4.9999") { Key = Guid.NewGuid() };
 
         private IRepositoryService<Patient> m_patientRepository;
         private IRepositoryService<Person> m_personRepository;
@@ -328,7 +328,7 @@ namespace SanteDB.Persistence.MDM.Test
         }
 
         /// <summary>
-        /// When updating a record with one there should not be a new master created
+        /// When updating a record with one local there should not be a new master created on the update of the record
         /// </summary>
         [Test(Description = "Case 4: Update Maintains Master Link")]
         public void TestMdmUpdateShouldNotCreateNewMaster()
@@ -367,7 +367,7 @@ namespace SanteDB.Persistence.MDM.Test
                 savedLocal.DateOfBirth = DateTime.Parse("1984-04-11");
                 savedLocal.Tags.Clear();
                 savedLocal = this.m_patientRepository.Save(savedLocal);
-                Assert.AreEqual(queriedMaster.Key, savedLocal.Relationships.FirstOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship)?.TargetEntityKey);
+                Assert.AreEqual(queriedMaster.Key, savedLocal.LoadProperty(o=>o.Relationships).FirstOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship)?.TargetEntityKey);
                 var afterUpdateMaster = this.m_patientRepository.Find(o => o.Identifiers.Any(i => i.Value == "MDM-04")).FirstOrDefault();
                 Assert.AreEqual(afterUpdateMaster.Key, queriedMaster.Key);
                 Assert.AreNotEqual(queriedMaster.DateOfBirth, afterUpdateMaster.DateOfBirth);
@@ -644,10 +644,10 @@ namespace SanteDB.Persistence.MDM.Test
                 queriedMasterB = this.m_patientRepository.Get(queriedMasterB.Key.Value);
 
                 // A and B point to A
-                Assert.IsTrue(savedLocalA.Relationships.Any(r => r.RelationshipTypeKey == MdmConstants.MasterRecordRelationship && r.TargetEntityKey == queriedMasterA.Key));
-                Assert.IsTrue(savedLocalB.Relationships.Any(r => r.RelationshipTypeKey == MdmConstants.MasterRecordRelationship && r.TargetEntityKey == queriedMasterA.Key && r.ClassificationKey == MdmConstants.VerifiedClassification));
-                Assert.IsFalse(savedLocalB.Relationships.Any(r => r.RelationshipTypeKey == MdmConstants.MasterRecordRelationship && r.TargetEntityKey == rawMasterB.Key));
-                Assert.IsTrue(queriedMasterA.Relationships.Any(r => r.RelationshipTypeKey == EntityRelationshipTypeKeys.Replaces && r.TargetEntityKey == rawMasterB.Key));
+                Assert.IsTrue(savedLocalA.LoadProperty(o=>o.Relationships).Any(r => r.RelationshipTypeKey == MdmConstants.MasterRecordRelationship && r.TargetEntityKey == queriedMasterA.Key));
+                Assert.IsTrue(savedLocalB.LoadProperty(o => o.Relationships).Any(r => r.RelationshipTypeKey == MdmConstants.MasterRecordRelationship && r.TargetEntityKey == queriedMasterA.Key && r.ClassificationKey == MdmConstants.VerifiedClassification));
+                Assert.IsFalse(savedLocalB.LoadProperty(o => o.Relationships).Any(r => r.RelationshipTypeKey == MdmConstants.MasterRecordRelationship && r.TargetEntityKey == rawMasterB.Key));
+                Assert.IsTrue(queriedMasterA.LoadProperty(o => o.Relationships).Any(r => r.RelationshipTypeKey == EntityRelationshipTypeKeys.Replaces && r.TargetEntityKey == rawMasterB.Key));
                 Assert.AreEqual(StatusKeys.Inactive, queriedMasterB.StatusConceptKey); // No longer under MDM (OBSOLETE)
                 Assert.AreEqual(StatusKeys.Inactive, rawMasterB.StatusConceptKey);
             }

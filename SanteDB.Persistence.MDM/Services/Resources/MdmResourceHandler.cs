@@ -1,24 +1,23 @@
 ﻿/*
- * Copyright (C) 2021 - 2021, SanteSuite Inc. and the SanteSuite Contributors (See NOTICE.md for full copyright notices)
+ * Copyright (C) 2021 - 2022, SanteSuite Inc. and the SanteSuite Contributors (See NOTICE.md for full copyright notices)
  * Copyright (C) 2019 - 2021, Fyfe Software Inc. and the SanteSuite Contributors
  * Portions Copyright (C) 2015-2018 Mohawk College of Applied Arts and Technology
- *
- * Licensed under the Apache License, Version 2.0 (the "License"); you
- * may not use this file except in compliance with the License. You may
- * obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
+ * 
+ * Licensed under the Apache License, Version 2.0 (the "License"); you 
+ * may not use this file except in compliance with the License. You may 
+ * obtain a copy of the License at 
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0 
+ * 
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
- * License for the specific language governing permissions and limitations under
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the 
+ * License for the specific language governing permissions and limitations under 
  * the License.
- *
+ * 
  * User: fyfej
- * Date: 2021-8-5
+ * Date: 2021-10-29
  */
-
 using SanteDB.Core;
 using SanteDB.Core.Diagnostics;
 using SanteDB.Core.Event;
@@ -66,6 +65,9 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         // Batch repository
         private IDataPersistenceService<Bundle> m_batchRepository;
 
+        // Ad-hoc cache
+        private readonly IAdhocCacheService m_adhocCache;
+
         // Data manager
         private MdmDataManager<TModel> m_dataManager;
 
@@ -78,6 +80,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             this.m_dataManager = MdmDataManagerFactory.GetDataManager<TModel>();
             this.m_policyEnforcement = ApplicationServiceContext.Current.GetService<IPolicyEnforcementService>();
             this.m_batchRepository = ApplicationServiceContext.Current.GetService<IDataPersistenceService<Bundle>>();
+            this.m_adhocCache = ApplicationServiceContext.Current.GetService<IAdhocCacheService>();
 
             // Validate the match configuration exists
             var matchConfigService = ApplicationServiceContext.Current.GetService<IRecordMatchingConfigurationService>();
@@ -199,6 +202,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 }
                 localQuery.Add("statusConcept", StatusKeys.ActiveStates.Select(o => o.ToString()));
                 localQuery.Add("obsoletionTime", "null");
+                localQuery.Add("classConcept", MdmConstants.MasterRecordClassification.ToString());
 
                 e.Cancel = true; // We want to cancel the callers query
 
@@ -210,7 +214,6 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     {
                         case "identifier":
                             break;
-
                         default:
                             query.Remove(itm.Key);
                             break;
@@ -455,7 +458,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     taggable.RemoveTag(MdmConstants.MdmRotIndicatorTag);
                     taggable.RemoveTag(MdmConstants.MdmResourceTag);
                 }
-                if (store is IVersionedEntity versioned)
+                if (store is IVersionedData versioned)
                 {
                     versioned.VersionSequence = null;
                     versioned.VersionKey = null;
@@ -469,7 +472,10 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             {
                 store.Key = Guid.NewGuid(); // Ensure that we have a key for the object.
             }
-
+            else
+            {
+                var masterRel = this.m_dataManager.GetMasterRelationshipFor(e.Data.Key.Value);
+            }
 
             // Is this a ROT?
             if (this.m_dataManager.IsRecordOfTruth(e.Data))

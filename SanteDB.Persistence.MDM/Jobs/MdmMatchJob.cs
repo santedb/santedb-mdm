@@ -1,24 +1,23 @@
 ﻿/*
- * Copyright (C) 2021 - 2021, SanteSuite Inc. and the SanteSuite Contributors (See NOTICE.md for full copyright notices)
+ * Copyright (C) 2021 - 2022, SanteSuite Inc. and the SanteSuite Contributors (See NOTICE.md for full copyright notices)
  * Copyright (C) 2019 - 2021, Fyfe Software Inc. and the SanteSuite Contributors
  * Portions Copyright (C) 2015-2018 Mohawk College of Applied Arts and Technology
- *
- * Licensed under the Apache License, Version 2.0 (the "License"); you
- * may not use this file except in compliance with the License. You may
- * obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
+ * 
+ * Licensed under the Apache License, Version 2.0 (the "License"); you 
+ * may not use this file except in compliance with the License. You may 
+ * obtain a copy of the License at 
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0 
+ * 
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
- * License for the specific language governing permissions and limitations under
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the 
+ * License for the specific language governing permissions and limitations under 
  * the License.
- *
+ * 
  * User: fyfej
- * Date: 2021-8-5
+ * Date: 2021-10-29
  */
-
 using SanteDB.Core;
 using SanteDB.Core.Diagnostics;
 using SanteDB.Core.Jobs;
@@ -32,6 +31,7 @@ using SanteDB.Persistence.MDM.Services.Resources;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Text;
@@ -45,6 +45,7 @@ namespace SanteDB.Persistence.MDM.Jobs
     /// </summary>
     /// <typeparam name="T">The type of object to match on</typeparam>
     [DisplayName("MDM Batch Matching Job")]
+    [ExcludeFromCodeCoverage]
     public class MdmMatchJob<T> : IReportProgressJob
         where T : IdentifiedData, new()
     {
@@ -83,6 +84,10 @@ namespace SanteDB.Persistence.MDM.Jobs
         /// Name of the matching job
         /// </summary>
         public string Name => $"Background Matching Job for {typeof(T).Name}";
+
+
+        /// <inheritdoc/>
+        public string Description => $"Starts a background process which re-processes detected duplicate SOURCE records for {typeof(T).Name}";
 
         /// <summary>
         /// Can cancel the job?
@@ -141,13 +146,14 @@ namespace SanteDB.Persistence.MDM.Jobs
                 {
                     this.LastStarted = DateTime.Now;
                     this.CurrentState = JobStateType.Running;
-                    var clear = parameters.Length > 0 ? (bool)parameters[0] : false;
+                    var clear = parameters.Length > 0 ? (bool?)parameters[0] : false;
                     this.m_tracer.TraceInfo("Starting batch run of MDM Matching ");
-
-                    if (clear)
+                   
+                    if (clear.GetValueOrDefault())
                     {
                         this.m_tracer.TraceVerbose("Batch instruction indicates clear of all links");
-                        this.m_mergeService.Reset(true, false);
+                        this.m_mergeService.ClearGlobalIgnoreFlags();
+                        this.m_mergeService.ClearGlobalMergeCanadidates();
                     }
                     else
                     {

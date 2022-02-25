@@ -1,24 +1,23 @@
 ﻿/*
- * Copyright (C) 2021 - 2021, SanteSuite Inc. and the SanteSuite Contributors (See NOTICE.md for full copyright notices)
+ * Copyright (C) 2021 - 2022, SanteSuite Inc. and the SanteSuite Contributors (See NOTICE.md for full copyright notices)
  * Copyright (C) 2019 - 2021, Fyfe Software Inc. and the SanteSuite Contributors
  * Portions Copyright (C) 2015-2018 Mohawk College of Applied Arts and Technology
- *
- * Licensed under the Apache License, Version 2.0 (the "License"); you
- * may not use this file except in compliance with the License. You may
- * obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
+ * 
+ * Licensed under the Apache License, Version 2.0 (the "License"); you 
+ * may not use this file except in compliance with the License. You may 
+ * obtain a copy of the License at 
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0 
+ * 
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
- * License for the specific language governing permissions and limitations under
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the 
+ * License for the specific language governing permissions and limitations under 
  * the License.
- *
+ * 
  * User: fyfej
- * Date: 2021-8-5
+ * Date: 2021-10-29
  */
-
 using SanteDB.Core;
 using SanteDB.Core.Configuration;
 using SanteDB.Core.Diagnostics;
@@ -56,10 +55,22 @@ using System.Security.Principal;
 namespace SanteDB.Persistence.MDM.Services
 {
     /// <summary>
-    /// The MdmRecordDaemon is responsible for subscribing to MDM targets in the configuration
-    /// and linking/creating master records whenever a record of that type is created.
+    /// An implementation of the <see cref="IDataManagementPattern"/> which keeps multiple copies of 
+    /// source records and maintains linkages with a single master record.
     /// </summary>
-    [ServiceProvider("MIDM Data Repository")]
+    /// <remarks>
+    /// <para>The MDM data management service provides the <see href="https://help.santesuite.org/santedb/data-storage-patterns/master-data-storage">Master Data Storage</see> pattern
+    /// for SanteDB. This service is responsible for creating subscribers to listen to events from the <see cref="IRepositoryService"/> layer in SanteDB
+    /// and take appropriate actions to seggregate source information form record of truth information. Additionally, this service registers implementations
+    /// of <see cref="IFreetextSearchService"/>, <see cref="IRecordMatchingService"/>, <see cref="IRecordMergingService"/> and <see cref="ISubscriptionExecutor"/> functionality to ensure the freetext and subscription requests are 
+    /// properly handled and synthesized.</para>
+    /// </remarks>
+    /// <seealso cref="MdmFreetextSearchService"/>
+    /// <seealso cref="MdmDataManagerFactory"/>
+    /// <seealso cref="MdmRecordMatchingService"/>
+    /// <seealso cref="MdmResourceMerger{TModel}"/>
+    /// <seealso cref="MdmResourceHandler{TModel}"/>
+    [ServiceProvider("MDM Data Repository")]
     public class MdmDataManagementService : IDaemonService, IDisposable, IDataManagementPattern
     {
         /// <summary>
@@ -170,8 +181,7 @@ namespace SanteDB.Persistence.MDM.Services
                 string typeName = $"{rt.Name}Master";
                 if (typeof(Entity).IsAssignableFrom(rt))
                     rt = typeof(EntityMaster<>).MakeGenericType(rt);
-                else if (typeof(Act).IsAssignableFrom(rt))
-                    rt = typeof(ActMaster<>).MakeGenericType(rt);
+                
                 ModelSerializationBinder.RegisterModelType(typeName, rt);
             }
 
@@ -208,7 +218,7 @@ namespace SanteDB.Persistence.MDM.Services
                     // Add job
                     var jobType = typeof(MdmMatchJob<>).MakeGenericType(itm.Type);
                     var job = this.m_serviceManager.CreateInjected(jobType) as IJob;
-                    this.m_jobManager?.AddJob(job, TimeSpan.MaxValue, JobStartType.Never);
+                    this.m_jobManager?.AddJob(job, JobStartType.Never);
                 }
 
                 // Add an entity relationship and act relationship watcher to the persistence layer for after update
@@ -253,7 +263,7 @@ namespace SanteDB.Persistence.MDM.Services
                     // Is the data obsoleted (removed)? If so, then ensure we don't have a hanging master
                     if (e.Data.ObsoleteVersionSequenceId.HasValue || e.Data.BatchOperation == Core.Model.DataTypes.BatchOperationType.Delete)
                     {
-                        if (!this.m_entityRelationshipService.Query(r => r.TargetEntityKey == e.Data.TargetEntityKey && !StatusKeys.InactiveStates.Contains(r.TargetEntity.StatusConceptKey.Value) && r.SourceEntityKey != e.Data.SourceEntityKey && r.ObsoleteVersionSequenceId == null, AuthenticationContext.SystemPrincipal).Any())
+                        if (!this.m_entityRelationshipService.Query(r => r.TargetEntityKey == e.Data.TargetEntityKey && !StatusKeys.InactiveStates.Contains(r.SourceEntity.StatusConceptKey.Value) && r.SourceEntityKey != e.Data.SourceEntityKey && r.ObsoleteVersionSequenceId == null, AuthenticationContext.SystemPrincipal).Any())
                         {
                             this.m_entityService.Delete(e.Data.TargetEntityKey.Value, e.Mode, e.Principal, this.m_configuration.MasterDataDeletionMode);
                         }
@@ -302,10 +312,8 @@ namespace SanteDB.Persistence.MDM.Services
             {
                 foreach (var rel in itm.Relationships.OfType<ITargetedVersionedExtension>())
                 {
-                    this.m_dataCachingService.Remove(rel as IdentifiedData);
                     this.RecheckRelationship(rel, e.Mode, e.Principal);
                 }
-                this.m_dataCachingService.Remove(itm as IdentifiedData);
             }
         }
 
@@ -322,10 +330,9 @@ namespace SanteDB.Persistence.MDM.Services
                         // Is the data obsoleted (removed)? If so, then ensure we don't have a hanging master
                         if (targetedAssociation.ObsoleteVersionSequenceId.HasValue || idData.BatchOperation == Core.Model.DataTypes.BatchOperationType.Delete)
                         {
-                            if (this.m_entityRelationshipService.Count(r => r.TargetEntityKey == targetedAssociation.TargetEntityKey && !StatusKeys.InactiveStates.Contains(r.TargetEntity.StatusConceptKey.Value) && r.SourceEntityKey != targetedAssociation.SourceEntityKey && r.ObsoleteVersionSequenceId == null) == 0)
+                            if (!this.m_entityRelationshipService.Query(r => r.TargetEntityKey == targetedAssociation.TargetEntityKey && !StatusKeys.InactiveStates.Contains(r.SourceEntity.StatusConceptKey.Value) && r.SourceEntityKey != targetedAssociation.SourceEntityKey && r.ObsoleteVersionSequenceId == null, AuthenticationContext.SystemPrincipal).Any())
                             {
-                                // TODO: Replace this with the Delete() call instead - since it is an orphan and we don't know why
-                                this.m_entityService.Delete(targetedAssociation.TargetEntityKey.Value, mode, principal, DeleteMode.PermanentDelete);
+                                this.m_entityService.Delete(targetedAssociation.TargetEntityKey.Value, mode, principal, this.m_configuration.MasterDataDeletionMode);
                             }
                             return; // no need to de-dup check on obsoleted object
                         }
@@ -351,7 +358,7 @@ namespace SanteDB.Persistence.MDM.Services
                             foreach (var rotRel in this.m_entityRelationshipService.Query(r => r.SourceEntityKey == targetedAssociation.SourceEntityKey && r.TargetEntityKey != targetedAssociation.TargetEntityKey && r.ObsoleteVersionSequenceId == null, principal))
                             {
                                 //Obsolete other ROTs (there can only be one)
-                                this.m_entityRelationshipService.Delete(rotRel.Key.Value, mode, principal, DeleteMode.PermanentDelete);
+                                this.m_entityRelationshipService.Delete(rotRel.Key.Value, mode, principal, this.m_configuration.MasterDataDeletionMode);
                             }
                         }
                         break;

@@ -1,24 +1,23 @@
 ﻿/*
- * Copyright (C) 2021 - 2021, SanteSuite Inc. and the SanteSuite Contributors (See NOTICE.md for full copyright notices)
+ * Copyright (C) 2021 - 2022, SanteSuite Inc. and the SanteSuite Contributors (See NOTICE.md for full copyright notices)
  * Copyright (C) 2019 - 2021, Fyfe Software Inc. and the SanteSuite Contributors
  * Portions Copyright (C) 2015-2018 Mohawk College of Applied Arts and Technology
- *
- * Licensed under the Apache License, Version 2.0 (the "License"); you
- * may not use this file except in compliance with the License. You may
- * obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
+ * 
+ * Licensed under the Apache License, Version 2.0 (the "License"); you 
+ * may not use this file except in compliance with the License. You may 
+ * obtain a copy of the License at 
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0 
+ * 
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
- * License for the specific language governing permissions and limitations under
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the 
+ * License for the specific language governing permissions and limitations under 
  * the License.
- *
+ * 
  * User: fyfej
- * Date: 2021-8-5
+ * Date: 2021-10-29
  */
-
 using SanteDB.Core;
 using SanteDB.Core.Configuration;
 using SanteDB.Core.Event;
@@ -33,6 +32,7 @@ using SanteDB.Persistence.MDM.Model;
 using SanteDB.Persistence.MDM.Services.Resources;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Text;
@@ -57,56 +57,36 @@ namespace SanteDB.Persistence.MDM.Services
         private ResourceManagementConfigurationSection m_configuration = ApplicationServiceContext.Current.GetService<IConfigurationManager>().GetSection<ResourceManagementConfigurationSection>();
 
         /// <summary>
-        /// Fired before querying
-        /// </summary>
-        public event EventHandler<FreeTextQueryEventArgsBase> Querying;
-
-        /// <summary>
-        /// Fired after querying
-        /// </summary>
-        public event EventHandler<FreeTextQueryEventArgsBase> Queried;
-
-        /// <summary>
         /// Search for the specified entity
         /// </summary>
         public IQueryResultSet<TEntity> SearchEntity<TEntity>(string[] term) where TEntity : Entity, new()
         {
-            var preEvent = new FreeTextQueryRequestEventArgs<TEntity>(AuthenticationContext.Current.Principal, term);
-            this.Querying?.Invoke(this, preEvent);
-            if (preEvent.Cancel)
-            {
-                return preEvent.Results;
-            }
 
             // Perform the queries on the terms
             if (this.m_configuration.ResourceTypes.Any(rt => rt.Type == typeof(TEntity))) // Under MDM control
             {
-                var idps = ApplicationServiceContext.Current.GetService<IDataPersistenceService<TEntity>>();
-                if (idps == null)
-                    throw new InvalidOperationException("Cannot find a UNION query repository service");
                 var principal = AuthenticationContext.Current.Principal;
+                // HACK: Change this method to detect the type
+                var idps = ApplicationServiceContext.Current.GetService<IDataPersistenceService<Entity>>();
+                if (idps == null)
+                    throw new InvalidOperationException("Cannot find a query repository service");
 
-                var searchFilters = new List<Expression<Func<TEntity, bool>>>(term.Length);
-                var results = idps.Query(QueryExpressionParser.BuildLinqExpression<TEntity>(new NameValueCollection() { { "statusConcept" , StatusKeys.ActiveStates.Select(s => s.ToString()).ToList() },  { "classConcept", MdmConstants.MasterRecordClassification.ToString() }, { "identifier.value", term } }), AuthenticationContext.Current.Principal)
-                    .Union(QueryExpressionParser.BuildLinqExpression<TEntity>(new NameValueCollection() { { "statusConcept" , StatusKeys.ActiveStates.Select(s => s.ToString()).ToList() }, { "classConcept", MdmConstants.MasterRecordClassification.ToString() }, { $"relationship[{MdmConstants.MasterRecordRelationship}].source.name.component.value", term.Select(o => $":(approx|\"{o}\")") } }))
-                    .Union(QueryExpressionParser.BuildLinqExpression<TEntity>(new NameValueCollection() { { "statusConcept" , StatusKeys.ActiveStates.Select(s => s.ToString()).ToList() }, { "classConcept", MdmConstants.MasterRecordClassification.ToString() }, { $"relationship[{MdmConstants.MasterRecordRelationship}].source.identifier.value", term } }));
-
-                this.Queried?.Invoke(this, new FreeTextQueryResultEventArgs<TEntity>(AuthenticationContext.Current.Principal, term, results));
-                return new MdmEntityResultSet<TEntity>(results, AuthenticationContext.Current.Principal);
+                var expression = QueryExpressionParser.BuildLinqExpression<Entity>(new NameValueCollection() {
+                    { "classConcept", MdmConstants.MasterRecordClassification.ToString() },
+                    { "relationship[97730a52-7e30-4dcd-94cd-fd532d111578].source.id", $":(freetext|{String.Join(" ", term)})" }
+                });
+                var results = idps.Query(expression, principal);
+                return new MdmEntityResultSet<TEntity>(results, principal);
             }
             else
             {
-                // TODO: Add an event so that observers can handle any events before disclosure
+                // Does the provider support freetext search clauses?
                 var idps = ApplicationServiceContext.Current.GetService<IDataPersistenceService<TEntity>>();
                 if (idps == null)
-                    throw new InvalidOperationException("Cannot find a UNION query repository service");
-                var searchFilters = new List<Expression<Func<TEntity, bool>>>(term.Length);
+                    throw new InvalidOperationException("Cannot find a query repository service");
 
-                var results = idps.Query(QueryExpressionParser.BuildLinqExpression<TEntity>(new NameValueCollection() { { "name.component.value", term.Select(o => $":(approx|\"{o}\")") } }), AuthenticationContext.Current.Principal)
-                   .Union(QueryExpressionParser.BuildLinqExpression<TEntity>(new NameValueCollection() { { "identifier.value", term } }));
-                this.Queried?.Invoke(this, new FreeTextQueryResultEventArgs<TEntity>(AuthenticationContext.Current.Principal, term, results));
-
-                return results;
+                var searchTerm = String.Join(" ", term);
+                return idps.Query(o => o.FreetextSearch(searchTerm), AuthenticationContext.Current.Principal);
             }
         }
     }

@@ -51,6 +51,8 @@ namespace SanteDB.Persistence.MDM.Test
     public class NationalHealthIdRule : BaseBusinessRulesService<EntityMaster<Patient>>
     {
 
+        private static readonly Guid m_aaid = Guid.NewGuid();
+
         public static int LastGeneratedNhid = 0;
 
         /// <summary>
@@ -74,9 +76,10 @@ namespace SanteDB.Persistence.MDM.Test
         /// </summary>
         private EntityMaster<Patient> DoAttach(EntityMaster<Patient> data)
         {
-            if (!data.Identifiers.Any(o => o.LoadProperty(i => i.Authority).DomainName == "NHID"))
-                data.Identifiers.Add(new Core.Model.DataTypes.EntityIdentifier(new AssigningAuthority("NHID", "NHID", "3.2.2.3.2.2.3.2")
+            if (!data.LoadProperty(o=>o.Identifiers).Any(o => o.LoadProperty(i => i.Authority).DomainName == "NHID"))
+                data.Identifiers.Add(new Core.Model.DataTypes.EntityIdentifier(new AssigningAuthority("NHID", "NHID", "3.2.2.3.2.2.3.2") 
                 {
+                    Key = m_aaid,
                     AuthorityScopeXml = new List<Guid>() { MdmConstants.MasterRecordClassification }
                 }, (++LastGeneratedNhid).ToString()));
             return base.BeforeInsert(data);

@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright (C) 2021 - 2021, SanteSuite Inc. and the SanteSuite Contributors (See NOTICE.md for full copyright notices)
+ * Copyright (C) 2021 - 2022, SanteSuite Inc. and the SanteSuite Contributors (See NOTICE.md for full copyright notices)
  * Copyright (C) 2019 - 2021, Fyfe Software Inc. and the SanteSuite Contributors
  * Portions Copyright (C) 2015-2018 Mohawk College of Applied Arts and Technology
  * 
@@ -16,11 +16,12 @@
  * the License.
  * 
  * User: fyfej
- * Date: 2021-8-5
+ * Date: 2021-10-29
  */
 using SanteDB.Core.Model;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -30,6 +31,7 @@ namespace SanteDB.Persistence.MDM.Exceptions
     /// <summary>
     /// Represents an underlying exception in the MDM layer
     /// </summary>
+    [ExcludeFromCodeCoverage]
     public class MdmException : InvalidOperationException
     {
 
