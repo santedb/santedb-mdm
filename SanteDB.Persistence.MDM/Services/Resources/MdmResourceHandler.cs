@@ -94,10 +94,10 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             // Subscribe
             this.m_notifyRepository.Inserting += this.OnPrePersistenceValidate;
             this.m_notifyRepository.Saving += this.OnPrePersistenceValidate;
-            this.m_notifyRepository.Obsoleting += this.OnPrePersistenceValidate;
+            this.m_notifyRepository.Deleting += this.OnPrePersistenceValidate;
             this.m_notifyRepository.Inserting += this.OnInserting;
             this.m_notifyRepository.Saving += this.OnSaving;
-            this.m_notifyRepository.Obsoleting += this.OnObsoleting;
+            this.m_notifyRepository.Deleting += this.OnObsoleting;
             this.m_notifyRepository.Retrieved += this.OnRetrieved;
             this.m_notifyRepository.Retrieving += this.OnRetrieving;
             this.m_notifyRepository.Querying += this.OnQuerying;
@@ -523,10 +523,11 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             {
                 this.m_notifyRepository.Inserting -= this.OnPrePersistenceValidate;
                 this.m_notifyRepository.Saving -= this.OnPrePersistenceValidate;
+                this.m_notifyRepository.Deleting -= this.OnPrePersistenceValidate;
                 this.m_notifyRepository.Inserting -= this.OnInserting;
                 this.m_notifyRepository.Saving -= this.OnSaving;
                 this.m_notifyRepository.Retrieving -= this.OnRetrieving;
-                this.m_notifyRepository.Obsoleting -= this.OnObsoleting;
+                this.m_notifyRepository.Deleting -= this.OnObsoleting;
                 this.m_notifyRepository.Querying -= this.OnQuerying;
             }
         }

@@ -100,7 +100,17 @@ namespace SanteDB.Persistence.MDM.Test
             throw new NotImplementedException();
         }
 
-        public IRecordMatchingDiagnosticSession CreateDiagnosticSession()
+        public IRecordMatchingConfiguration GetConfiguration(string configurationId)
+        {
+            throw new NotImplementedException();
+        }
+
+        public IRecordMatchingConfiguration SaveConfiguration(IRecordMatchingConfiguration configuration)
+        {
+            throw new NotImplementedException();
+        }
+
+        public IRecordMatchingConfiguration DeleteConfiguration(string configurationId)
         {
             throw new NotImplementedException();
         }

@@ -72,10 +72,10 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             // Subscribe
             this.m_notifyRepository.Inserting += this.OnPrePersistenceValidate;
             this.m_notifyRepository.Saving += this.OnPrePersistenceValidate;
-            this.m_notifyRepository.Obsoleting += this.OnPrePersistenceValidate;
+            this.m_notifyRepository.Deleting += this.OnPrePersistenceValidate;
             this.m_notifyRepository.Inserting += this.OnInserting;
             this.m_notifyRepository.Saving += this.OnSaving;
-            this.m_notifyRepository.Obsoleting += this.OnObsoleting;
+            this.m_notifyRepository.Deleting += this.OnDeleting;
             this.m_notifyRepository.Retrieved += this.OnRetrieved;
             this.m_notifyRepository.Retrieving += this.OnRetrieving;
             this.m_notifyRepository.Querying += this.OnQuerying;
@@ -108,9 +108,9 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// <summary>
         /// On obsoleting
         /// </summary>
-        protected void OnObsoleting(object sender, DataPersistingEventArgs<Bundle> e)
+        protected void OnDeleting(object sender, DataPersistingEventArgs<Bundle> e)
         {
-            e.Data = this.ChainInvoke(sender, e, e.Data, nameof(OnObsoleting), typeof(DataPersistingEventArgs<>));
+            e.Data = this.ChainInvoke(sender, e, e.Data, nameof(OnDeleting), typeof(DataPersistingEventArgs<>));
         }
 
         /// <summary>
@@ -177,7 +177,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                             hdlr.OnInserting(bundle, evtArgs);
                             break;
 
-                        case nameof(OnObsoleting):
+                        case nameof(OnDeleting):
                             hdlr.OnObsoleting(bundle, evtArgs);
                             break;
 
@@ -235,7 +235,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 this.m_notifyRepository.Inserting -= this.OnInserting;
                 this.m_notifyRepository.Saving -= this.OnSaving;
                 this.m_notifyRepository.Retrieving -= this.OnRetrieving;
-                this.m_notifyRepository.Obsoleting -= this.OnObsoleting;
+                this.m_notifyRepository.Deleting -= this.OnDeleting;
                 this.m_notifyRepository.Querying -= this.OnQuerying;
             }
         }

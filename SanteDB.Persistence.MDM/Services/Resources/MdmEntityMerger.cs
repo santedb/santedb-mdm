@@ -63,10 +63,12 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         private IDataPersistenceService<Bundle> m_batchPersistence;
 
         // Entity persistence service
-        private IStoredQueryDataPersistenceService<TEntity> m_entityPersistence;
+        private IDataPersistenceService<TEntity> m_entityPersistence;
 
         // Relationship persistence
-        private IFastQueryDataPersistenceService<EntityRelationship> m_relationshipPersistence;
+        private IDataPersistenceServiceEx<EntityRelationship> m_relationshipPersistence;
+
+        // Relationship persistence
         private readonly IThreadPoolService m_threadPool;
 
         // Pep service
@@ -83,13 +85,13 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// <summary>
         /// Creates a new entity merger service
         /// </summary>
-        public MdmEntityMerger(IDataPersistenceService<Bundle> batchService, IThreadPoolService threadPool, IPolicyEnforcementService policyEnforcement, IStoredQueryDataPersistenceService<TEntity> persistenceService, IFastQueryDataPersistenceService<EntityRelationship> relationshipPersistence)
+        public MdmEntityMerger(IDataPersistenceService<Bundle> batchService, IThreadPoolService threadPool, IPolicyEnforcementService policyEnforcement, IDataPersistenceService<TEntity> persistenceService, IDataPersistenceServiceEx<EntityRelationship> relationshipService)
         {
             this.m_dataManager = MdmDataManagerFactory.GetDataManager<TEntity>();
             this.m_batchPersistence = batchService;
             this.m_pepService = policyEnforcement;
             this.m_entityPersistence = persistenceService;
-            this.m_relationshipPersistence = relationshipPersistence;
+            this.m_relationshipPersistence = relationshipService;
             this.m_threadPool = threadPool;
             if (this.m_relationshipPersistence is IReportProgressChanged irpc)
             {
@@ -305,8 +307,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                         }
 
                         // Recheck the master to ensure that it isn't dangling out here
-                        var otherLocals = this.m_relationshipPersistence.Count(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship && o.TargetEntityKey == itm && o.SourceEntityKey != victim.Key, AuthenticationContext.SystemPrincipal);
-                        if (otherLocals == 0)
+                        var otherLocals = this.m_relationshipPersistence.Query(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship && o.TargetEntityKey == itm && o.SourceEntityKey != victim.Key, AuthenticationContext.SystemPrincipal).Any();
+                        if (!otherLocals)
                         {
                             transactionBundle.Add(new Entity()
                             {
@@ -385,7 +387,6 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 int offset = 0, totalResults = 1, batchSize = Environment.ProcessorCount * 64;
 
                 var processStack = new ConcurrentStack<TEntity>();
-                var qps = this.m_entityPersistence as IFastQueryDataPersistenceService<TEntity>;
                 var fetchQueue = new ConcurrentQueue<TEntity>();
                 var writeQueue = new ConcurrentQueue<Bundle>();
                 long completeProcess = 0;
@@ -524,15 +525,11 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     // Main program loop - 
                     try
                     {
-                        while (offset < totalResults && haltException == null)
+                        foreach(var itm in this.m_entityPersistence.Query(o => StatusKeys.ActiveStates.Contains(o.StatusConceptKey.Value) && o.DeterminerConceptKey != MdmConstants.RecordOfTruthDeterminer, AuthenticationContext.SystemPrincipal))
                         {
-                            this.m_tracer.TraceVerbose("DetectGlobalMergeCandidiate: Fetching {0} to {1} of {2}", offset, offset + batchSize, totalResults);
-                            foreach (var itm in qps.QueryFast(o => StatusKeys.ActiveStates.Contains(o.StatusConceptKey.Value) && o.DeterminerConceptKey != MdmConstants.RecordOfTruthDeterminer, queryId, offset, batchSize, out totalResults, AuthenticationContext.SystemPrincipal))
-                            {
-                                fetchQueue.Enqueue(itm);
-                            }
+                            fetchQueue.Enqueue(itm);
                             fetchEvent.Set();
-                            offset += batchSize;
+
                         }
 
                         this.m_tracer.TraceVerbose("DetectGlobalMergeCandidate: Finished reading data - waiting for merge process to complete");
@@ -575,70 +572,11 @@ namespace SanteDB.Persistence.MDM.Services.Resources
 
                 // TODO: When the persistence refactor is done - change this to use the bulk method
                 var classKeys = typeof(TEntity).GetCustomAttributes<ClassConceptKeyAttribute>(false).Select(o => Guid.Parse(o.ClassConcept));
-                Expression<Func<EntityRelationship, bool>> purgeExpression = o => classKeys.Contains(o.SourceEntity.ClassConceptKey.Value) && o.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship && o.ClassificationKey == MdmConstants.AutomagicClassification && o.ObsoleteVersionSequenceId == null;
-                int offset = 0, totalResults = 1, batchSize = 500;
-                var uuid = Guid.NewGuid();
-                // Delete thread
-                using (var fetchEvent = new ManualResetEventSlim(false))
+
+                using (DataPersistenceControlContext.Create(DeleteMode.PermanentDelete).WithName("Clearing Candidates"))
                 {
-                    ConcurrentQueue<EntityRelationship> fetchQueue = new ConcurrentQueue<EntityRelationship>();
-                    bool completeProcessing = false;
-                    this.m_threadPool.QueueUserWorkItem(_ =>
-                    {
-                        int idx = 0, complete = 0;
-                        var processList = new EntityRelationship[25];
-                        while (!completeProcessing && !this.m_disposed)
-                        {
-                            fetchEvent.Wait(1000);
-                            while (fetchQueue.TryDequeue(out var erd))
-                            {
-                                processList[idx++] = erd;
-                                if (idx == processList.Length)
-                                {
-                                    try
-                                    {
-                                        this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)complete / (float)totalResults, $"Clearing Candidates ({complete} of {totalResults})"));
-                                        var batch = new Bundle(processList.Select(o => { o.BatchOperation = BatchOperationType.Delete; return o; }));
-                                        this.m_batchPersistence.Update(batch, TransactionMode.Commit, AuthenticationContext.SystemPrincipal);
-                                        complete += processList.Length;
-                                    }
-                                    catch (Exception e)
-                                    {
-                                        this.m_tracer.TraceWarning("Error updating candidate clear - {0}", e.Message);
-                                    }
-                                    idx = 0;
-
-                                }
-                            }
-                            fetchEvent.Reset();
-                        }
-                    });
-
-                    while (offset < totalResults)
-                    {
-                        foreach (var er in this.m_relationshipPersistence.QueryFast(purgeExpression, uuid, offset, batchSize, out totalResults, AuthenticationContext.SystemPrincipal))
-                        {
-                            fetchQueue.Enqueue(er);
-                        }
-                        fetchEvent.Set();
-                        offset += batchSize;
-                    }
-
-                    completeProcessing = true; // requeest termination
-                    while (!fetchQueue.IsEmpty)
-                    {
-                        Thread.Sleep(1000);
-                    }
-
-                    // Now purge them
-                    if (this.m_relationshipPersistence is IBulkDataPersistenceService ibps)
-                    {
-                        purgeExpression = o => (o.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship || o.RelationshipTypeKey == MdmConstants.IgnoreCandidateRelationship || o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship) && o.ObsoleteVersionSequenceId != null;
-                        ibps.Purge(TransactionMode.Commit, AuthenticationContext.SystemPrincipal, purgeExpression);
-                    }
-
+                    this.m_relationshipPersistence.DeleteAll(o => classKeys.Contains(o.SourceEntity.ClassConceptKey.Value) && o.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship && o.ClassificationKey == MdmConstants.AutomagicClassification && o.ObsoleteVersionSequenceId == null, TransactionMode.Commit, AuthenticationContext.Current.Principal);
                 }
-
             }
             catch (Exception e)
             {
@@ -660,24 +598,10 @@ namespace SanteDB.Persistence.MDM.Services.Resources
 
                 // TODO: When the persistence refactor is done - change this to use the bulk method
                 var classKeys = typeof(TEntity).GetCustomAttributes<ClassConceptKeyAttribute>(false).Select(o => Guid.Parse(o.ClassConcept));
-                Expression<Func<EntityRelationship, bool>> purgeExpression = o => classKeys.Contains(o.SourceEntity.ClassConceptKey.Value) && o.RelationshipTypeKey == MdmConstants.IgnoreCandidateRelationship && o.ObsoleteVersionSequenceId == null;
-                if (this.m_relationshipPersistence is IBulkDataPersistenceService ibds)
+                using (DataPersistenceControlContext.Create(DeleteMode.PermanentDelete).WithName("Clearing Ignore Flags"))
                 {
-                    ibds.Purge(TransactionMode.Commit, AuthenticationContext.SystemPrincipal, purgeExpression);
-                }
-                else
-                {
-                    Guid queryId = Guid.NewGuid();
-                    int offset = 0, totalResults = 1, batchSize = 500;
-                    while (offset < totalResults)
-                    {
-                        this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)offset / (float)totalResults, "Clearing ignore flags"));
+                    this.m_relationshipPersistence.DeleteAll(o => classKeys.Contains(o.SourceEntity.ClassConceptKey.Value) && o.RelationshipTypeKey == MdmConstants.IgnoreCandidateRelationship && o.ObsoleteVersionSequenceId == null, TransactionMode.Commit, AuthenticationContext.Current.Principal);
 
-                        var results = this.m_relationshipPersistence.Query(purgeExpression, queryId, offset, batchSize, out totalResults, AuthenticationContext.SystemPrincipal); ;
-                        var batch = new Bundle(results.Select(o => { o.BatchOperation = BatchOperationType.Delete; return o; }));
-                        this.m_batchPersistence.Update(batch, TransactionMode.Commit, AuthenticationContext.SystemPrincipal);
-                        offset += batchSize;
-                    }
                 }
             }
             catch (Exception e)
@@ -704,7 +628,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         {
             this.m_pepService.Demand(MdmPermissionPolicyIdentifiers.UnrestrictedMdm);
 
-            throw new NotImplementedException("This function is not yet impleented");
+            throw new NotImplementedException("This function is not yet implemented");
         }
 
         /// <summary>
@@ -730,15 +654,9 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 }
 
                 // TODO: When the persistence refactor is done - change this to use the bulk method
-                Guid queryId = Guid.NewGuid();
-                int offset = 0, totalResults = 1, batchSize = 100;
-                while (offset < totalResults)
+                using (DataPersistenceControlContext.Create(DeleteMode.PermanentDelete))
                 {
-                    var results = this.m_relationshipPersistence.Query(expr, queryId, offset, batchSize, out totalResults, AuthenticationContext.SystemPrincipal); ;
-                    var batch = new Bundle(results.Select(o => { o.BatchOperation = BatchOperationType.Delete; return o; }));
-                    this.m_batchPersistence.Update(batch, TransactionMode.Commit, AuthenticationContext.SystemPrincipal);
-                    offset += batchSize;
-                    this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)offset / (float)totalResults, "Clearing candidate links"));
+                    this.m_relationshipPersistence.DeleteAll(expr, TransactionMode.Commit, AuthenticationContext.Current.Principal);
                 }
             }
             catch (Exception e)
@@ -769,16 +687,9 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     expr = o => o.SourceEntityKey == masterKey && o.RelationshipTypeKey == MdmConstants.IgnoreCandidateRelationship && o.ObsoleteVersionSequenceId == null;
                 }
 
-                // TODO: When the persistence refactor is done - change this to use the bulk method
-                Guid queryId = Guid.NewGuid();
-                int offset = 0, totalResults = 1, batchSize = 100;
-                while (offset < totalResults)
+                using (DataPersistenceControlContext.Create(DeleteMode.PermanentDelete))
                 {
-                    var results = this.m_relationshipPersistence.Query(expr, queryId, offset, batchSize, out totalResults, AuthenticationContext.SystemPrincipal); ;
-                    var batch = new Bundle(results.Select(o => { o.BatchOperation = BatchOperationType.Delete; return o; }));
-                    this.m_batchPersistence.Update(batch, TransactionMode.Commit, AuthenticationContext.SystemPrincipal);
-                    offset += batchSize;
-                    this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)offset / (float)totalResults, "Clearing ignore links"));
+                    this.m_relationshipPersistence.DeleteAll(expr, TransactionMode.Commit, AuthenticationContext.Current.Principal);
                 }
             }
             catch (Exception e)

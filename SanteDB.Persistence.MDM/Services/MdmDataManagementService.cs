@@ -91,7 +91,7 @@ namespace SanteDB.Persistence.MDM.Services
         private IJobManagerService m_jobManager;
 
         // Entity relationship service
-        private IDataPersistenceService<EntityRelationship> m_entityRelationshipService;
+        private IDataPersistenceServiceEx<EntityRelationship> m_entityRelationshipService;
 
         // Entity service
         private IDataPersistenceService<Entity> m_entityService;
@@ -223,7 +223,7 @@ namespace SanteDB.Persistence.MDM.Services
 
                 // Add an entity relationship and act relationship watcher to the persistence layer for after update
                 // this will ensure that appropriate cleanup is performed on successful processing of data
-                this.m_entityRelationshipService = ApplicationServiceContext.Current.GetService<IDataPersistenceService<EntityRelationship>>();
+                this.m_entityRelationshipService = ApplicationServiceContext.Current.GetService<IDataPersistenceServiceEx<EntityRelationship>>();
                 this.m_entityService = ApplicationServiceContext.Current.GetService<IDataPersistenceService<Entity>>();
 
                 ApplicationServiceContext.Current.GetService<IDataPersistenceService<Bundle>>().Inserted += RecheckBundleTrigger;
@@ -257,43 +257,39 @@ namespace SanteDB.Persistence.MDM.Services
         /// </summary>
         private void RecheckRelationshipTrigger(object sender, DataPersistedEventArgs<EntityRelationship> e)
         {
-            switch (e.Data.RelationshipTypeKey.ToString())
-            {
-                case MdmConstants.MASTER_RECORD_RELATIONSHIP:
-                    // Is the data obsoleted (removed)? If so, then ensure we don't have a hanging master
-                    if (e.Data.ObsoleteVersionSequenceId.HasValue || e.Data.BatchOperation == Core.Model.DataTypes.BatchOperationType.Delete)
-                    {
-                        if (!this.m_entityRelationshipService.Query(r => r.TargetEntityKey == e.Data.TargetEntityKey && !StatusKeys.InactiveStates.Contains(r.SourceEntity.StatusConceptKey.Value) && r.SourceEntityKey != e.Data.SourceEntityKey && r.ObsoleteVersionSequenceId == null, AuthenticationContext.SystemPrincipal).Any())
+            using (DataPersistenceControlContext.Create(this.m_configuration.MasterDataDeletionMode)) {
+                switch (e.Data.RelationshipTypeKey.ToString())
+                {
+                    case MdmConstants.MASTER_RECORD_RELATIONSHIP:
+                        // Is the data obsoleted (removed)? If so, then ensure we don't have a hanging master
+                        if (e.Data.ObsoleteVersionSequenceId.HasValue || e.Data.BatchOperation == Core.Model.DataTypes.BatchOperationType.Delete)
                         {
-                            this.m_entityService.Delete(e.Data.TargetEntityKey.Value, e.Mode, e.Principal, this.m_configuration.MasterDataDeletionMode);
+                            if (!this.m_entityRelationshipService.Query(r => r.TargetEntityKey == e.Data.TargetEntityKey && !StatusKeys.InactiveStates.Contains(r.SourceEntity.StatusConceptKey.Value) && r.SourceEntityKey != e.Data.SourceEntityKey && r.ObsoleteVersionSequenceId == null, AuthenticationContext.SystemPrincipal).Any())
+                            {
+                                this.m_entityService.Delete(e.Data.TargetEntityKey.Value, e.Mode, e.Principal);
+                            }
+                            return; // no need to de-dup check on obsoleted object
                         }
-                        return; // no need to de-dup check on obsoleted object
-                    }
 
-                    // MDM relationship should be the only active relationship between
-                    // So when:
-                    // A =[MDM-Master]=> B
-                    // You cannot have:
-                    // A =[MDM-Duplicate]=> B
-                    // A =[MDM-Original]=> B
-                    foreach (var itm in this.m_entityRelationshipService.Query(q => q.RelationshipTypeKey != MdmConstants.MasterRecordRelationship && q.SourceEntityKey == e.Data.SourceEntityKey && q.TargetEntityKey == e.Data.TargetEntityKey && q.ObsoleteVersionSequenceId == null, e.Principal))
-                    {
-                        this.m_entityRelationshipService.Delete(itm.Key.Value, e.Mode, e.Principal, this.m_configuration.MasterDataDeletionMode);
-                    }
+                        // MDM relationship should be the only active relationship between
+                        // So when:
+                        // A =[MDM-Master]=> B
+                        // You cannot have:
+                        // A =[MDM-Duplicate]=> B
+                        // A =[MDM-Original]=> B
+                        this.m_entityRelationshipService.DeleteAll(q => q.RelationshipTypeKey != MdmConstants.MasterRecordRelationship && q.SourceEntityKey == e.Data.SourceEntityKey && q.TargetEntityKey == e.Data.TargetEntityKey && q.ObsoleteVersionSequenceId == null, e.Mode, e.Principal);
 
-                    break;
+                        break;
 
-                case MdmConstants.RECORD_OF_TRUTH_RELATIONSHIP:
-                    // Is the ROT being assigned, and if so is there another ?
-                    if (!e.Data.ObsoleteVersionSequenceId.HasValue || e.Data.BatchOperation == Core.Model.DataTypes.BatchOperationType.Delete)
-                    {
-                        foreach (var rotRel in this.m_entityRelationshipService.Query(r => r.SourceEntityKey == e.Data.SourceEntityKey && r.TargetEntityKey != e.Data.TargetEntityKey && r.ObsoleteVersionSequenceId == null, e.Principal))
+                    case MdmConstants.RECORD_OF_TRUTH_RELATIONSHIP:
+                        // Is the ROT being assigned, and if so is there another ?
+                        if (!e.Data.ObsoleteVersionSequenceId.HasValue || e.Data.BatchOperation == Core.Model.DataTypes.BatchOperationType.Delete)
                         {
-                            //Obsolete other ROTs (there can only be one)
-                            this.m_entityRelationshipService.Delete(rotRel.Key.Value, e.Mode, e.Principal, this.m_configuration.MasterDataDeletionMode);
+                                //Obsolete other ROTs (there can only be one)
+                                this.m_entityRelationshipService.DeleteAll(r => r.SourceEntityKey == e.Data.SourceEntityKey && r.TargetEntityKey != e.Data.TargetEntityKey && r.ObsoleteVersionSequenceId == null, e.Mode, e.Principal);
                         }
-                    }
-                    break;
+                        break;
+                }
             }
         }
 
@@ -324,44 +320,40 @@ namespace SanteDB.Persistence.MDM.Services
         {
             if (targetedAssociation is IdentifiedData idData)
             {
-                switch (targetedAssociation.AssociationTypeKey.ToString())
+                using (DataPersistenceControlContext.Create(this.m_configuration.MasterDataDeletionMode))
                 {
-                    case MdmConstants.MASTER_RECORD_RELATIONSHIP:
-                        // Is the data obsoleted (removed)? If so, then ensure we don't have a hanging master
-                        if (targetedAssociation.ObsoleteVersionSequenceId.HasValue || idData.BatchOperation == Core.Model.DataTypes.BatchOperationType.Delete)
-                        {
-                            if (!this.m_entityRelationshipService.Query(r => r.TargetEntityKey == targetedAssociation.TargetEntityKey && !StatusKeys.InactiveStates.Contains(r.SourceEntity.StatusConceptKey.Value) && r.SourceEntityKey != targetedAssociation.SourceEntityKey && r.ObsoleteVersionSequenceId == null, AuthenticationContext.SystemPrincipal).Any())
+                    switch (targetedAssociation.AssociationTypeKey.ToString())
+                    {
+                        case MdmConstants.MASTER_RECORD_RELATIONSHIP:
+                            // Is the data obsoleted (removed)? If so, then ensure we don't have a hanging master
+                            if (targetedAssociation.ObsoleteVersionSequenceId.HasValue || idData.BatchOperation == Core.Model.DataTypes.BatchOperationType.Delete)
                             {
-                                this.m_entityService.Delete(targetedAssociation.TargetEntityKey.Value, mode, principal, this.m_configuration.MasterDataDeletionMode);
+                                if (!this.m_entityRelationshipService.Query(r => r.TargetEntityKey == targetedAssociation.TargetEntityKey && !StatusKeys.InactiveStates.Contains(r.SourceEntity.StatusConceptKey.Value) && r.SourceEntityKey != targetedAssociation.SourceEntityKey && r.ObsoleteVersionSequenceId == null, AuthenticationContext.SystemPrincipal).Any())
+                                {
+                                    this.m_entityService.Delete(targetedAssociation.TargetEntityKey.Value, mode, principal);
+                                }
+                                return; // no need to de-dup check on obsoleted object
                             }
-                            return; // no need to de-dup check on obsoleted object
-                        }
 
-                        // MDM relationship should be the only active relationship between
-                        // So when:
-                        // A =[MDM-Master]=> B
-                        // You cannot have:
-                        // A =[MDM-Duplicate]=> B
-                        // A =[MDM-Original]=> B
-                        foreach (var itm in this.m_entityRelationshipService.Query(q => q.RelationshipTypeKey != MdmConstants.MasterRecordRelationship && q.SourceEntityKey == targetedAssociation.SourceEntityKey && q.TargetEntityKey == targetedAssociation.TargetEntityKey && q.ObsoleteVersionSequenceId == null, principal))
-                        {
-                            itm.BatchOperation = Core.Model.DataTypes.BatchOperationType.Delete;
-                            this.m_entityRelationshipService.Update(itm, mode, principal);
-                        }
+                            // MDM relationship should be the only active relationship between
+                            // So when:
+                            // A =[MDM-Master]=> B
+                            // You cannot have:
+                            // A =[MDM-Duplicate]=> B
+                            // A =[MDM-Original]=> B
+                            this.m_entityRelationshipService.DeleteAll(q => q.RelationshipTypeKey != MdmConstants.MasterRecordRelationship && q.SourceEntityKey == targetedAssociation.SourceEntityKey && q.TargetEntityKey == targetedAssociation.TargetEntityKey && q.ObsoleteVersionSequenceId == null, mode, principal);
 
-                        break;
+                            break;
 
-                    case MdmConstants.RECORD_OF_TRUTH_RELATIONSHIP:
-                        // Is the ROT being assigned, and if so is there another ?
-                        if (!targetedAssociation.ObsoleteVersionSequenceId.HasValue || idData.BatchOperation == Core.Model.DataTypes.BatchOperationType.Delete)
-                        {
-                            foreach (var rotRel in this.m_entityRelationshipService.Query(r => r.SourceEntityKey == targetedAssociation.SourceEntityKey && r.TargetEntityKey != targetedAssociation.TargetEntityKey && r.ObsoleteVersionSequenceId == null, principal))
+                        case MdmConstants.RECORD_OF_TRUTH_RELATIONSHIP:
+                            // Is the ROT being assigned, and if so is there another ?
+                            if (!targetedAssociation.ObsoleteVersionSequenceId.HasValue || idData.BatchOperation == Core.Model.DataTypes.BatchOperationType.Delete)
                             {
-                                //Obsolete other ROTs (there can only be one)
-                                this.m_entityRelationshipService.Delete(rotRel.Key.Value, mode, principal, this.m_configuration.MasterDataDeletionMode);
+                                    //Obsolete other ROTs (there can only be one)
+                                    this.m_entityRelationshipService.DeleteAll(r => r.SourceEntityKey == targetedAssociation.SourceEntityKey && r.TargetEntityKey != targetedAssociation.TargetEntityKey && r.ObsoleteVersionSequenceId == null, mode, principal);
                             }
-                        }
-                        break;
+                            break;
+                    }
                 }
             }
         }
