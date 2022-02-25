@@ -41,6 +41,7 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Security.Principal;
+using System.Xml.Serialization;
 
 namespace SanteDB.Persistence.MDM.Services.Resources
 {
@@ -190,17 +191,43 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 }
                 else if (mdmFilter.Contains("M")) // pure master query
                 {
-                    throw new NotImplementedException("Msater queries not supported yet");
+                    throw new NotImplementedException("Master queries not supported yet");
                 }
             }
             else
             {
-                var localQuery = new NameValueCollection(query.ToDictionary(o => $"relationship[{MdmConstants.MasterRecordRelationship}].source@{typeof(TModel).Name}.{o.Key}", o => o.Value));
+
+                // Determine the level of casting required
+                var castStack = new Stack<Type>();
+                var ctype = typeof(TModel);
+                while(ctype != typeof(IdentifiedData))
+                {
+                    if (ctype.GetCustomAttribute<XmlRootAttribute>() != null)
+                        castStack.Push(ctype);
+                    ctype = ctype.BaseType;
+                }
+                // Iterate through the query and determine the level of casting
+                while(castStack.Count > 0)
+                {
+                    ctype = castStack.Pop();
+                    try
+                    {
+                        query.Select(o => QueryExpressionParser.BuildPropertySelector(ctype, o.Key)).ToArray();
+                        break;
+                    }
+                    catch { }
+                }
+                
+                var localQuery = new NameValueCollection(query.ToDictionary(o => $"relationship[{MdmConstants.MasterRecordRelationship}].source@{ctype.Name}.{o.Key}", o => new List<string>(o.Value)));
                 if (!query.TryGetValue("statusConcept", out _))
                 {
-                    localQuery.Add($"relationship[{MdmConstants.MasterRecordRelationship}].source@{typeof(TModel).Name}.statusConcept", StatusKeys.ActiveStates.Select(o => o.ToString()));
+                    localQuery.Add($"relationship[{MdmConstants.MasterRecordRelationship}].source@{ctype.Name}.statusConcept", StatusKeys.ActiveStates.Select(o => o.ToString()));
+                    localQuery.Add("statusConcept", StatusKeys.ActiveStates.Select(o => o.ToString()));
                 }
-                localQuery.Add("statusConcept", StatusKeys.ActiveStates.Select(o => o.ToString()));
+                else
+                {
+                    localQuery.Add("statusConcept", query["statusConcept"]);
+                }
                 localQuery.Add("obsoletionTime", "null");
                 localQuery.Add("classConcept", MdmConstants.MasterRecordClassification.ToString());
 
@@ -214,6 +241,17 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     {
                         case "identifier":
                             break;
+                        case "id":
+                            itm.Value.RemoveAll(o => o == "!null" || o.StartsWith("!"));
+                            if(itm.Value.Any())
+                            {
+                                break;
+                            }
+                            else
+                            {
+                                query.Remove(itm.Key);
+                            }
+                            break;
                         default:
                             query.Remove(itm.Key);
                             break;
@@ -223,6 +261,9 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 if (query.Any())
                 {
                     query.Add("classConcept", MdmConstants.MasterRecordClassification.ToString());
+                    if (localQuery.TryGetValue("statusConcept", out var status)) {
+                        query.Add("statusConcept", status);
+                    }
                 }
 
                 // We are wrapping an entity, so we query entity masters
@@ -480,7 +521,6 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             // Is this a ROT?
             if (this.m_dataManager.IsRecordOfTruth(e.Data))
             {
-                this.m_policyEnforcement.Demand(MdmPermissionPolicyIdentifiers.EstablishRecordOfTruth);
                 store = this.m_dataManager.PromoteRecordOfTruth(store);
             }
 

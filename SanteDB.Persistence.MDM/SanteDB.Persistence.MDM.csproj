@@ -64,9 +64,6 @@
     <None Include="data\000-MDMClasses.dataset">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
-    <None Include="data\000-MDMPolicies.dataset">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
     <None Include="data\000-MDMRelationships.dataset">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       <SubType>Designer</SubType>
@@ -118,6 +115,9 @@
     <ProjectReference Include="..\..\santedb-restsvc\SanteDB.Rest.Common\SanteDB.Rest.Common.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <None Update="data\001-MDMPolicies.dataset">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
     <None Update="data\004-MDMRelationshipClasses.dataset">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>

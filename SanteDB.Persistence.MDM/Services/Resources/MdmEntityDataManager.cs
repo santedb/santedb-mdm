@@ -44,6 +44,7 @@ using System.Linq.Expressions;
 using System.Security.Principal;
 using System.Text;
 using SanteDB.Core.Model.Roles;
+using SanteDB.Core.Security.Services;
 
 namespace SanteDB.Persistence.MDM.Services.Resources
 {
@@ -66,6 +67,9 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         // Entity persistence serviuce
         private IDataPersistenceService<Entity> m_entityPersistenceService;
 
+        // Policy enforcement service
+        private IPolicyEnforcementService m_policyEnforcement;
+
         // Persistence service
         private IDataPersistenceService<TModel> m_persistenceService;
 
@@ -86,6 +90,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             ModelSerializationBinder.RegisterModelType(typeof(EntityMaster<TModel>));
             ModelSerializationBinder.RegisterModelType($"{typeof(TModel).Name}Master", typeof(EntityMaster<TModel>));
 
+            this.m_policyEnforcement = ApplicationServiceContext.Current.GetService<IPolicyEnforcementService>(); ;
             this.m_matchingConfigurationService = ApplicationServiceContext.Current.GetService<IRecordMatchingConfigurationService>(); ;
             this.m_entityPersistenceService = base.m_underlyingTypePersistence as IDataPersistenceService<Entity>;
             this.m_persistenceService = ApplicationServiceContext.Current.GetService<IDataPersistenceService<TModel>>();
@@ -192,8 +197,12 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             var rotRelationship = local.LoadCollection(o => o.Relationships).FirstOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordOfTruthRelationship) ??
                 master.LoadCollection(o => o.Relationships).SingleOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordOfTruthRelationship);
 
+            this.m_policyEnforcement.Demand(MdmPermissionPolicyIdentifiers.EditRecordOfTruth);
+
             if (rotRelationship == null)
             {
+                this.m_policyEnforcement.Demand(MdmPermissionPolicyIdentifiers.EstablishRecordOfTruth);
+
                 rotRelationship = new EntityRelationship(MdmConstants.MasterRecordOfTruthRelationship, local.Key)
                 {
                     SourceEntityKey = master.Key,

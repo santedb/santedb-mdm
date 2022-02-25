@@ -187,7 +187,10 @@ namespace SanteDB.Persistence.MDM.Model
         {
             this.CopyObjectData(master, false, true);
             this.m_masterRecord = master;
-            this.m_recordOfTruth = this.LoadCollection<EntityRelationship>("Relationships").FirstOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordOfTruthRelationship)?.LoadProperty(o => o.TargetEntity);
+            using (AuthenticationContext.EnterSystemContext())
+            {
+                this.m_recordOfTruth = this.LoadCollection<EntityRelationship>("Relationships").FirstOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordOfTruthRelationship)?.LoadProperty(o => o.TargetEntity);
+            }
         }
 
         /// <summary>
@@ -212,6 +215,10 @@ namespace SanteDB.Persistence.MDM.Model
                 if (originalMasterFor != null)
                 {
                     master.SemanticCopy(originalMasterFor);
+                }
+                else
+                {
+                    return null;
                 }
             }
             else if (this.m_recordOfTruth == null) // We have to create a synthetic record
@@ -262,6 +269,26 @@ namespace SanteDB.Persistence.MDM.Model
             master.VersionKey = this.m_masterRecord.VersionKey;
             master.VersionSequence = this.m_masterRecord.VersionSequence;
 
+            // Set load state
+            master.SetLoaded(o => o.Addresses);
+            master.SetLoaded(o => o.Extensions);
+            master.SetLoaded(o => o.Identifiers);
+            master.SetLoaded(o => o.Names);
+            master.SetLoaded(o => o.Notes);
+            master.SetLoaded(o => o.Policies);
+            master.SetLoaded(o => o.Relationships);
+            master.SetLoaded(o => o.Tags);
+            master.SetLoaded(o => o.Telecoms);
+
+            switch (master)
+            {
+                case Person psn:
+                    psn.SetLoaded(o => o.LanguageCommunication);
+                    break;
+                case Place plc:
+                    plc.SetLoaded(o => o.Services);
+                    break;
+            }
 
             return master;
         }
