@@ -79,7 +79,7 @@ namespace SanteDB.Persistence.MDM.Services
         /// <summary>
         /// Get the configuration name
         /// </summary>
-        public string ConfigurationName { get; }
+        public IRecordMatchingConfiguration Configuration { get; }
 
         /// <summary>
         /// Gets the record that was matched
@@ -119,13 +119,13 @@ namespace SanteDB.Persistence.MDM.Services
         /// <summary>
         /// Create a new identity match result
         /// </summary>
-        public MdmIdentityMatchResult(T input, T record, string configurationName, RecordMatchClassification classification = RecordMatchClassification.Match, float score = 1.0f)
+        public MdmIdentityMatchResult(T input, T record, RecordMatchClassification classification = RecordMatchClassification.Match, float score = 1.0f)
         {
             this.Record = record;
             this.Method = RecordMatchMethod.Identifier;
             this.Score = this.Strength = score;
             this.Classification = classification;
-            this.ConfigurationName = configurationName;
+            this.Configuration = MdmMatchConfigurationService.CreateIdentityMatchConfiguration<T>();
             if (input is IHasIdentifiers aIdentity && record is IHasIdentifiers bIdentity)
             {
                 this.Vectors = new IRecordMatchVector[] { new MdmIdentityMatchAttribute(classification, string.Join(",", aIdentity.Identifiers.Select(o=>$"{o.Value} [{o.Authority.DomainName}]")), string.Join(",", bIdentity.Identifiers.Select(o=>$"{o.Value} [{o.Authority.DomainName}]"))) };
