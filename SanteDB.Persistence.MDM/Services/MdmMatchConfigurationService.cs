@@ -80,7 +80,7 @@ namespace SanteDB.Persistence.MDM.Services
         /// <summary>
         /// MDM identity record matching
         /// </summary>
-        private class MdmIdentityRecordMatchConfiguration : IRecordMatchingConfiguration
+        internal class MdmIdentityRecordMatchConfiguration : IRecordMatchingConfiguration
         {
             /// <summary>
             /// Create a new identity match configuration
@@ -153,5 +153,10 @@ namespace SanteDB.Persistence.MDM.Services
         /// Save configuration
         /// </summary>
         public IRecordMatchingConfiguration SaveConfiguration(IRecordMatchingConfiguration configuration) => this.m_matchingConfigurationService.SaveConfiguration(configuration);
+
+        /// <summary>
+        /// Create identity match configuration
+        /// </summary>
+        internal static MdmIdentityRecordMatchConfiguration CreateIdentityMatchConfiguration<T>() => new MdmIdentityRecordMatchConfiguration(new Type[] { typeof(T) });
     }
 }

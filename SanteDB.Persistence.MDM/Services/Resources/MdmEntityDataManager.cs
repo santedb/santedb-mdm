@@ -677,101 +677,96 @@ namespace SanteDB.Persistence.MDM.Services.Resources
 
             // Match configuration
             // TODO: Emit logs
-            foreach (var cnf in this.m_matchingConfigurationService.Configurations.Where(o => o.AppliesTo.Contains(typeof(TModel)) && o.Metadata.State == MatchConfigurationStatus.Active))
+            var matchResultGrouping = this.m_matchingConfigurationService.Configurations
+                .Where(o => o.AppliesTo.Contains(typeof(TModel)) && o.Metadata.State == MatchConfigurationStatus.Active)
+                .SelectMany(s => this.m_matchingService.Match<TModel>(local, s.Id, ignoreList))
+                .Where(o => o.Record.Key != local.Key) // cannot match with itself
+                .Select(o => new MasterMatch(this.IsMaster(o.Record) ? o.Record.Key.Value : this.GetMasterRelationshipFor(o.Record, context).TargetEntityKey.Value, o)) // Must select the master
+                .GroupBy(o=>o.Master) // We are only interested in the match pairs 1:1 with local and master
+                .Select(o=> o.OrderByDescending(m=>m.MatchResult.Classification).ThenByDescending(m=>m.MatchResult.Score).First()) // We are only interested in strongest match pair
+                .GroupBy(o => o.MatchResult.Classification) // Group by classifications
+                .ToDictionary(o => o.Key, o => o.Distinct()); // Then select by matches
+
+            // Ensure we have both match and nonmatch
+            if (!matchResultGrouping.ContainsKey(RecordMatchClassification.Match))
             {
-                // Get a list of match results
-                var matchResults = this.m_matchingService.Match<TModel>(local, cnf.Id, ignoreList.ToArray());
+                matchResultGrouping.Add(RecordMatchClassification.Match, new MasterMatch[0]);
+            }
+            if (!matchResultGrouping.ContainsKey(RecordMatchClassification.Probable))
+            {
+                matchResultGrouping.Add(RecordMatchClassification.Probable, new MasterMatch[0]);
+            }
+            matchResultGrouping.Remove(RecordMatchClassification.NonMatch);
 
-                bool autoLink = cnf.Metadata.Tags.TryGetValue(MdmConstants.AutoLinkSetting, out string autoLinkValue) && Boolean.Parse(autoLinkValue);
-
-                // Group the match results by their outcome
-                var matchResultGrouping = matchResults
-                    .Where(o => o.Record.Key != local.Key) // cannot match with itself
-                    .Select(o => new MasterMatch(this.IsMaster(o.Record) ? o.Record.Key.Value : this.GetMasterRelationshipFor(o.Record, context).TargetEntityKey.Value, o))
-                    .GroupBy(o => o.MatchResult.Classification)
-                    .ToDictionary(o => o.Key, o => o.Distinct());
-
-                // Ensure we have both match and nonmatch
-                if (!matchResultGrouping.ContainsKey(RecordMatchClassification.Match))
+            // IF MATCHES.COUNT == 1 AND AUTOLINK = TRUE
+            if (matchResultGrouping[RecordMatchClassification.Match].Count() == 1 &&
+                matchResultGrouping[RecordMatchClassification.Match].First().MatchResult.Configuration.Metadata.Tags.TryGetValue(MdmConstants.AutoLinkSetting, out var autoLinkString) && 
+                Boolean.TryParse(autoLinkString, out var autoLink) && autoLink)
+            {
+                var matchedMaster = matchResultGrouping[RecordMatchClassification.Match].Single();
+                if (existingMasterRel == null) // There is no master, so we can just like create one
                 {
-                    matchResultGrouping.Add(RecordMatchClassification.Match, new MasterMatch[0]);
-                }
-                if (!matchResultGrouping.ContainsKey(RecordMatchClassification.Probable))
-                {
-                    matchResultGrouping.Add(RecordMatchClassification.Probable, new MasterMatch[0]);
-                }
-                matchResultGrouping.Remove(RecordMatchClassification.NonMatch);
-
-                // IF MATCHES.COUNT == 1 AND AUTOLINK = TRUE
-                if (matchResultGrouping[RecordMatchClassification.Match].Count() == 1 &&
-                    autoLink)
-                {
-                    var matchedMaster = matchResultGrouping[RecordMatchClassification.Match].Single();
-                    if (existingMasterRel == null) // There is no master, so we can just like create one
+                    retVal.AddLast(new EntityRelationship(MdmConstants.MasterRecordRelationship, local.Key, matchedMaster.Master, MdmConstants.AutomagicClassification)
                     {
-                        retVal.AddLast(new EntityRelationship(MdmConstants.MasterRecordRelationship, local.Key, matchedMaster.Master, MdmConstants.AutomagicClassification)
+                        Strength = matchedMaster.MatchResult.Strength,
+                        BatchOperation = BatchOperationType.InsertOrUpdate
+                    }
+                    );
+                }
+                // The matching engine wants to change the master link
+                else if (matchedMaster.Master != existingMasterRel.TargetEntityKey)
+                {
+                    // Old master was verified, so we don't touch it we just suggest a link
+                    if (existingMasterRel.ClassificationKey == MdmConstants.VerifiedClassification)
+                    {
+                        rematchMaster = false;
+                        retVal.AddLast(new EntityRelationship(MdmConstants.CandidateLocalRelationship, local.Key, matchedMaster.Master, MdmConstants.AutomagicClassification)
                         {
                             Strength = matchedMaster.MatchResult.Strength,
                             BatchOperation = BatchOperationType.InsertOrUpdate
-                        }
-                        );
+                        });
+
                     }
-                    // The matching engine wants to change the master link
-                    else if (matchedMaster.Master != existingMasterRel.TargetEntityKey)
+                    else // old master was not verified, so we re-link
                     {
-                        // Old master was verified, so we don't touch it we just suggest a link
-                        if (existingMasterRel.ClassificationKey == MdmConstants.VerifiedClassification)
+                        var mdmMatchInstructions = this.MdmTxMasterLink(matchedMaster.Master, local.Key.Value, context.Union(retVal), false);
+
+                        foreach (var itm in mdmMatchInstructions)
                         {
-                            rematchMaster = false;
-                            retVal.AddLast(new EntityRelationship(MdmConstants.CandidateLocalRelationship, local.Key, matchedMaster.Master, MdmConstants.AutomagicClassification)
+                            if (itm is EntityRelationship er && er.ClassificationKey == MdmConstants.SystemClassification) // This is not system it is auto
+                                er.ClassificationKey = MdmConstants.AutomagicClassification;
+
+                            retVal.AddLast(itm);
+                            if (itm.SemanticEquals(existingMasterRel))
                             {
-                                Strength = matchedMaster.MatchResult.Strength,
-                                BatchOperation = BatchOperationType.InsertOrUpdate
-                            });
-
-                        }
-                        else // old master was not verified, so we re-link
-                        {
-                            var mdmMatchInstructions = this.MdmTxMasterLink(matchedMaster.Master, local.Key.Value, context.Union(retVal), false);
-
-                            foreach (var itm in mdmMatchInstructions)
-                            {
-                                if (itm is EntityRelationship er && er.ClassificationKey == MdmConstants.SystemClassification) // This is not system it is auto
-                                    er.ClassificationKey = MdmConstants.AutomagicClassification;
-
-                                retVal.AddLast(itm);
-                                if (itm.SemanticEquals(existingMasterRel))
-                                {
-                                    existingMasterRel.SemanticCopy(itm);
-                                }
+                                existingMasterRel.SemanticCopy(itm);
                             }
-
                         }
-                    }
-                    else
-                    {
-                        rematchMaster = false; // same master so no need to rematch
+
                     }
                 }
-                // IF MATCHES.COUNT > 1 OR AUTOLINK = FALSE
-                else if (!autoLink || matchResultGrouping[RecordMatchClassification.Match].Count() > 1)
+                else
                 {
-                    // Create as candidates for non-existing master
-                    var nonMasterLinks = matchResultGrouping[RecordMatchClassification.Match].Where(o => o.Master != existingMasterRel?.TargetEntityKey);
-                    foreach (var nml in nonMasterLinks)
-                    {
-                        retVal.AddLast(new EntityRelationship(MdmConstants.CandidateLocalRelationship, local.Key, nml.Master, MdmConstants.AutomagicClassification) { Strength = nml.MatchResult.Strength, BatchOperation = BatchOperationType.InsertOrUpdate });
-
-                    }
+                    rematchMaster = false; // same master so no need to rematch
                 }
-
-                // Candidate matches
-                var nonMasterCandidates = matchResultGrouping[RecordMatchClassification.Probable].Where(o => o.Master != existingMasterRel?.TargetEntityKey);
-                foreach (var nmc in nonMasterCandidates)
+            }
+            // IF MATCHES.COUNT > 1 OR AUTOLINK = FALSE
+            else // if (!autoLink || matchResultGrouping[RecordMatchClassification.Match].Count() > 1)
+            {
+                // Create as candidates for non-existing master
+                var nonMasterLinks = matchResultGrouping[RecordMatchClassification.Match].Where(o => o.Master != existingMasterRel?.TargetEntityKey);
+                foreach (var nml in nonMasterLinks)
                 {
-                    retVal.AddLast(new EntityRelationship(MdmConstants.CandidateLocalRelationship, local.Key, nmc.Master, MdmConstants.AutomagicClassification) { Strength = nmc.MatchResult.Strength, BatchOperation = BatchOperationType.InsertOrUpdate });
-
+                    retVal.AddLast(new EntityRelationship(MdmConstants.CandidateLocalRelationship, local.Key, nml.Master, MdmConstants.AutomagicClassification) { Strength = nml.MatchResult.Strength, BatchOperation = BatchOperationType.Insert });
                 }
+            }
+
+            // Candidate matches
+            var nonMasterCandidates = matchResultGrouping[RecordMatchClassification.Probable].Where(o => o.Master != existingMasterRel?.TargetEntityKey);
+            foreach (var nmc in nonMasterCandidates)
+            {
+                retVal.AddLast(new EntityRelationship(MdmConstants.CandidateLocalRelationship, local.Key, nmc.Master, MdmConstants.AutomagicClassification) { Strength = nmc.MatchResult.Strength, BatchOperation = BatchOperationType.Insert });
+
             }
 
             // Is the existing master rel still in place?

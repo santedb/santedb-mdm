@@ -60,7 +60,7 @@ namespace SanteDB.Persistence.MDM.Services
         /// <summary>
         /// Existing match service
         /// </summary>
-        public MdmRecordMatchingService(IDataPersistenceService<AssigningAuthority> authorityService, IDataPersistenceService<Bundle> bundleService, IDataPersistenceService<EntityRelationship> erService, IDataPersistenceService<ActRelationship> arService, IRecordMatchingService existingMatchService = null)
+        public MdmRecordMatchingService(IDataPersistenceService<AssigningAuthority> authorityService, IDataPersistenceService<Bundle> bundleService, IDataPersistenceService<EntityRelationship> erService, IDataPersistenceService<ActRelationship> arService,  IRecordMatchingService existingMatchService = null)
         {
             this.m_matchService = existingMatchService;
             this.m_erService = erService;
@@ -207,7 +207,7 @@ namespace SanteDB.Persistence.MDM.Services
                     throw new InvalidOperationException("Some identifiers are missing authorities, cannot perform identity match");
 
                 if (uqIdentifiers?.Any() != true)
-                    return blocks.Select(o => new MdmIdentityMatchResult<T>(input, o, "$identity", RecordMatchClassification.NonMatch, 0.0f));
+                    return blocks.Select(o => new MdmIdentityMatchResult<T>(input, o, RecordMatchClassification.NonMatch, 0.0f));
                 else
                 {
                     return blocks.Select(o =>
@@ -220,11 +220,11 @@ namespace SanteDB.Persistence.MDM.Services
                             {
                                 var isMatch = oid.Identifiers.Any(i => uqIdentifiers.Any(u => u.Authority.Key == i.Authority.Key && i.Value == u.Value));
 
-                                return new MdmIdentityMatchResult<T>(input, o, "$identity", isMatch ? RecordMatchClassification.Match : RecordMatchClassification.NonMatch, isMatch ? 1.0f : 0.0f);
+                                return new MdmIdentityMatchResult<T>(input, o, isMatch ? RecordMatchClassification.Match : RecordMatchClassification.NonMatch, isMatch ? 1.0f : 0.0f);
                             }
                             else
                             {
-                                return new MdmIdentityMatchResult<T>(input, o, "$identity", RecordMatchClassification.NonMatch, 0.0f);
+                                return new MdmIdentityMatchResult<T>(input, o, RecordMatchClassification.NonMatch, 0.0f);
                             }
                         }
                         finally
