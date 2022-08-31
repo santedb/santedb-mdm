@@ -236,7 +236,7 @@ namespace SanteDB.Persistence.MDM.Test
 
         public IEnumerable<IRecordMatchVector> Vectors => throw new NotImplementedException();
 
-        public string ConfigurationName => throw new NotImplementedException();
+        public IRecordMatchingConfiguration Configuration => throw new NotImplementedException();
 
         /// <summary>
         /// Create a dummy match
