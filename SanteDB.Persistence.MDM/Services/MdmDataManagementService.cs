@@ -306,9 +306,12 @@ namespace SanteDB.Persistence.MDM.Services
             // Remove dependent objects from cache
             foreach (var itm in e.Data.Item.OfType<IHasRelationships>())
             {
-                foreach (var rel in itm.Relationships.OfType<ITargetedVersionedExtension>())
+                if (itm.Relationships != null)
                 {
-                    this.RecheckRelationship(rel, e.Mode, e.Principal);
+                    foreach (var rel in itm.Relationships.OfType<ITargetedVersionedExtension>())
+                    {
+                        this.RecheckRelationship(rel, e.Mode, e.Principal);
+                    }
                 }
             }
         }

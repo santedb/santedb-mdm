@@ -60,7 +60,7 @@ namespace SanteDB.Persistence.MDM.Services
         /// <summary>
         /// Existing match service
         /// </summary>
-        public MdmRecordMatchingService(IDataPersistenceService<AssigningAuthority> authorityService, IDataPersistenceService<Bundle> bundleService, IDataPersistenceService<EntityRelationship> erService, IDataPersistenceService<ActRelationship> arService,  IRecordMatchingService existingMatchService = null)
+        public MdmRecordMatchingService(IDataPersistenceService<IdentityDomain> authorityService, IDataPersistenceService<Bundle> bundleService, IDataPersistenceService<EntityRelationship> erService, IDataPersistenceService<ActRelationship> arService,  IRecordMatchingService existingMatchService = null)
         {
             this.m_matchService = existingMatchService;
             this.m_erService = erService;
@@ -68,7 +68,7 @@ namespace SanteDB.Persistence.MDM.Services
             this.m_uniqueAuthorities = authorityService.Query(o => o.IsUnique, AuthenticationContext.SystemPrincipal).Select(o => o.Key.Value).ToList();
             bundleService.Inserted += (o, e) =>
             {
-                foreach (var i in e.Data.Item.OfType<AssigningAuthority>())
+                foreach (var i in e.Data.Item.OfType<IdentityDomain>())
                 {
                     if (i.BatchOperation == BatchOperationType.Delete || i.ObsoletionTime.HasValue)
                     {
@@ -145,6 +145,13 @@ namespace SanteDB.Persistence.MDM.Services
                 {
                     collector?.LogStartAction("block-identity");
                     // TODO: Build this using Expression trees rather than relying on the parsing methods
+                    //var filterParameter = Expression.Parameter(typeof(T));
+                    //Expression identityFilterExpresion = null;
+                    //foreach(var itm in uqIdentifiers)
+                    //{
+                    //    Expression identityCheck = Expression.MakeMemberAccess(filterParameter, typeof(T).GetProperty(nameof(Entity.Identifiers)));
+                    //    identityCheck = Expression.Call(typeof(Enumerable).GetGenericMethod(nameof(Enumerable.Where), new Type[] { identityCheck.Type.StripGeneric() }, 
+                    //}
                     NameValueCollection nvc = new NameValueCollection();
                     foreach (var itm in uqIdentifiers)
                         nvc.Add($"identifier[{itm.Authority.Key}].value", itm.Value);
@@ -154,7 +161,7 @@ namespace SanteDB.Persistence.MDM.Services
                     using (AuthenticationContext.EnterSystemContext())
                     {
                         var repository = ApplicationServiceContext.Current.GetService<IRepositoryService<T>>();
-                        var retVal = repository.Find(filterExpression).Where(o => !ignoreKeys.Contains(o.Key.Value)).OfType<T>().Select(o => new MdmIdentityMatchResult<T>(entity, o, "$identity"));
+                        var retVal = repository.Find(filterExpression).Where(o => !ignoreKeys.Contains(o.Key.Value)).OfType<T>().Select(o => new MdmIdentityMatchResult<T>(entity, o, RecordMatchClassification.Match));
                         collector?.LogSample(filterExpression.ToString(), retVal.Count());
                         return retVal;
                     }

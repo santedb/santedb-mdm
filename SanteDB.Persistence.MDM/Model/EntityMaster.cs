@@ -253,13 +253,13 @@ namespace SanteDB.Persistence.MDM.Model
             master.Relationships = relationships;
 
             master.Policies = this.LocalRecords.SelectMany(o => (o as Entity).Policies).Distinct().ToList();
-            master.Tags.RemoveAll(o => o.TagKey == MdmConstants.MdmTypeTag);
-            master.Tags.Add(new EntityTag(MdmConstants.MdmTypeTag, "M")); // This is a master
-            master.Tags.Add(new EntityTag(MdmConstants.MdmResourceTag, typeof(T).Name)); // The original resource of the master
-            master.Tags.Add(new EntityTag(MdmConstants.MdmGeneratedTag, "true")); // This object was generated
+            master.RemoveAllTags(o => o.TagKey == MdmConstants.MdmTypeTag);
+            master.AddTag(MdmConstants.MdmTypeTag, "M"); // This is a master
+            master.AddTag(MdmConstants.MdmResourceTag, typeof(T).Name); // The original resource of the master
+            master.AddTag(MdmConstants.MdmGeneratedTag, "true"); // This object was generated
             if (locals.Any())
             {
-                master.Tags.Add(new EntityTag(SanteDBConstants.AlternateKeysTag, String.Join(",", locals.Select(o => o.Key.ToString()))));
+                master.AddTag(SanteDBConstants.AlternateKeysTag, String.Join(",", locals.Select(o => o.Key.ToString())));
             }
 
             master.CreationTime = this.ModifiedOn;

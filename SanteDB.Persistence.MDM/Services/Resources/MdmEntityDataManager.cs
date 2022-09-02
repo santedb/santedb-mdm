@@ -700,7 +700,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
 
             // IF MATCHES.COUNT == 1 AND AUTOLINK = TRUE
             if (matchResultGrouping[RecordMatchClassification.Match].Count() == 1 &&
-                matchResultGrouping[RecordMatchClassification.Match].First().MatchResult.Configuration.Metadata.Tags.TryGetValue(MdmConstants.AutoLinkSetting, out var autoLinkString) && 
+                matchResultGrouping[RecordMatchClassification.Match].First().MatchResult.Configuration?.Metadata.Tags.TryGetValue(MdmConstants.AutoLinkSetting, out var autoLinkString) == true && 
                 Boolean.TryParse(autoLinkString, out var autoLink) && autoLink)
             {
                 var matchedMaster = matchResultGrouping[RecordMatchClassification.Match].Single();

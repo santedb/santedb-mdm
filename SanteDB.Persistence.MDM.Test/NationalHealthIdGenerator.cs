@@ -77,7 +77,7 @@ namespace SanteDB.Persistence.MDM.Test
         private EntityMaster<Patient> DoAttach(EntityMaster<Patient> data)
         {
             if (!data.LoadProperty(o=>o.Identifiers).Any(o => o.LoadProperty(i => i.Authority).DomainName == "NHID"))
-                data.Identifiers.Add(new Core.Model.DataTypes.EntityIdentifier(new AssigningAuthority("NHID", "NHID", "3.2.2.3.2.2.3.2") 
+                data.Identifiers.Add(new Core.Model.DataTypes.EntityIdentifier(new IdentityDomain("NHID", "NHID", "3.2.2.3.2.2.3.2") 
                 {
                     Key = m_aaid,
                     AuthorityScopeXml = new List<Guid>() { MdmConstants.MasterRecordClassification }

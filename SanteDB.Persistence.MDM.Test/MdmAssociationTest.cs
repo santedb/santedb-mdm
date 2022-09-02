@@ -31,7 +31,7 @@ namespace SanteDB.Persistence.MDM.Test
     public class MdmAssociationTest : DataTest
     {
         // Test authority
-        private readonly AssigningAuthority m_testAuthority = new AssigningAuthority("TEST-MDM", "TEST-MDM", "1.2.3.4.9999") { Key = Guid.NewGuid() };
+        private readonly IdentityDomain m_testAuthority = new IdentityDomain("TEST-MDM", "TEST-MDM", "1.2.3.4.9999") { Key = Guid.NewGuid() };
 
         private IRepositoryService<Patient> m_patientRepository;
         private IRepositoryService<Person> m_personRepository;
