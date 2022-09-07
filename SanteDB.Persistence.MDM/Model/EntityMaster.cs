@@ -229,7 +229,7 @@ namespace SanteDB.Persistence.MDM.Model
             {
                 master.SemanticCopy((T)(object)this.m_recordOfTruth);
                 master.SemanticCopyNullFields(locals);
-                master.Tags.Add(new EntityTag(MdmConstants.MdmRotIndicatorTag, "true"));
+                master.AddTag(MdmConstants.MdmRotIndicatorTag, "true");
             }
 
             Array.ForEach(locals, l => master.CopyAnnotations(l));

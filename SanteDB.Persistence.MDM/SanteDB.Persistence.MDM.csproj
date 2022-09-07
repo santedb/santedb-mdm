@@ -54,7 +54,6 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Remove="Services\BundleResourceListener.cs" />
-    <Compile Remove="Services\MdmResourceListener.cs" />
   </ItemGroup>
 
   <ItemGroup>
@@ -69,7 +68,6 @@
       <SubType>Designer</SubType>
     </None>
     <None Include="Services\BundleResourceListener.cs" />
-    <None Include="Services\MdmResourceListener.cs" />
   </ItemGroup>
   <Choose>
     <When Condition="$(SolutionName.Contains('-ext'))">
@@ -94,7 +92,7 @@
     </When>
     <Otherwise>
       <ItemGroup>
-        <PackageReference Include="SanteDB.Core.i18n" Version="$(VersionNumber)"/>
+        <PackageReference Include="SanteDB.Core.i18n" Version="$(VersionNumber)" />
         <PackageReference Include="SanteDB.Core.Api" Version="$(VersionNumber)" />
         <PackageReference Include="SanteDB.Core.Model" Version="$(VersionNumber)" />
         <PackageReference Include="SanteDB.Docker.Core" Version="$(VersionNumber)" />

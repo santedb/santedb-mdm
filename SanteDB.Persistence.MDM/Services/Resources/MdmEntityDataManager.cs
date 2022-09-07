@@ -569,7 +569,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         public override IEnumerable<IdentifiedData> MdmTxSaveLocal(TModel data, IEnumerable<IdentifiedData> context)
         {
             // Validate that we can store this in context
-            data.Tags.RemoveAll(t => t.TagKey == MdmConstants.MdmTypeTag);
+            data.RemoveTag(MdmConstants.MdmTypeTag);
 
             // First, we want to perform a match
             var matchInstructions = this.MdmTxMatchMasters(data, context).ToArray();
@@ -757,7 +757,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 var nonMasterLinks = matchResultGrouping[RecordMatchClassification.Match].Where(o => o.Master != existingMasterRel?.TargetEntityKey);
                 foreach (var nml in nonMasterLinks)
                 {
-                    retVal.AddLast(new EntityRelationship(MdmConstants.CandidateLocalRelationship, local.Key, nml.Master, MdmConstants.AutomagicClassification) { Strength = nml.MatchResult.Strength, BatchOperation = BatchOperationType.Insert });
+                    retVal.AddLast(new EntityRelationship(MdmConstants.CandidateLocalRelationship, local.Key, nml.Master, MdmConstants.AutomagicClassification) { Strength = nml.MatchResult.Strength, BatchOperation = BatchOperationType.InsertOrUpdate });
                 }
             }
 
@@ -765,7 +765,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             var nonMasterCandidates = matchResultGrouping[RecordMatchClassification.Probable].Where(o => o.Master != existingMasterRel?.TargetEntityKey);
             foreach (var nmc in nonMasterCandidates)
             {
-                retVal.AddLast(new EntityRelationship(MdmConstants.CandidateLocalRelationship, local.Key, nmc.Master, MdmConstants.AutomagicClassification) { Strength = nmc.MatchResult.Strength, BatchOperation = BatchOperationType.Insert });
+                retVal.AddLast(new EntityRelationship(MdmConstants.CandidateLocalRelationship, local.Key, nmc.Master, MdmConstants.AutomagicClassification) { Strength = nmc.MatchResult.Strength, BatchOperation = BatchOperationType.InsertOrUpdate });
 
             }
 
@@ -939,6 +939,10 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                         {
                             var oldMasterRec = context.OfType<Entity>().FirstOrDefault(o => o.Key == existingRelationship.TargetEntityKey) ??
                                 this.GetRaw(existingRelationship.TargetEntityKey.Value) as Entity;
+                            
+                            // TODO: Add configuration which allows implementers to specify whether they want:
+                            //  1. Old masters which have no locals to persist in the database with a replaces relationship (this is useful when a NHID is assigned to the old master and it is REPLACED by a new record)
+                            //  2. Old masters which have no locals are removed from the database
                             oldMasterRec.StatusConceptKey = StatusKeys.Inactive;
                             oldMasterRec.BatchOperation = BatchOperationType.Update;
                             yield return oldMasterRec;

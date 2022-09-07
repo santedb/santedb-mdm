@@ -315,17 +315,11 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             try
             {
                 // Prevent duplicate processing
-                if (e.Data is ITaggable taggable)
+                if(e.Data.GetAnnotations<String>().Contains(MdmConstants.MdmProcessedTag))
                 {
-                    if (!String.IsNullOrEmpty(taggable.GetTag(MdmConstants.MdmProcessedTag)))
-                    {
-                        return;
-                    }
-                    else
-                    {
-                        taggable.AddTag(MdmConstants.MdmProcessedTag, "true");
-                    }
+                    return;
                 }
+                e.Data.AddAnnotation(MdmConstants.MdmProcessedTag);
 
                 // Is the sender a bundle?
                 e.Data.BatchOperation = Core.Model.DataTypes.BatchOperationType.InsertOrUpdate;
@@ -385,17 +379,11 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             try
             {
                 // Prevent duplicate processing
-                if (e.Data is ITaggable taggable)
+                if (e.Data.GetAnnotations<String>().Contains(MdmConstants.MdmProcessedTag))
                 {
-                    if (!String.IsNullOrEmpty(taggable.GetTag(MdmConstants.MdmProcessedTag)))
-                    {
-                        return;
-                    }
-                    else
-                    {
-                        taggable.AddTag(MdmConstants.MdmProcessedTag, "true");
-                    }
+                    return;
                 }
+                e.Data.AddAnnotation(MdmConstants.MdmProcessedTag);
 
                 // Is the sender a bundle?
                 e.Data.BatchOperation = Core.Model.DataTypes.BatchOperationType.InsertOrUpdate;

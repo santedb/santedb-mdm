@@ -364,8 +364,8 @@ namespace SanteDB.Persistence.MDM.Test
                 Assert.AreEqual(patientUnderTest.DateOfBirth, queriedMaster.DateOfBirth);
 
                 // Update the local and save
+                savedLocal = this.m_patientRepository.Get(savedLocal.Key.Value);
                 savedLocal.DateOfBirth = DateTime.Parse("1984-04-11");
-                savedLocal.Tags.Clear();
                 savedLocal = this.m_patientRepository.Save(savedLocal);
                 Assert.AreEqual(queriedMaster.Key, savedLocal.LoadProperty(o=>o.Relationships).FirstOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship)?.TargetEntityKey);
                 var afterUpdateMaster = this.m_patientRepository.Find(o => o.Identifiers.Any(i => i.Value == "MDM-04")).FirstOrDefault();
@@ -455,8 +455,8 @@ namespace SanteDB.Persistence.MDM.Test
                 Assert.IsTrue(queriedMasterB.Relationships.Any(o => o.SourceEntityKey == savedLocalB.Key && o.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship && o.TargetEntityKey == queriedMasterA.Key));
 
                 // Let's update localB
+                savedLocalB = this.m_patientRepository.Get(savedLocalB.Key.Value);
                 savedLocalB.MultipleBirthOrder = savedLocalA.MultipleBirthOrder;
-                savedLocalB.Tags.Clear();
                 var afterUpdateSavedLocalB = this.m_patientRepository.Save(savedLocalB);
                 // Now the relationships should be updated so MASTER_A is returned
                 var queriedMasterAfterUpdate = this.m_patientRepository.Find(o => o.Identifiers.Any(i => i.Value == "MDM-05B")).SingleOrDefault();
@@ -536,9 +536,9 @@ namespace SanteDB.Persistence.MDM.Test
 
                 // Now we want to update local B so that it no longer matches
                 // the MDM layer should detach
+                savedLocalB = this.m_patientRepository.Get(savedLocalB.Key.Value);
                 savedLocalB.MultipleBirthOrder = 1;
                 savedLocalB.DateOfBirth = DateTime.Parse("1983-06-15");
-                savedLocalB.Tags.Clear();
                 savedLocalB = this.m_patientRepository.Save(savedLocalB);
 
                 // Now we want to re-query the master
@@ -648,7 +648,7 @@ namespace SanteDB.Persistence.MDM.Test
                 Assert.IsTrue(savedLocalB.LoadProperty(o => o.Relationships).Any(r => r.RelationshipTypeKey == MdmConstants.MasterRecordRelationship && r.TargetEntityKey == queriedMasterA.Key && r.ClassificationKey == MdmConstants.VerifiedClassification));
                 Assert.IsFalse(savedLocalB.LoadProperty(o => o.Relationships).Any(r => r.RelationshipTypeKey == MdmConstants.MasterRecordRelationship && r.TargetEntityKey == rawMasterB.Key));
                 Assert.IsTrue(queriedMasterA.LoadProperty(o => o.Relationships).Any(r => r.RelationshipTypeKey == EntityRelationshipTypeKeys.Replaces && r.TargetEntityKey == rawMasterB.Key));
-                Assert.AreEqual(StatusKeys.Inactive, queriedMasterB.StatusConceptKey); // No longer under MDM (OBSOLETE)
+                Assert.IsNull(queriedMasterB); // No longer under MDM (OBSOLETE)
                 Assert.AreEqual(StatusKeys.Inactive, rawMasterB.StatusConceptKey);
             }
         }
@@ -748,7 +748,7 @@ namespace SanteDB.Persistence.MDM.Test
                 Assert.AreEqual(MdmConstants.VerifiedClassification, queriedAfterMerge.Relationships.First(o => o.SourceEntityKey == savedLocalB.Key && o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship && o.TargetEntityKey == queriedMasterA.Key).ClassificationKey);
 
                 // Now update saved local B wildly
-                savedLocalB.Tags.Clear();
+                savedLocalB = this.m_patientRepository.Get(savedLocalB.Key.Value);
                 savedLocalB.Names.Clear();
                 savedLocalB.Names.Add(new EntityName(NameUseKeys.Alphabetic, "SMITH", "SOMTHING"));
                 savedLocalB.DateOfBirth = DateTime.Now;

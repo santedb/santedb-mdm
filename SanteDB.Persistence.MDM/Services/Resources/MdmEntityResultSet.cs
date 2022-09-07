@@ -141,7 +141,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         public IQueryResultSet<TModel> Where(Expression<Func<TModel, bool>> query)
         {
-            return new MdmEntityResultSet<TModel>(this.m_wrappedResultSet.Where(new ExpressionReturnVisitor<TModel, Entity, bool>(query).Convert()), this.m_principal);
+            return new MdmEntityResultSet<TModel>(this.m_wrappedResultSet.Where(new ExpressionReturnRewriter<TModel, Entity, bool>(query).Convert()), this.m_principal);
         }
 
         #region Non-Generic
@@ -191,7 +191,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         public IEnumerable<TReturn> Select<TReturn>(Expression<Func<TModel, TReturn>> selector)
         {
-            return this.m_wrappedResultSet.Select(new ExpressionReturnVisitor<TModel, Entity, TReturn>(selector).Convert());
+            return this.m_wrappedResultSet.Select(new ExpressionReturnRewriter<TModel, Entity, TReturn>(selector).Convert());
         }
 
         /// <summary>
@@ -201,7 +201,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         {
             if (this.m_wrappedResultSet is IOrderableQueryResultSet<Entity> orderable)
             {
-                return new MdmEntityResultSet<TModel>(orderable.OrderBy(new ExpressionReturnVisitor<TModel, Entity, TKey>(sortExpression).Convert()), this.m_principal);
+                return new MdmEntityResultSet<TModel>(orderable.OrderBy(new ExpressionReturnRewriter<TModel, Entity, TKey>(sortExpression).Convert()), this.m_principal);
             }
             else
             {
@@ -216,7 +216,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         {
             if (this.m_wrappedResultSet is IOrderableQueryResultSet<Entity> orderable)
             {
-                return new MdmEntityResultSet<TModel>(orderable.OrderByDescending(new ExpressionReturnVisitor<TModel, Entity, TKey>(sortExpression).Convert()), this.m_principal);
+                return new MdmEntityResultSet<TModel>(orderable.OrderByDescending(new ExpressionReturnRewriter<TModel, Entity, TKey>(sortExpression).Convert()), this.m_principal);
             }
             else
             {
@@ -237,7 +237,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         IEnumerable<TReturn> IQueryResultSet<TModel>.Select<TReturn>(Expression<Func<TModel, TReturn>> selector)
         {
-            return this.m_wrappedResultSet.Select(new ExpressionReturnVisitor<TModel, Entity, TReturn>(selector).Convert());
+            return this.m_wrappedResultSet.Select(new ExpressionReturnRewriter<TModel, Entity, TReturn>(selector).Convert());
         }
 
         /// <summary>
@@ -318,7 +318,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         public IQueryResultSet<TModel> Intersect(Expression<Func<TModel, bool>> filter)
         {
-            return new MdmEntityResultSet<TModel>(this.m_wrappedResultSet.Intersect(new ExpressionReturnVisitor<TModel, Entity, bool>(filter).Convert()), this.m_principal);
+            return new MdmEntityResultSet<TModel>(this.m_wrappedResultSet.Intersect(new ExpressionReturnRewriter<TModel, Entity, bool>(filter).Convert()), this.m_principal);
         }
 
         /// <summary>
@@ -346,7 +346,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         public IQueryResultSet<TModel> Union(Expression<Func<TModel, bool>> filter)
         {
-            return new MdmEntityResultSet<TModel>(this.m_wrappedResultSet.Union(new ExpressionReturnVisitor<TModel, Entity, bool>(filter).Convert()), this.m_principal);
+            return new MdmEntityResultSet<TModel>(this.m_wrappedResultSet.Union(new ExpressionReturnRewriter<TModel, Entity, bool>(filter).Convert()), this.m_principal);
         }
 
         /// <summary>
