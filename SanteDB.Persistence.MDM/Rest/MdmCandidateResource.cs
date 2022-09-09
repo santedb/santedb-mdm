@@ -40,6 +40,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Text;
 using RestSrvr;
+using System.Collections.Specialized;
 
 namespace SanteDB.Persistence.MDM.Rest
 {

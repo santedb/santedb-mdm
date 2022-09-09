@@ -32,6 +32,7 @@ using SanteDB.Persistence.MDM.Model;
 using SanteDB.Persistence.MDM.Services.Resources;
 using System;
 using System.Collections.Generic;
+using System.Collections.Specialized;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Linq.Expressions;
@@ -71,10 +72,11 @@ namespace SanteDB.Persistence.MDM.Services
                 if (idps == null)
                     throw new InvalidOperationException("Cannot find a query repository service");
 
-                var expression = QueryExpressionParser.BuildLinqExpression<Entity>(new NameValueCollection() {
-                    { "classConcept", MdmConstants.MasterRecordClassification.ToString() },
-                    { "relationship[97730a52-7e30-4dcd-94cd-fd532d111578].source.id", $":(freetext|{String.Join(" ", term)})" }
-                });
+                var search = new NameValueCollection();
+                search.Add("classConcept", MdmConstants.MasterRecordClassification.ToString());
+                search.Add("relationship[97730a52-7e30-4dcd-94cd-fd532d111578].source.id", $":(freetext|{String.Join(" ", term)})");
+
+                var expression = QueryExpressionParser.BuildLinqExpression<Entity>(search);
                 var results = idps.Query(expression, principal);
                 return new MdmEntityResultSet<TEntity>(results, principal);
             }

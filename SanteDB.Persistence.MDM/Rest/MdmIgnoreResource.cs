@@ -35,6 +35,7 @@ using SanteDB.Persistence.MDM.Services.Resources;
 using SanteDB.Rest.Common;
 using System;
 using System.Collections.Generic;
+using System.Collections.Specialized;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Text;

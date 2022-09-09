@@ -179,15 +179,15 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         internal virtual void OnQuerying(object sender, QueryRequestEventArgs<TModel> e)
         {
             // system does whatever tf they want
-            var query = new NameValueCollection(QueryExpressionBuilder.BuildQuery<TModel>(e.Query).ToArray());
+            var query = QueryExpressionBuilder.BuildQuery<TModel>(e.Query).ToNameValueCollection();
 
             // They are specifically asking for records
-            if (query.TryGetValue("tag[$mdm.type]", out List<String> mdmFilter))
+            if (query.TryGetValue("tag[$mdm.type]", out var mdmFilter))
             {
                 if (mdmFilter.Contains("L"))
                 {
                     this.m_policyEnforcement.Demand(MdmPermissionPolicyIdentifiers.ReadMdmLocals, e.Principal);
-                    mdmFilter.Remove("L"); // Just allow the repo to be queried
+                    query.Remove("tag[$mdm.type]");
                 }
                 else if (mdmFilter.Contains("M")) // pure master query
                 {
@@ -206,19 +206,20 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                         castStack.Push(ctype);
                     ctype = ctype.BaseType;
                 }
+
                 // Iterate through the query and determine the level of casting
                 while(castStack.Count > 0)
                 {
                     ctype = castStack.Pop();
                     try
                     {
-                        query.Select(o => QueryExpressionParser.BuildPropertySelector(ctype, o.Key)).ToArray();
-                        break;
+                        query.AllKeys.Select(o => QueryExpressionParser.BuildPropertySelector(ctype, o)).ToArray();
+                        break; // the first time we can parse the query is be max level of the object we can rewrite to
                     }
                     catch { }
                 }
-                
-                var localQuery = new NameValueCollection(query.ToDictionary(o => $"relationship[{MdmConstants.MasterRecordRelationship}].source@{ctype.Name}.{o.Key}", o => new List<string>(o.Value)));
+
+                var localQuery = query.ToDictionary().ToDictionary(o => $"relationship[{MdmConstants.MasterRecordRelationship}].source@{ctype.Name}.{o.Key}", o => (object)o.Value).ToNameValueCollection();
                 if (!query.TryGetValue("statusConcept", out _))
                 {
                     localQuery.Add($"relationship[{MdmConstants.MasterRecordRelationship}].source@{ctype.Name}.statusConcept", StatusKeys.ActiveStates.Select(o => o.ToString()));
@@ -234,31 +235,30 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 e.Cancel = true; // We want to cancel the callers query
 
                 //// Trim the local query
-                foreach (var itm in query.ToArray())
+                foreach (var itm in query.AllKeys)
                 {
-                    var keyField = itm.Key.Split('[', '.');
+                    var keyField = itm.Split('[', '.');
                     switch (keyField[0])
                     {
                         case "identifier":
                             break;
                         case "id":
-                            itm.Value.RemoveAll(o => o == "!null" || o.StartsWith("!"));
-                            if(itm.Value.Any())
+                            if(query.GetValues(itm).Any(o=>o != "!null" && !o.StartsWith("!")))
                             {
                                 break;
                             }
                             else
                             {
-                                query.Remove(itm.Key);
+                                query.Remove(itm);
                             }
                             break;
                         default:
-                            query.Remove(itm.Key);
+                            query.Remove(itm);
                             break;
                     }
                 }
 
-                if (query.Any())
+                if (query.AllKeys.Any())
                 {
                     query.Add("classConcept", MdmConstants.MasterRecordClassification.ToString());
                     if (localQuery.TryGetValue("statusConcept", out var status)) {

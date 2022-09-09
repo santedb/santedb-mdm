@@ -36,6 +36,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Text;
+using System.Collections.Specialized;
 
 namespace SanteDB.Persistence.MDM.Services
 {
@@ -152,7 +153,7 @@ namespace SanteDB.Persistence.MDM.Services
                     //    Expression identityCheck = Expression.MakeMemberAccess(filterParameter, typeof(T).GetProperty(nameof(Entity.Identifiers)));
                     //    identityCheck = Expression.Call(typeof(Enumerable).GetGenericMethod(nameof(Enumerable.Where), new Type[] { identityCheck.Type.StripGeneric() }, 
                     //}
-                    NameValueCollection nvc = new NameValueCollection();
+                    var nvc = new NameValueCollection();
                     foreach (var itm in uqIdentifiers)
                         nvc.Add($"identifier[{itm.Authority.Key}].value", itm.Value);
 

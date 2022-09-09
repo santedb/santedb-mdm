@@ -45,6 +45,7 @@ using System.Security.Principal;
 using System.Text;
 using SanteDB.Core.Model.Roles;
 using SanteDB.Core.Security.Services;
+using System.Collections.Specialized;
 
 namespace SanteDB.Persistence.MDM.Services.Resources
 {
@@ -424,7 +425,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             // Try to do a linked query (unless the query is on a special local filter value)
             // TODO: Make it configurable which properties trigger a master query
             var resultSet = this.m_entityPersistenceService.Query(localLinq, AuthenticationContext.SystemPrincipal);
-            if (masterQuery.Any())
+            if (masterQuery.AllKeys.Any())
             {
                 var masterLinq = QueryExpressionParser.BuildLinqExpression<Entity>(masterQuery, null, false);
                 resultSet = resultSet.Union(masterLinq);

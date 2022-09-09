@@ -32,6 +32,7 @@ using SanteDB.Core.Services;
 using SanteDB.Persistence.MDM.Model;
 using System;
 using System.Collections.Generic;
+using System.Collections.Specialized;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Security.Principal;
