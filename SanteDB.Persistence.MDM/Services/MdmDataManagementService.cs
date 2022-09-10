@@ -363,21 +363,22 @@ namespace SanteDB.Persistence.MDM.Services
         /// <summary>
         /// Fired when the MDM Subscription has been executed
         /// </summary>
-        private void MdmSubscriptionExecuted(object sender, Core.Event.QueryResultEventArgs<Core.Model.IdentifiedData> e)
+        private void MdmSubscriptionExecuted(object sender, SubscriptionExecutedEventArgs e)
         {
             var authPrincipal = AuthenticationContext.Current.Principal;
 
             // Results contain LOCAL records most likely
             // We have a resource type that matches
-            e.Results = new NestedQueryResultSet<IdentifiedData>(e.Results, (res) =>
+            e.Results = new NestedQueryResultSet(e.Results, (res) =>
             {
                 if (!this.m_configuration.ResourceTypes.Any(o => o.Type == res.GetType())) return res;
                 // Get the data manager for this type
                 if (res is IHasClassConcept classifiable &&
+                    res is IIdentifiedData iddata &&
                     classifiable.ClassConceptKey != MdmConstants.MasterRecordClassification)
                 {
                     var dataManager = MdmDataManagerFactory.GetDataManager(res.GetType());
-                    return dataManager.GetMasterFor(res.Key.Value).Synthesize(AuthenticationContext.Current.Principal) as IdentifiedData;
+                    return dataManager.GetMasterFor(iddata.Key.Value).Synthesize(AuthenticationContext.Current.Principal) as IdentifiedData;
                 }
                 else
                 {
