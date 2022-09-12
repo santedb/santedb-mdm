@@ -219,7 +219,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     catch { }
                 }
 
-                var localQuery = query.ToDictionary().ToDictionary(o => $"relationship[{MdmConstants.MasterRecordRelationship}].source@{ctype.Name}.{o.Key}", o => (object)o.Value).ToNameValueCollection();
+                var localQuery = query.ToDictionary(o => $"relationship[{MdmConstants.MasterRecordRelationship}].source@{ctype.Name}.{o}", o => (object)o).ToNameValueCollection();
                 if (!query.TryGetValue("statusConcept", out _))
                 {
                     localQuery.Add($"relationship[{MdmConstants.MasterRecordRelationship}].source@{ctype.Name}.statusConcept", StatusKeys.ActiveStates.Select(o => o.ToString()));
