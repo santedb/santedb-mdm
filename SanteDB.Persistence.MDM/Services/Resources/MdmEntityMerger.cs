@@ -291,7 +291,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
 
                         // Copy identifiers over
                         transactionBundle.AddRange(
-                            victim.LoadCollection(o => o.Identifiers).Where(i => !survivor.LoadCollection(o => o.Identifiers).Any(e => e.SemanticEquals(i))).Select(o => new EntityIdentifier(o.Authority, o.Value)
+                            victim.LoadCollection(o => o.Identifiers).Where(i => !survivor.LoadCollection(o => o.Identifiers).Any(e => e.SemanticEquals(i))).Select(o => new EntityIdentifier(o.IdentityDomain, o.Value)
                             {
                                 SourceEntityKey = survivor.Key,
                                 IssueDate = o.IssueDate,

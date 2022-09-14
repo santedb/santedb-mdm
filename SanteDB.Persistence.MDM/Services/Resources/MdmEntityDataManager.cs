@@ -1229,7 +1229,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             {
                 ident.BatchOperation = BatchOperationType.Delete;
                 yield return ident;
-                yield return new EntityIdentifier(ident.Authority, ident.Value)
+                yield return new EntityIdentifier(ident.IdentityDomain, ident.Value)
                 {
                     IssueDate = ident.IssueDate,
                     SourceEntityKey = survivorKey
