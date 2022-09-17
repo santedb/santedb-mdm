@@ -123,7 +123,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 var parameter = Expression.Parameter(parmType);
                 var dataAccess = Expression.MakeMemberAccess(parameter, parmType.GetProperty("Results"));
                 var principalAccess = Expression.MakeMemberAccess(parameter, parmType.GetProperty("Principal"));
-                var methodInfo = this.GetType().GetGenericMethod(nameof(OnGenericQueried), new Type[] { baseType }, new Type[] { typeof(IEnumerable<>).MakeGenericType(baseType), typeof(IPrincipal) });
+                var methodInfo = this.GetType().GetGenericMethod(nameof(OnGenericQueried), new Type[] { baseType }, new Type[] { typeof(IQueryResultSet<>).MakeGenericType(baseType), typeof(IPrincipal) });
                 var lambdaMethod = typeof(Expression).GetGenericMethod(nameof(Expression.Lambda), new Type[] { eventHandler.EventHandlerType }, new Type[] { typeof(Expression), typeof(ParameterExpression[]) });
                 var lambdaAccess = lambdaMethod.Invoke(null, new object[] { Expression.Assign(dataAccess, Expression.Call(Expression.Constant(this), (MethodInfo)methodInfo, dataAccess, principalAccess)), new ParameterExpression[] { Expression.Parameter(typeof(Object)), parameter } }) as LambdaExpression;
                 eventHandler.AddEventHandler(repoInstance, lambdaAccess.Compile());
@@ -136,27 +136,27 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// <summary>
         /// Handles when a generic repository (above the repository this is subscribed to) is queried
         /// </summary>
-        public IEnumerable<TReturn> OnGenericQueried<TReturn>(IEnumerable<TReturn> results, IPrincipal principal)
+        public IQueryResultSet<TReturn> OnGenericQueried<TReturn>(IQueryResultSet<TReturn> results, IPrincipal principal)
             where TReturn : IdentifiedData
         {
-            return results.Select(o =>
+            return new NestedQueryResultSet<TReturn>(results, o =>
             {
                 // It is a type controlled by this handler - so we want to ensure we return the master rather than a local
                 if (o is TModel tmodel && !this.m_dataManager.IsMaster(tmodel))
                 {
-                    return this.m_dataManager.GetMasterFor(tmodel.Key.Value).Synthesize(principal);
+                    return this.m_dataManager.GetMasterFor(tmodel.Key.Value).Synthesize(principal) as TReturn;
                 }
                 // It is a type which is classified as a master and has a type concept
                 else if (o is IHasClassConcept ihcc && ihcc.ClassConceptKey == MdmConstants.MasterRecordClassification &&
                     o is IHasTypeConcept ihtc && this.m_classConceptKey.Contains(ihtc.TypeConceptKey.GetValueOrDefault()))
                 {
-                    return this.m_dataManager.GetMasterFor(o.Key.Value).Synthesize(principal);
+                    return this.m_dataManager.GetMasterFor(o.Key.Value).Synthesize(principal) as TReturn;
                 }
                 else
                 {
                     return o;
                 }
-            }).OfType<TReturn>();
+            });
         }
 
         /// <summary>
