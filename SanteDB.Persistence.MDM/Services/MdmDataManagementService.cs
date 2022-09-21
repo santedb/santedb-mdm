@@ -134,6 +134,62 @@ namespace SanteDB.Persistence.MDM.Services
         /// </summary>
         public event EventHandler Stopped;
 
+        // Entity type maps 
+        private readonly Dictionary<Guid, Type> m_entityTypeMap = new Dictionary<Guid, Type>() {
+            { EntityClassKeys.Patient, typeof(Patient) },
+            { EntityClassKeys.Provider, typeof(Provider) },
+            { EntityClassKeys.Organization, typeof(Organization) },
+            { EntityClassKeys.Place, typeof(Place) },
+            { EntityClassKeys.CityOrTown, typeof(Place) },
+            { EntityClassKeys.Country, typeof(Place) },
+            { EntityClassKeys.CountyOrParish, typeof(Place) },
+            { EntityClassKeys.State, typeof(Place) },
+            { EntityClassKeys.PrecinctOrBorough, typeof(Place) },
+            { EntityClassKeys.ServiceDeliveryLocation, typeof(Place) },
+            { EntityClassKeys.Person, typeof(Person) },
+            { EntityClassKeys.ManufacturedMaterial, typeof(ManufacturedMaterial) },
+            { EntityClassKeys.Material, typeof(Material) }
+        };
+
+        /// <summary>
+        /// Get master for <paramref name="forEntity"/> or, if it is already a master or not MDM controlled return <paramref name="forEntity"/>
+        /// </summary>
+        public T ResolveManagedTarget<T>(T forEntity) where T : class, IHasClassConcept, IHasTypeConcept, IIdentifiedData
+        {
+            if (forEntity == null)
+            {
+                return default(T);
+            }
+            if (forEntity.ClassConceptKey == MdmConstants.MasterRecordClassification && this.m_entityTypeMap.TryGetValue(forEntity.TypeConceptKey.Value, out Type tMaster) 
+                && MdmDataManagerFactory.TryGetDataManager(tMaster, out var dataManager))
+            {
+                return dataManager.CreateMasterContainerForMasterEntity(forEntity as IIdentifiedData).Synthesize(AuthenticationContext.Current.Principal) as T;
+            }
+            else
+            {
+                return forEntity;
+            }
+        }
+
+        /// <summary>
+        /// Get master for <paramref name="forSource"/> or, if it is already a master or not MDM controlled return <paramref name="forSource"/>
+        /// </summary>
+        public T ResolveManagedSource<T>(T forSource) where T : class, IHasClassConcept, IHasTypeConcept, IIdentifiedData
+        {
+            if (forSource == null)
+            {
+                return default(T);
+            }
+            if (forSource.ClassConceptKey != MdmConstants.MasterRecordClassification && MdmDataManagerFactory.TryGetDataManager(typeof(T), out var dataManager))
+            {
+                return dataManager.GetMasterRelationshipFor(forSource.Key.Value).LoadProperty(o=>o.SourceEntity) as T;
+            }
+            else
+            {
+                return forSource;
+            }
+        }
+
         /// <summary>
         /// Create injected service
         /// </summary>
@@ -150,6 +206,7 @@ namespace SanteDB.Persistence.MDM.Services
             {
                 throw new InvalidOperationException("Cannot run MDM and SIM in same mode");
             }
+            
         }
 
         /// <summary>
@@ -246,6 +303,7 @@ namespace SanteDB.Persistence.MDM.Services
                 // HACK: Replace any freetext service with our own
                 this.m_serviceManager.RemoveServiceProvider(typeof(IFreetextSearchService));
                 m_serviceManager.AddServiceProvider(new MdmFreetextSearchService());
+
             };
 
             this.Started?.Invoke(this, EventArgs.Empty);
@@ -402,6 +460,28 @@ namespace SanteDB.Persistence.MDM.Services
 
             this.Stopped?.Invoke(this, EventArgs.Empty);
             return true;
+        }
+
+        /// <summary>
+        /// Get all managed reference links that are established
+        /// </summary>
+        IEnumerable<T> IDataManagementPattern.GetManagedReferenceLinks<T>(IEnumerable<T> forRelationships) => forRelationships.Where(o => o.AssociationTypeKey == MdmConstants.MasterRecordRelationship);
+
+        /// <summary>
+        /// Add a managed reference link
+        /// </summary>
+        ITargetedAssociation IDataManagementPattern.AddManagedReferenceLink<T>(T sourceObject, T targetObject) 
+        {
+            ITargetedAssociation retVal = null;
+            if (sourceObject is Entity) {
+                retVal= new EntityRelationship(MdmConstants.MasterRecordRelationship, targetObject as Entity);
+            }
+            else if(sourceObject is Act)
+            {
+                retVal = new ActRelationship(MdmConstants.MasterRecordRelationship, targetObject as Act);
+            }
+            sourceObject.AddRelationship(retVal);
+            return retVal;
         }
     }
 }

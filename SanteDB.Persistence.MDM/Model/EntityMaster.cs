@@ -38,6 +38,7 @@ using SanteDB.Core.Security;
 using SanteDB.Core.Model.Constants;
 using SanteDB.Core.Model.Attributes;
 using SanteDB.Core.Services;
+using SanteDB.Core.i18n;
 
 namespace SanteDB.Persistence.MDM.Model
 {
@@ -185,6 +186,11 @@ namespace SanteDB.Persistence.MDM.Model
         /// </summary>
         public EntityMaster(Entity master) : this()
         {
+            if (master.ClassConceptKey != MdmConstants.MasterRecordClassification)
+            {
+                throw new InvalidOperationException(ErrorMessages.INVALID_CLASS_CODE);
+            }
+
             this.CopyObjectData(master, false, true);
             this.m_masterRecord = master;
             using (AuthenticationContext.EnterSystemContext())

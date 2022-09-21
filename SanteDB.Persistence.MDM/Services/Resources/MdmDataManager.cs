@@ -145,6 +145,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         public ITargetedAssociation GetMasterRelationshipFor(Guid localKey) =>
             this.GetAllMdmAssociations(localKey).FirstOrDefault(o => o.AssociationTypeKey == MdmConstants.MasterRecordRelationship);
+
     }
 
     /// <summary>

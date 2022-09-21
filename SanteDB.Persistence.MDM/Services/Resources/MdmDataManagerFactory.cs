@@ -70,6 +70,20 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         }
 
         /// <summary>
+        /// Try to get the datamanager for <paramref name="forType"/>
+        /// </summary>
+        public static bool TryGetDataManager(Type forType, out MdmDataManager manager)
+        {
+            if(m_createdInstances.TryGetValue(forType, out var managerO))
+            {
+                manager = (MdmDataManager)managerO;
+                return true;
+            }
+            manager = null;
+            return false;
+        }
+
+        /// <summary>
         /// Register data manager
         /// </summary>
         internal static void RegisterDataManager(Type resourceType)
