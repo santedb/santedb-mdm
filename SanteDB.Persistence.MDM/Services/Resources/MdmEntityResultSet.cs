@@ -62,6 +62,9 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         public bool Any() => this.m_wrappedResultSet.Any();
 
+        /// <inheritdoc/>
+        public IQueryResultSet<TModel> Distinct() => new MdmEntityResultSet<TModel>(this.m_wrappedResultSet.Distinct(), this.m_principal);
+
         /// <summary>
         /// Get this result set as a stateful query
         /// </summary>
@@ -215,7 +218,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             {
                 return this.Select(se);
             }
-            else if(selector is Expression<Func<TModel, dynamic>> de) {
+            else if (selector is Expression<Func<TModel, dynamic>> de)
+            {
                 // Strip body convert
                 return this.Select(Expression.Lambda<Func<TModel, TReturn>>(Expression.Convert(de.Body, typeof(TReturn)).Reduce(), de.Parameters));
             }
