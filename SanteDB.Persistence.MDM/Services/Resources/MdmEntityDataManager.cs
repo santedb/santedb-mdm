@@ -380,12 +380,12 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             {
                 if (obj is Entity entity)
                 {
-                    entity.LoadProperty(o => o.Relationships).Where(o => o.SourceEntityKey == fromEntityKey && !this.m_mdmRelationshipTypes.Contains(o.RelationshipTypeKey.GetValueOrDefault())).ToList().ForEach(o => o.SourceEntityKey = toEntityKey);
-                    entity.LoadProperty(o => o.Relationships).Where(o => o.TargetEntityKey == fromEntityKey && !this.m_mdmRelationshipTypes.Contains(o.RelationshipTypeKey.GetValueOrDefault())).ToList().ForEach(o => o.TargetEntityKey = toEntityKey);
+                    entity.LoadProperty(o => o.Relationships)?.Where(o => o.SourceEntityKey == fromEntityKey && !this.m_mdmRelationshipTypes.Contains(o.RelationshipTypeKey.GetValueOrDefault())).ToList().ForEach(o => o.SourceEntityKey = toEntityKey);
+                    entity.LoadProperty(o => o.Relationships)?.Where(o => o.TargetEntityKey == fromEntityKey && !this.m_mdmRelationshipTypes.Contains(o.RelationshipTypeKey.GetValueOrDefault())).ToList().ForEach(o => o.TargetEntityKey = toEntityKey);
                 }
                 else if (obj is Act act)
                 {
-                    act.LoadProperty(o => o.Participations).Where(o => o.PlayerEntityKey == fromEntityKey).ToList().ForEach(o => o.PlayerEntityKey = toEntityKey);
+                    act.LoadProperty(o => o.Participations)?.Where(o => o.PlayerEntityKey == fromEntityKey).ToList().ForEach(o => o.PlayerEntityKey = toEntityKey);
                 }
                 else if (obj is ITargetedAssociation entityRelationship && !this.m_mdmRelationshipTypes.Contains(entityRelationship.AssociationTypeKey.GetValueOrDefault()))
                 {
@@ -408,7 +408,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         {
             if (data.ClassConceptKey != MdmConstants.MasterRecordClassification)
             {
-                if (data.LoadCollection(o => o.Relationships).Count(r => r.RelationshipTypeKey == MdmConstants.MasterRecordClassification && r.ObsoleteVersionSequenceId == null) != 1)
+                if (data.LoadCollection(o => o.Relationships)?.Count(r => r.RelationshipTypeKey == MdmConstants.MasterRecordClassification && r.ObsoleteVersionSequenceId == null) != 1)
                 {
                     yield return new DetectedIssue(DetectedIssuePriorityType.Error, "MDM-ORPHAN", $"{data} appears to be an MDM Orphan", DetectedIssueKeys.FormalConstraintIssue);
                 }
