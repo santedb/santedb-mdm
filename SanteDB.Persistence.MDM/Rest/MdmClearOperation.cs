@@ -23,11 +23,8 @@ using SanteDB.Core.Interop;
 using SanteDB.Core.Model.Collection;
 using SanteDB.Core.Model.Parameters;
 using SanteDB.Core.Services;
-using SanteDB.Rest.Common;
 using System;
-using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using System.Text;
 
 namespace SanteDB.Persistence.MDM.Rest
 {

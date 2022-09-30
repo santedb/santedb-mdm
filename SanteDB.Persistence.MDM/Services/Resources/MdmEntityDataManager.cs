@@ -20,8 +20,8 @@
  */
 using SanteDB.Core;
 using SanteDB.Core.BusinessRules;
-using SanteDB.Core.Configuration;
 using SanteDB.Core.Diagnostics;
+using SanteDB.Core.Matching;
 using SanteDB.Core.Model;
 using SanteDB.Core.Model.Acts;
 using SanteDB.Core.Model.Constants;
@@ -33,19 +33,14 @@ using SanteDB.Core.Model.Serialization;
 using SanteDB.Core.Security;
 using SanteDB.Core.Security.Claims;
 using SanteDB.Core.Security.Principal;
+using SanteDB.Core.Security.Services;
 using SanteDB.Core.Services;
-using SanteDB.Core.Matching;
-using SanteDB.Persistence.MDM.Exceptions;
 using SanteDB.Persistence.MDM.Model;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Linq.Expressions;
-using System.Security.Principal;
-using System.Text;
-using SanteDB.Core.Model.Roles;
-using SanteDB.Core.Security.Services;
 using System.Collections.Specialized;
+using System.Linq;
+using System.Security.Principal;
 
 namespace SanteDB.Persistence.MDM.Services.Resources
 {
@@ -148,14 +143,19 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 identity = principal.Identity;
             }
 
-            TModel retVal = null;
             // Identity
             if (identity is IDeviceIdentity deviceIdentity)
+            {
                 return this.m_persistenceService.Query(o => o.Relationships.Where(g => g.RelationshipTypeKey == MdmConstants.MasterRecordRelationship).Any(g => g.TargetEntityKey == masterKey) && o.CreatedBy.Device.Name == deviceIdentity.Name, AuthenticationContext.SystemPrincipal).FirstOrDefault();
+            }
             else if (identity is IApplicationIdentity applicationIdentity)
+            {
                 return this.m_persistenceService.Query(o => o.Relationships.Where(g => g.RelationshipTypeKey == MdmConstants.MasterRecordRelationship).Any(g => g.TargetEntityKey == masterKey) && o.CreatedBy.Application.Name == applicationIdentity.Name, AuthenticationContext.SystemPrincipal).FirstOrDefault();
+            }
             else
+            {
                 return null;
+            }
         }
 
         /// <summary>
@@ -683,8 +683,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 .SelectMany(s => this.m_matchingService.Match<TModel>(local, s.Id, ignoreList))
                 .Where(o => o.Record.Key != local.Key) // cannot match with itself
                 .Select(o => new MasterMatch(this.IsMaster(o.Record) ? o.Record.Key.Value : this.GetMasterRelationshipFor(o.Record, context).TargetEntityKey.Value, o)) // Must select the master
-                .GroupBy(o=>o.Master) // We are only interested in the match pairs 1:1 with local and master
-                .Select(o=> o.OrderByDescending(m=>m.MatchResult.Classification).ThenByDescending(m=>m.MatchResult.Score).First()) // We are only interested in strongest match pair
+                .GroupBy(o => o.Master) // We are only interested in the match pairs 1:1 with local and master
+                .Select(o => o.OrderByDescending(m => m.MatchResult.Classification).ThenByDescending(m => m.MatchResult.Score).First()) // We are only interested in strongest match pair
                 .GroupBy(o => o.MatchResult.Classification) // Group by classifications
                 .ToDictionary(o => o.Key, o => o.Distinct()); // Then select by matches
 
@@ -702,7 +702,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             // IF MATCHES.COUNT == 1 AND AUTOLINK = TRUE
             var autoLinkString = String.Empty;
             if (matchResultGrouping[RecordMatchClassification.Match].Count() == 1 &&
-                matchResultGrouping[RecordMatchClassification.Match].First().MatchResult.Configuration?.Metadata.Tags.TryGetValue(MdmConstants.AutoLinkSetting, out autoLinkString) == true && 
+                matchResultGrouping[RecordMatchClassification.Match].First().MatchResult.Configuration?.Metadata.Tags.TryGetValue(MdmConstants.AutoLinkSetting, out autoLinkString) == true &&
                 Boolean.TryParse(autoLinkString, out var autoLink) && autoLink)
             {
                 var matchedMaster = matchResultGrouping[RecordMatchClassification.Match].Single();
@@ -736,7 +736,9 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                         foreach (var itm in mdmMatchInstructions)
                         {
                             if (itm is EntityRelationship er && er.ClassificationKey == MdmConstants.SystemClassification) // This is not system it is auto
+                            {
                                 er.ClassificationKey = MdmConstants.AutomagicClassification;
+                            }
 
                             retVal.AddLast(itm);
                             if (itm.SemanticEquals(existingMasterRel))
@@ -852,9 +854,14 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 {
                     yield return masterRelationships.First(); // Return
                     if (originalRelationships.Any()) // There is an original relationship so send that back
+                    {
                         yield return originalRelationships.First();
+                    }
+
                     if (candidateRelationships.Any(r => !r.ObsoleteVersionSequenceId.HasValue || r.BatchOperation == BatchOperationType.Delete)) // There is a candidate which is active so send that back
+                    {
                         yield return candidateRelationships.FirstOrDefault(o => !o.ObsoleteVersionSequenceId.HasValue || o.BatchOperation == BatchOperationType.Delete);
+                    }
                 }
                 // There is a master to be deleted but not all of them (i.e. there is an active one between L and M)
                 // so we just want to keep the current active
@@ -870,7 +877,9 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 {
                     yield return masterRelationships.First();
                     if (candidateRelationships.Any(r => r.ObsoleteVersionSequenceId.HasValue || r.BatchOperation == BatchOperationType.Delete)) // There is a candidate
+                    {
                         yield return candidateRelationships.FirstOrDefault(o => o.ObsoleteVersionSequenceId.HasValue || o.BatchOperation == BatchOperationType.Delete);
+                    }
                 }
                 // If there is a candidate that is marked as to be deleted
                 // but another which is not - we take the candidate with a current
@@ -941,7 +950,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                         {
                             var oldMasterRec = context.OfType<Entity>().FirstOrDefault(o => o.Key == existingRelationship.TargetEntityKey) ??
                                 this.GetRaw(existingRelationship.TargetEntityKey.Value) as Entity;
-                            
+
                             // TODO: Add configuration which allows implementers to specify whether they want:
                             //  1. Old masters which have no locals to persist in the database with a replaces relationship (this is useful when a NHID is assigned to the old master and it is REPLACED by a new record)
                             //  2. Old masters which have no locals are removed from the database
@@ -995,7 +1004,9 @@ namespace SanteDB.Persistence.MDM.Services.Resources
 
                 // User had the rel backwards
                 foreach (var itm in this.MdmTxMasterLink(localKey, masterKey, context, verified))
+                {
                     yield return itm;
+                }
             }
         }
 
@@ -1039,7 +1050,9 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             else if (this.IsMaster(toKey))
             {
                 foreach (var itm in this.MdmTxMasterUnlink(toKey, fromKey, context))
+                {
                     yield return itm;
+                }
             }
         }
 
@@ -1256,7 +1269,9 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         public override IEnumerable<IdentifiedData> MdmTxDetectCandidates(IdentifiedData master, List<IdentifiedData> context)
         {
             if (!this.IsMaster(master.Key.Value))
+            {
                 throw new ArgumentException("MdmTxDetectCandidiates expects MASTER record");
+            }
 
             // Get the ignore list
             var ignoreList = this.m_relationshipService.Query(o => o.TargetEntityKey == master.Key && o.RelationshipTypeKey == MdmConstants.IgnoreCandidateRelationship, AuthenticationContext.SystemPrincipal).Select(o => o.SourceEntityKey.Value);//.Select(o => this.GetMasterRelationshipFor(o.SourceEntityKey.Value, context).TargetEntityKey.Value);
@@ -1326,7 +1341,9 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             else if (this.IsMaster(ignoreKey)) // reversed
             {
                 foreach (var itm in this.MdmTxUnIgnoreCandidateMatch(ignoreKey, hostKey, context))
+                {
                     yield return itm;
+                }
             }
         }
 

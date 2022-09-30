@@ -20,24 +20,14 @@
  */
 using SanteDB.Core;
 using SanteDB.Core.Configuration;
-using SanteDB.Core.Event;
-using SanteDB.Core.Model;
-using SanteDB.Core.Model.Acts;
-using SanteDB.Core.Model.Constants;
 using SanteDB.Core.Model.Entities;
 using SanteDB.Core.Model.Query;
 using SanteDB.Core.Security;
 using SanteDB.Core.Services;
-using SanteDB.Persistence.MDM.Model;
 using SanteDB.Persistence.MDM.Services.Resources;
 using System;
-using System.Collections.Generic;
 using System.Collections.Specialized;
-using System.Diagnostics.CodeAnalysis;
 using System.Linq;
-using System.Linq.Expressions;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace SanteDB.Persistence.MDM.Services
 {
@@ -70,7 +60,9 @@ namespace SanteDB.Persistence.MDM.Services
                 // HACK: Change this method to detect the type
                 var idps = ApplicationServiceContext.Current.GetService<IDataPersistenceService<Entity>>();
                 if (idps == null)
+                {
                     throw new InvalidOperationException("Cannot find a query repository service");
+                }
 
                 var search = new NameValueCollection();
                 search.Add("classConcept", MdmConstants.MasterRecordClassification.ToString());
@@ -85,7 +77,9 @@ namespace SanteDB.Persistence.MDM.Services
                 // Does the provider support freetext search clauses?
                 var idps = ApplicationServiceContext.Current.GetService<IDataPersistenceService<TEntity>>();
                 if (idps == null)
+                {
                     throw new InvalidOperationException("Cannot find a query repository service");
+                }
 
                 var searchTerm = String.Join(" ", term);
                 return idps.Query(o => o.FreetextSearch(searchTerm), AuthenticationContext.Current.Principal);

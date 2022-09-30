@@ -20,36 +20,28 @@
  */
 using SanteDB.Core;
 using SanteDB.Core.Configuration;
+using SanteDB.Core.Data;
 using SanteDB.Core.Diagnostics;
+using SanteDB.Core.Event;
+using SanteDB.Core.Jobs;
+using SanteDB.Core.Matching;
+using SanteDB.Core.Model;
 using SanteDB.Core.Model.Acts;
+using SanteDB.Core.Model.Collection;
+using SanteDB.Core.Model.Constants;
 using SanteDB.Core.Model.Entities;
 using SanteDB.Core.Model.Interfaces;
+using SanteDB.Core.Model.Query;
+using SanteDB.Core.Model.Roles;
 using SanteDB.Core.Model.Serialization;
+using SanteDB.Core.Security;
 using SanteDB.Core.Services;
-using SanteDB.Core.Services.Impl;
+using SanteDB.Persistence.MDM.Jobs;
 using SanteDB.Persistence.MDM.Model;
+using SanteDB.Persistence.MDM.Services.Resources;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
-using System.Linq.Expressions;
-using SanteDB.Core.Model;
-using SanteDB.Core.Model.Subscription;
-using SanteDB.Core.Security;
-using SanteDB.Core.Model.EntityLoader;
-using SanteDB.Core.Data;
-using SanteDB.Core.Model.Constants;
-using SanteDB.Core.Model.Roles;
-using SanteDB.Core.Model.Map;
-using SanteDB.Core.Interfaces;
-using SanteDB.Core.Model.Query;
-using SanteDB.Core.Exceptions;
-using SanteDB.Persistence.MDM.Services.Resources;
-using SanteDB.Core.Jobs;
-using SanteDB.Persistence.MDM.Jobs;
-using SanteDB.Core.Model.Collection;
-using SanteDB.Core.Event;
-using SanteDB.Core.Matching;
 using System.Security.Principal;
 
 namespace SanteDB.Persistence.MDM.Services
@@ -160,7 +152,7 @@ namespace SanteDB.Persistence.MDM.Services
             {
                 return default(T);
             }
-            if (forEntity.ClassConceptKey == MdmConstants.MasterRecordClassification && this.m_entityTypeMap.TryGetValue(forEntity.TypeConceptKey.Value, out Type tMaster) 
+            if (forEntity.ClassConceptKey == MdmConstants.MasterRecordClassification && this.m_entityTypeMap.TryGetValue(forEntity.TypeConceptKey.Value, out Type tMaster)
                 && MdmDataManagerFactory.TryGetDataManager(tMaster, out var dataManager))
             {
                 return dataManager.CreateMasterContainerForMasterEntity(forEntity as IIdentifiedData).Synthesize(AuthenticationContext.Current.Principal) as T;
@@ -182,7 +174,7 @@ namespace SanteDB.Persistence.MDM.Services
             }
             if (forSource.ClassConceptKey != MdmConstants.MasterRecordClassification && MdmDataManagerFactory.TryGetDataManager(typeof(T), out var dataManager))
             {
-                return dataManager.GetMasterRelationshipFor(forSource.Key.Value).LoadProperty(o=>o.SourceEntity) as T;
+                return dataManager.GetMasterRelationshipFor(forSource.Key.Value).LoadProperty(o => o.SourceEntity) as T;
             }
             else
             {
@@ -206,7 +198,7 @@ namespace SanteDB.Persistence.MDM.Services
             {
                 throw new InvalidOperationException("Cannot run MDM and SIM in same mode");
             }
-            
+
         }
 
         /// <summary>
@@ -215,7 +207,10 @@ namespace SanteDB.Persistence.MDM.Services
         public void Dispose()
         {
             foreach (var i in this.m_listeners)
+            {
                 i.Dispose();
+            }
+
             this.m_listeners.Clear();
         }
 
@@ -237,8 +232,10 @@ namespace SanteDB.Persistence.MDM.Services
                 var rt = itm.Type;
                 string typeName = $"{rt.Name}Master";
                 if (typeof(Entity).IsAssignableFrom(rt))
+                {
                     rt = typeof(EntityMaster<>).MakeGenericType(rt);
-                
+                }
+
                 ModelSerializationBinder.RegisterModelType(typeName, rt);
             }
 
@@ -246,7 +243,9 @@ namespace SanteDB.Persistence.MDM.Services
             ApplicationServiceContext.Current.Started += (o, e) =>
             {
                 if (this.m_matchingService == null)
+                {
                     this.m_traceSource.TraceWarning("The MDM Service should be using a record matching service");
+                }
 
                 // Replace matching
                 var mdmMatcher = this.m_serviceManager.CreateInjected<MdmRecordMatchingService>();
@@ -315,7 +314,8 @@ namespace SanteDB.Persistence.MDM.Services
         /// </summary>
         private void RecheckRelationshipTrigger(object sender, DataPersistedEventArgs<EntityRelationship> e)
         {
-            using (DataPersistenceControlContext.Create(this.m_configuration.MasterDataDeletionMode)) {
+            using (DataPersistenceControlContext.Create(this.m_configuration.MasterDataDeletionMode))
+            {
                 switch (e.Data.RelationshipTypeKey.ToString())
                 {
                     case MdmConstants.MASTER_RECORD_RELATIONSHIP:
@@ -343,8 +343,8 @@ namespace SanteDB.Persistence.MDM.Services
                         // Is the ROT being assigned, and if so is there another ?
                         if (!e.Data.ObsoleteVersionSequenceId.HasValue || e.Data.BatchOperation == Core.Model.DataTypes.BatchOperationType.Delete)
                         {
-                                //Obsolete other ROTs (there can only be one)
-                                this.m_entityRelationshipService.DeleteAll(r => r.SourceEntityKey == e.Data.SourceEntityKey && r.TargetEntityKey != e.Data.TargetEntityKey && r.ObsoleteVersionSequenceId == null, e.Mode, e.Principal);
+                            //Obsolete other ROTs (there can only be one)
+                            this.m_entityRelationshipService.DeleteAll(r => r.SourceEntityKey == e.Data.SourceEntityKey && r.TargetEntityKey != e.Data.TargetEntityKey && r.ObsoleteVersionSequenceId == null, e.Mode, e.Principal);
                         }
                         break;
                 }
@@ -410,8 +410,8 @@ namespace SanteDB.Persistence.MDM.Services
                             // Is the ROT being assigned, and if so is there another ?
                             if (!targetedAssociation.ObsoleteVersionSequenceId.HasValue || idData.BatchOperation == Core.Model.DataTypes.BatchOperationType.Delete)
                             {
-                                    //Obsolete other ROTs (there can only be one)
-                                    this.m_entityRelationshipService.DeleteAll(r => r.SourceEntityKey == targetedAssociation.SourceEntityKey && r.TargetEntityKey != targetedAssociation.TargetEntityKey && r.ObsoleteVersionSequenceId == null, mode, principal);
+                                //Obsolete other ROTs (there can only be one)
+                                this.m_entityRelationshipService.DeleteAll(r => r.SourceEntityKey == targetedAssociation.SourceEntityKey && r.TargetEntityKey != targetedAssociation.TargetEntityKey && r.ObsoleteVersionSequenceId == null, mode, principal);
                             }
                             break;
                     }
@@ -429,7 +429,10 @@ namespace SanteDB.Persistence.MDM.Services
             // We have a resource type that matches
             e.Results = new NestedQueryResultSet(e.Results, (res) =>
             {
-                if (!this.m_configuration.ResourceTypes.Any(o => o.Type == res.GetType())) return res;
+                if (!this.m_configuration.ResourceTypes.Any(o => o.Type == res.GetType()))
+                {
+                    return res;
+                }
                 // Get the data manager for this type
                 if (res is IHasClassConcept classifiable &&
                     res is IIdentifiedData iddata &&
@@ -455,7 +458,10 @@ namespace SanteDB.Persistence.MDM.Services
 
             // Unregister
             foreach (var i in this.m_listeners)
+            {
                 i.Dispose();
+            }
+
             this.m_listeners.Clear();
 
             this.Stopped?.Invoke(this, EventArgs.Empty);
@@ -470,13 +476,14 @@ namespace SanteDB.Persistence.MDM.Services
         /// <summary>
         /// Add a managed reference link
         /// </summary>
-        ITargetedAssociation IDataManagementPattern.AddManagedReferenceLink<T>(T sourceObject, T targetObject) 
+        ITargetedAssociation IDataManagementPattern.AddManagedReferenceLink<T>(T sourceObject, T targetObject)
         {
             ITargetedAssociation retVal = null;
-            if (sourceObject is Entity) {
-                retVal= new EntityRelationship(MdmConstants.MasterRecordRelationship, targetObject as Entity);
+            if (sourceObject is Entity)
+            {
+                retVal = new EntityRelationship(MdmConstants.MasterRecordRelationship, targetObject as Entity);
             }
-            else if(sourceObject is Act)
+            else if (sourceObject is Act)
             {
                 retVal = new ActRelationship(MdmConstants.MasterRecordRelationship, targetObject as Act);
             }

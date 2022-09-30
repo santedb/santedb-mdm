@@ -22,23 +22,14 @@ using SanteDB.Core;
 using SanteDB.Core.Configuration;
 using SanteDB.Core.Diagnostics;
 using SanteDB.Core.Interop;
-using SanteDB.Core.Model;
-using SanteDB.Core.Model.Acts;
 using SanteDB.Core.Model.Collection;
-using SanteDB.Core.Model.Entities;
-using SanteDB.Core.Model.Interfaces;
 using SanteDB.Core.Model.Query;
-using SanteDB.Core.Security;
 using SanteDB.Core.Services;
-using SanteDB.Persistence.MDM.Exceptions;
-using SanteDB.Persistence.MDM.Services.Resources;
 using SanteDB.Rest.Common;
 using System;
-using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
-using System.Text;
 
 namespace SanteDB.Persistence.MDM.Rest
 {

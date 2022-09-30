@@ -18,12 +18,9 @@
  * User: fyfej
  * Date: 2022-5-30
  */
-using SanteDB.Core;
 using SanteDB.Core.i18n;
-using SanteDB.Core.Model;
 using SanteDB.Core.Model.Entities;
 using SanteDB.Core.Model.Query;
-using SanteDB.Core.Security;
 using SanteDB.Core.Services;
 using SanteDB.Persistence.MDM.Model;
 using System;
@@ -31,7 +28,6 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq.Expressions;
 using System.Security.Principal;
-using System.Text;
 
 namespace SanteDB.Persistence.MDM.Services.Resources
 {

@@ -18,28 +18,21 @@
  * User: fyfej
  * Date: 2022-5-30
  */
-using SanteDB.Core.Security.Services;
+using NUnit.Framework;
+using SanteDB.Caching.Memory.Configuration;
 using SanteDB.Core;
-using SanteDB.Core.Model;
-using SanteDB.Core.Model.Collection;
 using SanteDB.Core.Model.Constants;
 using SanteDB.Core.Model.DataTypes;
 using SanteDB.Core.Model.Entities;
 using SanteDB.Core.Model.Roles;
-using SanteDB.Core.Model.Security;
 using SanteDB.Core.Security;
 using SanteDB.Core.Services;
+using SanteDB.Core.TestFramework;
 using SanteDB.Persistence.MDM.Services;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
-using SanteDB.Core.TestFramework;
-using SanteDB.Core.Security.Claims;
-using SanteDB.Core.Services.Impl;
-using NUnit.Framework;
-using SanteDB.Caching.Memory.Configuration;
 
 namespace SanteDB.Persistence.MDM.Test
 {
@@ -387,7 +380,7 @@ namespace SanteDB.Persistence.MDM.Test
                 savedLocal = this.m_patientRepository.Get(savedLocal.Key.Value);
                 savedLocal.DateOfBirth = DateTime.Parse("1984-04-11");
                 savedLocal = this.m_patientRepository.Save(savedLocal);
-                Assert.AreEqual(queriedMaster.Key, savedLocal.LoadProperty(o=>o.Relationships).FirstOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship)?.TargetEntityKey);
+                Assert.AreEqual(queriedMaster.Key, savedLocal.LoadProperty(o => o.Relationships).FirstOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship)?.TargetEntityKey);
                 var afterUpdateMaster = this.m_patientRepository.Find(o => o.Identifiers.Any(i => i.Value == "MDM-04")).FirstOrDefault();
                 Assert.AreEqual(afterUpdateMaster.Key, queriedMaster.Key);
                 Assert.AreNotEqual(queriedMaster.DateOfBirth, afterUpdateMaster.DateOfBirth);
@@ -664,7 +657,7 @@ namespace SanteDB.Persistence.MDM.Test
                 queriedMasterB = this.m_patientRepository.Get(queriedMasterB.Key.Value);
 
                 // A and B point to A
-                Assert.IsTrue(savedLocalA.LoadProperty(o=>o.Relationships).Any(r => r.RelationshipTypeKey == MdmConstants.MasterRecordRelationship && r.TargetEntityKey == queriedMasterA.Key));
+                Assert.IsTrue(savedLocalA.LoadProperty(o => o.Relationships).Any(r => r.RelationshipTypeKey == MdmConstants.MasterRecordRelationship && r.TargetEntityKey == queriedMasterA.Key));
                 Assert.IsTrue(savedLocalB.LoadProperty(o => o.Relationships).Any(r => r.RelationshipTypeKey == MdmConstants.MasterRecordRelationship && r.TargetEntityKey == queriedMasterA.Key && r.ClassificationKey == MdmConstants.VerifiedClassification));
                 Assert.IsFalse(savedLocalB.LoadProperty(o => o.Relationships).Any(r => r.RelationshipTypeKey == MdmConstants.MasterRecordRelationship && r.TargetEntityKey == rawMasterB.Key));
                 Assert.IsTrue(queriedMasterA.LoadProperty(o => o.Relationships).Any(r => r.RelationshipTypeKey == EntityRelationshipTypeKeys.Replaces && r.TargetEntityKey == rawMasterB.Key));

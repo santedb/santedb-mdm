@@ -88,7 +88,9 @@ namespace SanteDB.Persistence.MDM.Services.Resources
 
             this.m_notifyRepository = ApplicationServiceContext.Current.GetService<IRepositoryService<TModel>>() as INotifyRepositoryService<TModel>;
             if (this.m_notifyRepository == null)
+            {
                 throw new InvalidOperationException($"Could not find repository service for {typeof(TModel)}");
+            }
 
             this.m_classConceptKey = typeof(TModel).GetCustomAttributes<ClassConceptKeyAttribute>(false).Select(o => Guid.Parse(o.ClassConcept)).ToArray();
 
@@ -200,15 +202,18 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 // Determine the level of casting required
                 var castStack = new Stack<Type>();
                 var ctype = typeof(TModel);
-                while(ctype != typeof(IdentifiedData))
+                while (ctype != typeof(IdentifiedData))
                 {
                     if (ctype.GetCustomAttribute<XmlRootAttribute>() != null)
+                    {
                         castStack.Push(ctype);
+                    }
+
                     ctype = ctype.BaseType;
                 }
 
                 // Iterate through the query and determine the level of casting
-                while(castStack.Count > 0)
+                while (castStack.Count > 0)
                 {
                     ctype = castStack.Pop();
                     try
@@ -243,7 +248,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                         case "identifier":
                             break;
                         case "id":
-                            if(query.GetValues(itm).Any(o=>o != "!null" && !o.StartsWith("!")))
+                            if (query.GetValues(itm).Any(o => o != "!null" && !o.StartsWith("!")))
                             {
                                 break;
                             }
@@ -261,7 +266,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 if (query.AllKeys.Any())
                 {
                     query.Add("classConcept", MdmConstants.MasterRecordClassification.ToString());
-                    if (localQuery.TryGetValue("statusConcept", out var status)) {
+                    if (localQuery.TryGetValue("statusConcept", out var status))
+                    {
                         query.Add("statusConcept", status);
                     }
                 }
@@ -315,7 +321,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             try
             {
                 // Prevent duplicate processing
-                if(e.Data.GetAnnotations<String>().Contains(MdmConstants.MdmProcessedTag))
+                if (e.Data.GetAnnotations<String>().Contains(MdmConstants.MdmProcessedTag))
                 {
                     return;
                 }
@@ -434,11 +440,11 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     var oldStore = store.Clone() as TModel;
                     store = e.Data.Clone() as TModel;
                     store.Key = oldStore.Key;
-                    if(store is IHasState state && oldStore is IHasState oldState)
+                    if (store is IHasState state && oldStore is IHasState oldState)
                     {
                         state.StatusConceptKey = oldState.StatusConceptKey;
                     }
-                    if(store is Entity storeEnt && oldStore is Entity oldEnt)
+                    if (store is Entity storeEnt && oldStore is Entity oldEnt)
                     {
                         storeEnt.DeterminerConceptKey = oldEnt.DeterminerConceptKey;
                         storeEnt.ClassConceptKey = oldEnt.ClassConceptKey;
@@ -475,7 +481,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                         {
                             irelationships.RemoveRelationship(itm);
                         }
-                        
+
                     }
                 }
 

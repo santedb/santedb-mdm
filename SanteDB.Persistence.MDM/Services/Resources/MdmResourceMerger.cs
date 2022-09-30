@@ -18,16 +18,14 @@
  * User: fyfej
  * Date: 2022-5-30
  */
-using System;
-using System.Collections.Generic;
-using System.Text;
 using SanteDB.Core.Diagnostics;
 using SanteDB.Core.Event;
 using SanteDB.Core.Model;
 using SanteDB.Core.Model.Interfaces;
-using SanteDB.Core.Model.Patch;
 using SanteDB.Core.Model.Query;
 using SanteDB.Core.Services;
+using System;
+using System.Collections.Generic;
 
 namespace SanteDB.Persistence.MDM.Services.Resources
 {

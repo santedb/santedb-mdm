@@ -20,17 +20,17 @@
  */
 using NUnit.Framework;
 using SanteDB.Core;
+using SanteDB.Core.Matching;
 using SanteDB.Core.Model;
+using SanteDB.Core.Model.Query;
 using SanteDB.Core.Model.Roles;
 using SanteDB.Core.Security;
 using SanteDB.Core.Services;
-using SanteDB.Core.Matching;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Linq.Expressions;
-using SanteDB.Core.Model.Query;
 
 namespace SanteDB.Persistence.MDM.Test
 {
@@ -112,7 +112,10 @@ namespace SanteDB.Persistence.MDM.Test
                 Patient p = (Patient)((Object)input);
                 return new DummyMatchResult<T>(input, input);
             }
-            else return null;
+            else
+            {
+                return null;
+            }
         }
 
         public IRecordMatchingDiagnosticSession CreateDiagnosticSession()
@@ -273,12 +276,18 @@ namespace SanteDB.Persistence.MDM.Test
                 var pRecord = (Patient)(object)record;
                 // Classify
                 if (pInput.MultipleBirthOrder.HasValue && pInput.MultipleBirthOrder != pRecord.MultipleBirthOrder)
+                {
                     this.Classification = RecordMatchClassification.Probable;
+                }
                 else
+                {
                     this.Classification = RecordMatchClassification.Match;
+                }
             }
             else
+            {
                 this.Classification = RecordMatchClassification.Match;
+            }
         }
     }
 }

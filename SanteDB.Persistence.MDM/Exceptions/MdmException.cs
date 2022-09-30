@@ -20,11 +20,7 @@
  */
 using SanteDB.Core.Model;
 using System;
-using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace SanteDB.Persistence.MDM.Exceptions
 {
@@ -43,7 +39,7 @@ namespace SanteDB.Persistence.MDM.Exceptions
         /// <summary>
         /// Creates a new MDM exception object
         /// </summary>
-        public MdmException(IdentifiedData record, String message) : this (record, message, null)
+        public MdmException(IdentifiedData record, String message) : this(record, message, null)
         {
         }
 

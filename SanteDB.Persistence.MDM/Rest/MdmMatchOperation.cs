@@ -29,12 +29,9 @@ using SanteDB.Core.Services;
 using SanteDB.Persistence.MDM.Exceptions;
 using SanteDB.Persistence.MDM.Jobs;
 using SanteDB.Persistence.MDM.Services.Resources;
-using SanteDB.Rest.Common;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using System.Linq;
-using System.Text;
 
 namespace SanteDB.Persistence.MDM.Rest
 {

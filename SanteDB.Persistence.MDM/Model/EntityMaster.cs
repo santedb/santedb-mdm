@@ -20,25 +20,20 @@
  */
 using Newtonsoft.Json;
 using SanteDB.Core;
+using SanteDB.Core.i18n;
 using SanteDB.Core.Model;
-using SanteDB.Core.Model.DataTypes;
+using SanteDB.Core.Model.Attributes;
+using SanteDB.Core.Model.Constants;
 using SanteDB.Core.Model.Entities;
 using SanteDB.Core.Model.EntityLoader;
-using SanteDB.Core.Model.Security;
-using SanteDB.Core.Security.Audit;
-using SanteDB.Core.Security.Services;
+using SanteDB.Core.Model.Interfaces;
+using SanteDB.Core.Security;
+using SanteDB.Core.Services;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Security.Principal;
 using System.Xml.Serialization;
-using SanteDB.Core.Model.Roles;
-using SanteDB.Core.Model.Interfaces;
-using SanteDB.Core.Security;
-using SanteDB.Core.Model.Constants;
-using SanteDB.Core.Model.Attributes;
-using SanteDB.Core.Services;
-using SanteDB.Core.i18n;
 
 namespace SanteDB.Persistence.MDM.Model
 {
@@ -74,15 +69,22 @@ namespace SanteDB.Persistence.MDM.Model
                 this.RelationshipTypeKey != MdmConstants.OriginalMasterRelationship &&
                 this.RelationshipTypeKey != MdmConstants.CandidateLocalRelationship &&
                 this.RelationshipTypeKey != MdmConstants.MasterRecordRelationship)
+            {
                 this.SourceEntityKey = master.Key;
+            }
             else if (this.TargetEntityKey == local.Key &&
                 this.RelationshipTypeKey != MdmConstants.MasterRecordOfTruthRelationship)
+            {
                 this.TargetEntityKey = master.Key;
+            }
 
             // Does the target point at a local which has a master? If so, we want to synthesize the
             var targetMaster = this.GetTargetAs<Entity>().GetRelationships().FirstOrDefault(mr => mr.RelationshipTypeKey == MdmConstants.MasterRecordRelationship);
             if (targetMaster != null)
+            {
                 this.TargetEntityKey = targetMaster.TargetEntityKey;
+            }
+
             this.m_annotations.Clear();
         }
 
@@ -178,7 +180,9 @@ namespace SanteDB.Persistence.MDM.Model
         {
             this.ClassConceptKey = MdmConstants.MasterRecordClassification;
             if (!typeof(Entity).IsAssignableFrom(typeof(T)))
+            {
                 throw new ArgumentOutOfRangeException("T must be Entity or subtype of Entity");
+            }
         }
 
         /// <summary>
@@ -204,7 +208,7 @@ namespace SanteDB.Persistence.MDM.Model
         /// </summary>
         public T Synthesize(IPrincipal principal)
         {
-            
+
             var master = new T();
             master.CopyObjectData<IdentifiedData>(this.m_masterRecord, onlyNullFields: true, overwritePopulatedWithNull: false, ignoreTypeMismatch: true);
 
@@ -254,7 +258,9 @@ namespace SanteDB.Persistence.MDM.Model
                     ))
             {
                 if (!relationships.Any(r => r.SemanticEquals(rel) || r.SourceEntityKey == rel.SourceEntityKey && r.TargetEntityKey == rel.TargetEntityKey && r.RelationshipTypeKey == rel.RelationshipTypeKey))
+                {
                     relationships.Add(rel);
+                }
             }
             master.Relationships = relationships;
 

@@ -18,14 +18,10 @@
  * User: fyfej
  * Date: 2022-5-30
  */
-using SanteDB.Core.Configuration;
 using SanteDB.Core.Model;
 using SanteDB.Core.Model.Entities;
 using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 
 namespace SanteDB.Persistence.MDM.Services.Resources
 {
@@ -44,7 +40,10 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             where TModel : IdentifiedData
         {
             if (m_createdInstances.TryGetValue(typeof(TModel), out object instance))
+            {
                 return (MdmDataManager<TModel>)instance;
+            }
+
             return null;
         }
 
@@ -55,7 +54,10 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             where TModel : IdentifiedData
         {
             if (m_createdInstances.TryGetValue(forType, out object instance))
+            {
                 return (MdmDataManager<TModel>)instance;
+            }
+
             return null;
         }
 
@@ -65,7 +67,10 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         public static MdmDataManager GetDataManager(Type forType)
         {
             if (m_createdInstances.TryGetValue(forType, out object instance))
+            {
                 return (MdmDataManager)instance;
+            }
+
             return null;
         }
 
@@ -74,7 +79,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         public static bool TryGetDataManager(Type forType, out MdmDataManager manager)
         {
-            if(m_createdInstances.TryGetValue(forType, out var managerO))
+            if (m_createdInstances.TryGetValue(forType, out var managerO))
             {
                 manager = (MdmDataManager)managerO;
                 return true;

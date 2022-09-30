@@ -20,8 +20,6 @@
  */
 using SanteDB.Core.Model.Interfaces;
 using System;
-using System.Collections.Generic;
-using System.Text;
 
 namespace SanteDB.Persistence.MDM.Model
 {

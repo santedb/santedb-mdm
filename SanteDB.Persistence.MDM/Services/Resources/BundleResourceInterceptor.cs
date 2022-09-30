@@ -19,7 +19,6 @@
  * Date: 2022-5-30
  */
 using SanteDB.Core;
-using SanteDB.Core.Configuration;
 using SanteDB.Core.Diagnostics;
 using SanteDB.Core.Event;
 using SanteDB.Core.Model;
@@ -30,7 +29,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Security.Principal;
-using System.Text;
 
 namespace SanteDB.Persistence.MDM.Services.Resources
 {
@@ -191,10 +189,14 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                         throw new InvalidOperationException($"Response to {hdlr.GetType().FullName}.{methodName} returned no data");
                     }
                     if (bundle.Item[i].Key == subData.Key)
+                    {
                         bundle.Item[i] = subData;
+                    }
 
                     if (eventArgs is DataPersistingEventArgs<Bundle> eclc)
+                    {
                         eclc.Success |= eclc.Cancel |= (bool)evtArgType.GetProperty("Cancel")?.GetValue(evtArgs);
+                    }
                 }
             }
 
@@ -212,7 +214,9 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     {
                         var candidate = bundle.Item.Find(o => o.Key == i.SourceEntityKey) as Entity;
                         if (candidate != null)
+                        {
                             i.SourceEntity = candidate;
+                        }
                     }
                 });
                 bundle = this.m_bundlePersistence.Insert(bundle, TransactionMode.Commit, principal);

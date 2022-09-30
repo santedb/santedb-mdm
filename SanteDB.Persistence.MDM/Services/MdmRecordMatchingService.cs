@@ -19,6 +19,7 @@
  * Date: 2022-5-30
  */
 using SanteDB.Core;
+using SanteDB.Core.Matching;
 using SanteDB.Core.Model;
 using SanteDB.Core.Model.Acts;
 using SanteDB.Core.Model.Collection;
@@ -28,15 +29,11 @@ using SanteDB.Core.Model.Interfaces;
 using SanteDB.Core.Model.Query;
 using SanteDB.Core.Security;
 using SanteDB.Core.Services;
-using SanteDB.Core.Matching;
-using SanteDB.Persistence.MDM.Services.Resources;
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
-using System.Linq.Expressions;
-using System.Text;
 using System.Collections.Specialized;
+using System.Linq;
 
 namespace SanteDB.Persistence.MDM.Services
 {
@@ -61,7 +58,7 @@ namespace SanteDB.Persistence.MDM.Services
         /// <summary>
         /// Existing match service
         /// </summary>
-        public MdmRecordMatchingService(IDataPersistenceService<IdentityDomain> authorityService, IDataPersistenceService<Bundle> bundleService, IDataPersistenceService<EntityRelationship> erService, IDataPersistenceService<ActRelationship> arService,  IRecordMatchingService existingMatchService = null)
+        public MdmRecordMatchingService(IDataPersistenceService<IdentityDomain> authorityService, IDataPersistenceService<Bundle> bundleService, IDataPersistenceService<EntityRelationship> erService, IDataPersistenceService<ActRelationship> arService, IRecordMatchingService existingMatchService = null)
         {
             this.m_matchService = existingMatchService;
             this.m_erService = erService;
@@ -127,7 +124,10 @@ namespace SanteDB.Persistence.MDM.Services
         private IEnumerable<IRecordMatchResult<T>> PerformIdentityMatch<T>(T entity, IEnumerable<Guid> ignoreKeys, IRecordMatchingDiagnosticSession collector) where T : IdentifiedData
         {
             if (!(entity is IHasIdentifiers identifiers))
+            {
                 throw new InvalidOperationException($"Cannot perform identity match on {typeof(T)}");
+            }
+
             collector?.LogStartStage("blocking");
             // Identifiers in which entity has the unique authority
             var uqIdentifiers = identifiers.Identifiers.OfType<IExternalIdentifier>().Where(o => this.m_uniqueAuthorities.Contains(o.Authority.Key ?? Guid.Empty));
@@ -155,7 +155,9 @@ namespace SanteDB.Persistence.MDM.Services
                     //}
                     var nvc = new NameValueCollection();
                     foreach (var itm in uqIdentifiers)
+                    {
                         nvc.Add($"identifier[{itm.Authority.Key}].value", itm.Value);
+                    }
 
                     var filterExpression = QueryExpressionParser.BuildLinqExpression<T>(nvc);
                     // Now we want to filter returning the masters
@@ -181,9 +183,13 @@ namespace SanteDB.Persistence.MDM.Services
         public IQueryResultSet<T> Block<T>(T input, string configurationName, IEnumerable<Guid> ignoreKeys, IRecordMatchingDiagnosticSession collector = null) where T : IdentifiedData
         {
             if (MdmConstants.MdmIdentityMatchConfiguration.Equals(configurationName))
+            {
                 return this.PerformIdentityMatch(input, this.GetIgnoreList(ignoreKeys, input), collector).Select(o => o.Record).AsResultSet<T>();
+            }
             else
+            {
                 return this.m_matchService?.Block<T>(input, configurationName, this.GetIgnoreList(ignoreKeys, input));
+            }
         }
 
         /// <summary>
@@ -192,9 +198,13 @@ namespace SanteDB.Persistence.MDM.Services
         public IEnumerable<IRecordMatchResult<T>> Classify<T>(T input, IEnumerable<T> blocks, string configurationName, IRecordMatchingDiagnosticSession collector = null) where T : IdentifiedData
         {
             if (MdmConstants.MdmIdentityMatchConfiguration.Equals(configurationName))
+            {
                 return this.PerformIdentityClassify(input, blocks, collector);
+            }
             else
+            {
                 return this.m_matchService?.Classify<T>(input, blocks, configurationName);
+            }
         }
 
         /// <summary>
@@ -207,15 +217,21 @@ namespace SanteDB.Persistence.MDM.Services
                 collector?.LogStartStage("scoring");
 
                 if (!(input is IHasIdentifiers identifiers))
+                {
                     throw new InvalidOperationException($"Cannot perform identity match on {typeof(T)}");
+                }
 
                 // Identifiers in which entity has the unique authority
                 var uqIdentifiers = identifiers.Identifiers.OfType<IExternalIdentifier>().Where(o => this.m_uniqueAuthorities.Contains(o.Authority.Key ?? Guid.Empty));
                 if (uqIdentifiers?.Any(i => i.Authority.Key == null) == true)
+                {
                     throw new InvalidOperationException("Some identifiers are missing authorities, cannot perform identity match");
+                }
 
                 if (uqIdentifiers?.Any() != true)
+                {
                     return blocks.Select(o => new MdmIdentityMatchResult<T>(input, o, RecordMatchClassification.NonMatch, 0.0f));
+                }
                 else
                 {
                     return blocks.Select(o =>
@@ -256,9 +272,13 @@ namespace SanteDB.Persistence.MDM.Services
             // Fetch ignore keys if none provided
 
             if (MdmConstants.MdmIdentityMatchConfiguration.Equals(configurationName))
+            {
                 return this.PerformIdentityMatch(input, this.GetIgnoreList(ignoreKeys, input), collector);
+            }
             else
+            {
                 return this.m_matchService?.Match(input, configurationName, this.GetIgnoreList(ignoreKeys, input), collector);
+            }
         }
 
         /// <summary>

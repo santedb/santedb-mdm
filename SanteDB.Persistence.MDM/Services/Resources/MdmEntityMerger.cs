@@ -18,9 +18,7 @@
  * User: fyfej
  * Date: 2022-5-30
  */
-using System.Reflection;
 using SanteDB.Core.BusinessRules;
-using SanteDB.Core.Event;
 using SanteDB.Core.Exceptions;
 using SanteDB.Core.Model;
 using SanteDB.Core.Model.Attributes;
@@ -37,12 +35,10 @@ using SanteDB.Persistence.MDM.Exceptions;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Data;
 using System.Diagnostics;
 using System.Linq;
 using System.Linq.Expressions;
-using System.Security;
-using System.Text;
+using System.Reflection;
 using System.Threading;
 
 namespace SanteDB.Persistence.MDM.Services.Resources
@@ -384,7 +380,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 // Fetch all locals
                 // TODO: Update to the new persistence layer
                 Guid queryId = Guid.NewGuid();
-                int offset = 0, totalResults = 1, batchSize = Environment.ProcessorCount * 64;
+                int totalResults = 1, batchSize = Environment.ProcessorCount * 64;
 
                 var processStack = new ConcurrentStack<TEntity>();
                 var fetchQueue = new ConcurrentQueue<TEntity>();
@@ -411,7 +407,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                             var dr = Interlocked.Read(ref completeProcess);
 
                             sw.Stop();
-                            var rps = ( dr / (float)sw.ElapsedTicks) + 0.000001f;
+                            var rps = (dr / (float)sw.ElapsedTicks) + 0.000001f;
                             this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)dr / (float)totalResults, $"Matching {completeProcess:#,###,###} of {totalResults:#,###,###} - {rps * TimeSpan.TicksPerSecond:#0}/s - ETA {new TimeSpan((long)((totalResults - completeProcess) / rps)):d\\.hh\\:mm\\:ss} (Out: {writeQueue.Count})"));
                             sw.Start();
                             Thread.Sleep(1000);
@@ -443,7 +439,10 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                                                     try
                                                     {
                                                         if (!this.m_disposed)
+                                                        {
                                                             writeQueue.Enqueue(new Bundle(o.SelectMany(r => this.m_dataManager.MdmTxMatchMasters(r, new IdentifiedData[0]))));
+                                                        }
+
                                                         Interlocked.Add(ref completeProcess, o.Length);
                                                         writeEvent.Set();
                                                     }
@@ -525,7 +524,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     // Main program loop - 
                     try
                     {
-                        foreach(var itm in this.m_entityPersistence.Query(o => StatusKeys.ActiveStates.Contains(o.StatusConceptKey.Value) && o.DeterminerConceptKey != MdmConstants.RecordOfTruthDeterminer, AuthenticationContext.SystemPrincipal))
+                        foreach (var itm in this.m_entityPersistence.Query(o => StatusKeys.ActiveStates.Contains(o.StatusConceptKey.Value) && o.DeterminerConceptKey != MdmConstants.RecordOfTruthDeterminer, AuthenticationContext.SystemPrincipal))
                         {
                             fetchQueue.Enqueue(itm);
                             fetchEvent.Set();

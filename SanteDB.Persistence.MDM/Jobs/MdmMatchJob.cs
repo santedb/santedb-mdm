@@ -18,26 +18,16 @@
  * User: fyfej
  * Date: 2022-5-30
  */
-using SanteDB.Core;
 using SanteDB.Core.Diagnostics;
 using SanteDB.Core.Jobs;
 using SanteDB.Core.Model;
-using SanteDB.Core.Model.Acts;
-using SanteDB.Core.Model.Constants;
-using SanteDB.Core.Model.Query;
 using SanteDB.Core.Security;
 using SanteDB.Core.Services;
-using SanteDB.Persistence.MDM.Services.Resources;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
-using System.Diagnostics.CodeAnalysis;
-using System.Linq;
-using System.Linq.Expressions;
 using System.Security.Cryptography;
 using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace SanteDB.Persistence.MDM.Jobs
 {
@@ -50,7 +40,7 @@ namespace SanteDB.Persistence.MDM.Jobs
         where T : IdentifiedData, new()
     {
         // Guid
-        private readonly Guid m_id ;
+        private readonly Guid m_id;
 
         // Merge service
         private IRecordMergingService<T> m_mergeService;
@@ -126,7 +116,7 @@ namespace SanteDB.Persistence.MDM.Jobs
                     this.m_stateManager.SetState(this, JobStateType.Running);
                     var clear = parameters.Length > 0 ? (bool?)parameters[0] : false;
                     this.m_tracer.TraceInfo("Starting batch run of MDM Matching ");
-                   
+
                     if (clear.GetValueOrDefault())
                     {
                         this.m_tracer.TraceVerbose("Batch instruction indicates clear of all links");

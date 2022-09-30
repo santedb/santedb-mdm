@@ -20,23 +20,16 @@
  */
 using SanteDB.Core;
 using SanteDB.Core.BusinessRules;
-using SanteDB.Core.Configuration;
 using SanteDB.Core.Model;
-using SanteDB.Core.Model.Collection;
-using SanteDB.Core.Model.Entities;
 using SanteDB.Core.Model.Interfaces;
 using SanteDB.Core.Model.Query;
-using SanteDB.Core.Security;
-using SanteDB.Core.Security.Claims;
 using SanteDB.Core.Services;
 using SanteDB.Persistence.MDM.Model;
 using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Linq;
-using System.Linq.Expressions;
 using System.Security.Principal;
-using System.Text;
 
 namespace SanteDB.Persistence.MDM.Services.Resources
 {
@@ -168,7 +161,10 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         internal MdmDataManager(IDataPersistenceService underlyingDataPersistence)
         {
             if (underlyingDataPersistence == null)
+            {
                 throw new InvalidOperationException($"Type {typeof(TModel).FullName} does not have a persistence service registered");
+            }
+
             this.m_underlyingTypePersistence = underlyingDataPersistence;
             this.m_adhocCache = ApplicationServiceContext.Current.GetService<IAdhocCacheService>();
         }

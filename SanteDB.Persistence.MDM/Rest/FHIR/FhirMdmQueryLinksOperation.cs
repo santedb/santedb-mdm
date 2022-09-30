@@ -25,7 +25,6 @@ using SanteDB.Core.Matching;
 using SanteDB.Core.Model.Entities;
 using SanteDB.Core.Services;
 using SanteDB.Messaging.FHIR.Extensions;
-using SanteDB.Persistence.MDM;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
