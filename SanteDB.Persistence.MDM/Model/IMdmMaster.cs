@@ -43,7 +43,7 @@ namespace SanteDB.Persistence.MDM.Model
     /// <summary>
     /// Marks a class as an MDM master record
     /// </summary>
-    public interface IMdmMaster<T> : IMdmMaster, IVersionedData, IIdentifiedData, ITaggable, ISecurable
+    public interface IMdmMaster<T> : IMdmMaster, IVersionedData, IIdentifiedData, ITaggable
     {
         /// <summary>
         /// Constructs the master record from local records

@@ -171,7 +171,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             retVal.DeterminerConceptKey = originalDeterminer;
             retVal.Key = Guid.NewGuid();
             retVal.VersionKey = Guid.NewGuid();
-            retVal.Relationships.RemoveAll(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship || o.RelationshipTypeKey == MdmConstants.MasterRecordOfTruthRelationship);
+            retVal.LoadProperty(o=>o.Relationships).RemoveAll(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship || o.RelationshipTypeKey == MdmConstants.MasterRecordOfTruthRelationship);
             retVal.Relationships.Add(new EntityRelationship(MdmConstants.MasterRecordRelationship, masterRecord.Key)
             {
                 SourceEntityKey = retVal.Key,
