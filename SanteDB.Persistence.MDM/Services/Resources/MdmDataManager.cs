@@ -20,9 +20,15 @@
  */
 using SanteDB.Core;
 using SanteDB.Core.BusinessRules;
+using SanteDB.Core.Data;
 using SanteDB.Core.Model;
+using SanteDB.Core.Model.Acts;
+using SanteDB.Core.Model.Constants;
+using SanteDB.Core.Model.Entities;
 using SanteDB.Core.Model.Interfaces;
 using SanteDB.Core.Model.Query;
+using SanteDB.Core.Model.Roles;
+using SanteDB.Core.Security;
 using SanteDB.Core.Services;
 using SanteDB.Persistence.MDM.Model;
 using System;
@@ -139,14 +145,59 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         public ITargetedAssociation GetMasterRelationshipFor(Guid localKey) =>
             this.GetAllMdmAssociations(localKey).FirstOrDefault(o => o.AssociationTypeKey == MdmConstants.MasterRecordRelationship);
 
+
+        /// <summary>
+        /// Fired when a managed link is established
+        /// </summary>
+        public event EventHandler<DataManagementLinkEventArgs> ManagedLinkEstablished;
+
+        /// <summary>
+        /// Fired when a managed link is removed
+        /// </summary>
+        public event EventHandler<DataManagementLinkEventArgs> ManagedLinkRemoved;
+
+
+        /// <summary>
+        /// Fires the <see cref="ManagedLinkEstablished"/> event
+        /// </summary>
+        internal void FireManagedLinkEstablished(ITargetedAssociation establishedLink)
+        {
+            this.ManagedLinkEstablished?.Invoke(this, new DataManagementLinkEventArgs(establishedLink));
+        }
+
+        /// <summary>
+        /// Fires the <see cref="ManagedLinkRemoved"/> event
+        /// </summary>
+        internal void FireManagedLinkRemoved(ITargetedAssociation establishedLink)
+        {
+            this.ManagedLinkRemoved?.Invoke(this, new DataManagementLinkEventArgs(establishedLink));
+        }
     }
 
     /// <summary>
     /// Represents a data manager which actually interacts with the underlying repository
     /// </summary>
-    public abstract class MdmDataManager<TModel> : MdmDataManager
-        where TModel : IdentifiedData
+    public abstract class MdmDataManager<TModel> : MdmDataManager, IDataManagedLinkProvider<TModel>
+        where TModel : IdentifiedData, IHasRelationships, IHasClassConcept, IHasTypeConcept
     {
+
+        // Entity type maps 
+        private static readonly Dictionary<Guid, Type> m_entityTypeMap = new Dictionary<Guid, Type>() {
+            { EntityClassKeys.Patient, typeof(Patient) },
+            { EntityClassKeys.Provider, typeof(Provider) },
+            { EntityClassKeys.Organization, typeof(Organization) },
+            { EntityClassKeys.Place, typeof(Place) },
+            { EntityClassKeys.CityOrTown, typeof(Place) },
+            { EntityClassKeys.Country, typeof(Place) },
+            { EntityClassKeys.CountyOrParish, typeof(Place) },
+            { EntityClassKeys.State, typeof(Place) },
+            { EntityClassKeys.PrecinctOrBorough, typeof(Place) },
+            { EntityClassKeys.ServiceDeliveryLocation, typeof(Place) },
+            { EntityClassKeys.Person, typeof(Person) },
+            { EntityClassKeys.ManufacturedMaterial, typeof(ManufacturedMaterial) },
+            { EntityClassKeys.Material, typeof(Material) }
+        };
+
         /// <summary>
         /// Persistence service
         /// </summary>
@@ -258,5 +309,57 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         public override IEnumerable<IdentifiedData> MdmTxMatchMasters(IdentifiedData data, List<IdentifiedData> context) =>
             this.MdmTxMatchMasters((TModel)data, context);
+
+
+        /// <summary>
+        /// Get all managed reference links that are established
+        /// </summary>
+        public IEnumerable<ITargetedAssociation> FilterManagedReferenceLinks(IEnumerable<ITargetedAssociation> forRelationships) => forRelationships.Where(o => o.AssociationTypeKey == MdmConstants.MasterRecordRelationship);
+
+        /// <summary>
+        /// Add a managed reference link
+        /// </summary>
+        public ITargetedAssociation AddManagedReferenceLink(TModel sourceObject, TModel targetObject)
+        {
+            ITargetedAssociation retVal = null;
+            if (sourceObject is Entity e)
+            {
+                retVal = new EntityRelationship(MdmConstants.MasterRecordRelationship, e);
+            }
+            else if (sourceObject is Act a)
+            {
+                retVal = new ActRelationship(MdmConstants.MasterRecordRelationship, a);
+            }
+            sourceObject.AddRelationship(retVal);
+            return retVal;
+        }
+
+        /// <summary>
+        /// Get master for <paramref name="forSource"/> or, if it is already a master or not MDM controlled return <paramref name="forSource"/>
+        /// </summary>
+        public TModel ResolveManagedSource(TModel forSource) => this.GetMasterRelationshipFor(forSource.Key.Value).LoadProperty(o => o.SourceEntity) as TModel;
+
+        /// <inheritdoc/>
+        public TModel ResolveManagedTarget(TModel forSource) {
+            if (forSource.ClassConceptKey == MdmConstants.MasterRecordClassification)
+            {
+                if (m_entityTypeMap.TryGetValue(forSource.TypeConceptKey.Value, out var mapType) && typeof(TModel) == mapType) // We are the correct handler for this
+                {
+                    return this.CreateMasterContainerForMasterEntity(forSource).Synthesize(AuthenticationContext.Current.Principal) as TModel;
+                }
+                else if (MdmDataManagerFactory.TryGetDataManager(mapType, out var manager))// we are not
+                {
+                    return manager.CreateMasterContainerForMasterEntity(forSource).Synthesize(AuthenticationContext.Current.Principal) as TModel;
+                }
+                else
+                {
+                    return forSource;
+                }
+            }
+            else
+                return forSource;
+        }
+
+
     }
 }

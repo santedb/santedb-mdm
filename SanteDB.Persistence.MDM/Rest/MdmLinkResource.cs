@@ -98,14 +98,16 @@ namespace SanteDB.Persistence.MDM.Rest
                 throw new NotSupportedException($"MDM is not configured for {scopingType}");
             }
 
-            // Detach
+            // Attach
             if (scopingKey is Guid scopedKey && item is IdentifiedDataReference childObject)
             {
                 try
                 {
                     var transaction = new Bundle(dataManager.MdmTxMasterLink(scopedKey, childObject.Key.Value, new IdentifiedData[0], true));
-
                     var retVal = this.m_batchService.Insert(transaction, TransactionMode.Commit, AuthenticationContext.Current.Principal);
+                    retVal.Item.OfType<ITargetedAssociation>()
+                        .Where(o => o.AssociationTypeKey == MdmConstants.MasterRecordRelationship)
+                        .All(o => this.FireLinkageEvents(dataManager, o));
                     return retVal;
                 }
                 catch (Exception e)
@@ -118,6 +120,23 @@ namespace SanteDB.Persistence.MDM.Rest
             {
                 throw new ArgumentException("Invalid URL path or Reference object");
             }
+        }
+
+        /// <summary>
+        /// Fire linkage events
+        /// </summary>
+        private bool FireLinkageEvents(MdmDataManager dataManager, ITargetedAssociation link)
+        {
+            switch ((link as IdentifiedData).BatchOperation)
+            {
+                case BatchOperationType.Insert:
+                    dataManager.FireManagedLinkEstablished(link);
+                    break;
+                case BatchOperationType.Delete:
+                    dataManager.FireManagedLinkRemoved(link);
+                    break;
+            }
+            return true;
         }
 
         /// <summary>
@@ -210,6 +229,9 @@ namespace SanteDB.Persistence.MDM.Rest
                     var transaction = new Bundle(dataManager.MdmTxMasterUnlink(scopedKey, childKey, new IdentifiedData[0]));
 
                     var retVal = this.m_batchService.Insert(transaction, TransactionMode.Commit, AuthenticationContext.Current.Principal);
+                    retVal.Item.OfType<ITargetedAssociation>()
+                        .Where(o => o.AssociationTypeKey == MdmConstants.MasterRecordRelationship)
+                        .All(o => this.FireLinkageEvents(dataManager, o));
                     return retVal;
                 }
                 catch (Exception e)

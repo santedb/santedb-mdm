@@ -252,6 +252,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     {
                         this.m_tracer.TraceInfo("MASTER({0})>MASTER({0}) MERGE", victim.Key, survivor.Key);
                         transactionBundle.AddRange(this.m_dataManager.MdmTxMergeMasters(survivorKey, itm, transactionBundle.Item));
+                        recordMergeStatus |= RecordMergeStatus.DestructiveMerge;
                     }
                     else if (isSurvivorMaster && !isVictimMaster) // LOCAL>MASTER = LINK
                     {
@@ -262,6 +263,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                         }
                         this.m_tracer.TraceInfo("LOCAL({0})>MASTER({0}) MERGE", victim.Key, survivor.Key);
                         transactionBundle.AddRange(this.m_dataManager.MdmTxMasterLink(survivorKey, victim.Key.Value, transactionBundle.Item, true));
+                        recordMergeStatus |= RecordMergeStatus.LinkInsteadOfMerge;
+
                     }
                     else if (!isSurvivorMaster && !isVictimMaster) // LOCAL>LOCAL = MERGE
                     {
@@ -312,6 +315,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                                 Key = itm
                             });
                         }
+                        recordMergeStatus |= RecordMergeStatus.DestructiveMerge;
+
                     }
                     else
                     {
@@ -321,8 +326,31 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     return victim.Key.Value;
                 }).ToArray();
 
-                this.m_batchPersistence.Insert(transactionBundle, TransactionMode.Commit, AuthenticationContext.Current.Principal);
-                this.FireMerged(survivor.Key.Value, replaced);
+                var inserted = this.m_batchPersistence.Insert(transactionBundle, TransactionMode.Commit, AuthenticationContext.Current.Principal);
+
+                // Trigger appropriate events
+                if(recordMergeStatus.HasFlag(RecordMergeStatus.DestructiveMerge))
+                {
+                    this.FireMerged(survivor.Key.Value, replaced);
+                }
+                else if(recordMergeStatus.HasFlag(RecordMergeStatus.LinkInsteadOfMerge))
+                {
+                    inserted.Item.ForEach(o =>
+                    {
+                        if (o is ITargetedAssociation ita && ita.AssociationTypeKey == MdmConstants.MasterRecordRelationship)
+                        {
+                            switch (o.BatchOperation)
+                            {
+                                case BatchOperationType.Insert:
+                                    m_dataManager.FireManagedLinkEstablished(ita);
+                                    break;
+                                case BatchOperationType.Delete:
+                                    m_dataManager.FireManagedLinkRemoved(ita);
+                                    break;
+                            }
+                        }
+                    });
+                }
                 return new RecordMergeResult(recordMergeStatus, new Guid[] { survivor.Key.Value }, replaced);
             }
             catch (Exception ex)

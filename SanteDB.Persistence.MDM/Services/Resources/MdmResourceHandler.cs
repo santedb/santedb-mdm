@@ -49,7 +49,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
     /// Represents a class that only intercepts events from the repository layer
     /// </summary>
     public class MdmResourceHandler<TModel> : IDisposable, IMdmResourceHandler
-        where TModel : IdentifiedData, new()
+        where TModel : IdentifiedData, IHasRelationships, IHasClassConcept, IHasTypeConcept,  new()
     {
         // Class concept key
         private Guid[] m_classConceptKey;
@@ -343,6 +343,10 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     var bre = ApplicationServiceContext.Current.GetBusinessRuleService(typeof(Bundle));
                     bundle = (Bundle)bre?.BeforeUpdate(bundle) ?? bundle;
                     bundle = this.m_batchRepository.Update(bundle, TransactionMode.Commit, e.Principal);
+
+                    // Handle the insertions
+                    this.TriggerLinkEvents(bundle.Item);
+
                     bundle = (Bundle)bre?.AfterUpdate(bundle) ?? bundle;
                     e.Data = bundle.Item.Find(o => o.Key == e.Data.Key) as TModel; // copy to get key data
                 }
@@ -353,6 +357,28 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             catch (Exception ex)
             {
                 throw new MdmException(e.Data, "Error Executing UPDATE trigger", ex);
+            }
+        }
+
+        /// <summary>
+        /// Trigger linkage events
+        /// </summary>
+        private void TriggerLinkEvents(IEnumerable<IdentifiedData> item)
+        {
+            foreach(var itm in item)
+            {
+                if(itm is ITargetedAssociation ita && ita.AssociationTypeKey == MdmConstants.MasterRecordRelationship)
+                {
+                    switch(itm.BatchOperation)
+                    {
+                        case Core.Model.DataTypes.BatchOperationType.Insert:
+                            this.m_dataManager.FireManagedLinkEstablished(ita);
+                            break;
+                        case Core.Model.DataTypes.BatchOperationType.Delete:
+                            this.m_dataManager.FireManagedLinkRemoved(ita);
+                            break;
+                    }
+                }
             }
         }
 
@@ -404,6 +430,10 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     var bre = ApplicationServiceContext.Current.GetBusinessRuleService(typeof(Bundle));
                     bundle = (Bundle)bre?.BeforeInsert(bundle) ?? bundle;
                     bundle = this.m_batchRepository.Insert(bundle, TransactionMode.Commit, e.Principal);
+
+                    // Handle the insertions
+                    this.TriggerLinkEvents(bundle.Item);
+
                     bundle = (Bundle)bre?.AfterInsert(bundle) ?? bundle;
 
                     e.Data = bundle.Item.Find(o => o.Key == e.Data.Key) as TModel; // copy to get key data

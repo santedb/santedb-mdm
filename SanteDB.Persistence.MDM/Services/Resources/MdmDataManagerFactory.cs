@@ -20,6 +20,7 @@
  */
 using SanteDB.Core.Model;
 using SanteDB.Core.Model.Entities;
+using SanteDB.Core.Model.Interfaces;
 using System;
 using System.Collections.Concurrent;
 
@@ -37,7 +38,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// Create the specified data manager
         /// </summary>
         public static MdmDataManager<TModel> GetDataManager<TModel>()
-            where TModel : IdentifiedData
+            where TModel : IdentifiedData, IHasClassConcept, IHasTypeConcept, IHasRelationships
         {
             if (m_createdInstances.TryGetValue(typeof(TModel), out object instance))
             {
@@ -51,7 +52,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// Create the specified data manager
         /// </summary>
         public static MdmDataManager<TModel> GetDataManager<TModel>(Type forType)
-            where TModel : IdentifiedData
+            where TModel : IdentifiedData, IHasClassConcept, IHasTypeConcept, IHasRelationships
         {
             if (m_createdInstances.TryGetValue(forType, out object instance))
             {
