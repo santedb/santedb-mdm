@@ -188,7 +188,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 if (this.FireMerging(survivorKey, linkedDuplicates))
                 {
                     this.m_tracer.TraceWarning("Pre-Event Handler for merge indicated cancel on {0}", survivorKey);
-                    return new RecordMergeResult(RecordMergeStatus.Cancelled, null, null);
+                    return new RecordMergeResult(RecordMergeStatus.Aborted, null, null);
                 }
 
                 // We want to get the target
