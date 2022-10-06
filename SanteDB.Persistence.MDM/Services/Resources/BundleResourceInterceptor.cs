@@ -24,6 +24,7 @@ using SanteDB.Core.Event;
 using SanteDB.Core.Model;
 using SanteDB.Core.Model.Collection;
 using SanteDB.Core.Model.Entities;
+using SanteDB.Core.Model.Interfaces;
 using SanteDB.Core.Services;
 using System;
 using System.Collections.Generic;
@@ -154,6 +155,11 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 {
                     throw new InvalidOperationException($"Bundle object at index {i} is null");
                 }
+                else if (!(data is IHasClassConcept && data is IHasTypeConcept && data is IHasRelationships))
+                {
+                    continue;
+                }
+
                 var mdmHandler = typeof(MdmResourceHandler<>).MakeGenericType(data.GetType());
                 var evtArgType = argType.MakeGenericType(data.GetType());
                 var evtArgs = Activator.CreateInstance(evtArgType, data, TransactionMode.Commit, (eventArgs as SecureAccessEventArgs).Principal);

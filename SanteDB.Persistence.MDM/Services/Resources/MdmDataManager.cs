@@ -178,7 +178,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
     /// Represents a data manager which actually interacts with the underlying repository
     /// </summary>
     public abstract class MdmDataManager<TModel> : MdmDataManager, IDataManagedLinkProvider<TModel>
-        where TModel : IdentifiedData, IHasRelationships, IHasClassConcept, IHasTypeConcept
+        where TModel : IdentifiedData, IHasTypeConcept, IHasClassConcept, IHasRelationships
     {
 
         // Entity type maps 
