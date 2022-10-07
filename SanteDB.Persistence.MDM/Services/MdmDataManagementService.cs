@@ -249,6 +249,9 @@ namespace SanteDB.Persistence.MDM.Services
                 this.m_serviceManager.RemoveServiceProvider(typeof(IFreetextSearchService));
                 m_serviceManager.AddServiceProvider(new MdmFreetextSearchService());
 
+                // Insert the MdmEntityRelationshipMaster repository services
+                this.m_serviceManager.AddServiceProvider(typeof(MdmEntityRelationshipPersistenceProvider));
+
             };
 
             this.Started?.Invoke(this, EventArgs.Empty);

@@ -105,6 +105,20 @@ namespace SanteDB.Persistence.MDM.Model
         /// </summary>
         [SerializationMetadata, XmlElement("originalTarget"), JsonProperty("originalTarget")]
         public Guid? OriginalTargetKey { get; set; }
+
+        /// <summary>
+        /// Convert to entity relationship
+        /// </summary>
+        public EntityRelationship ToEntityRelationship() => new EntityRelationship(this.RelationshipTypeKey, this.OriginalHolderKey, this.OriginalTargetKey, this.ClassificationKey)
+        {
+            RelationshipRoleKey = this.RelationshipRoleKey,
+            Quantity = this.Quantity,
+            EffectiveVersionSequenceId = this.EffectiveVersionSequenceId,
+            ClassificationKey = this.ClassificationKey,
+            Strength = this.Strength,
+            ObsoleteVersionSequenceId = this.ObsoleteVersionSequenceId
+        };
+
     }
 
     /*
