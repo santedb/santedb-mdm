@@ -204,7 +204,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     }
                     catch (PolicyViolationException e) when (e.PolicyId == MdmPermissionPolicyIdentifiers.WriteMdmMaster)
                     {
-                        survivor = this.m_dataManager.GetLocalFor(survivorKey, AuthenticationContext.Current.Principal);
+                        survivor = (TEntity)this.m_dataManager.GetLocalFor(survivorKey, AuthenticationContext.Current.Principal);
                         if (survivor == null)
                         {
                             throw new DetectedIssueException(Core.BusinessRules.DetectedIssuePriorityType.Error, MdmConstants.INVALID_MERGE_ISSUE, $"Principal has no authority to merge into {survivorKey}", DetectedIssueKeys.SecurityIssue, e);
@@ -231,7 +231,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                         }
                         catch (PolicyViolationException e) when (e.PolicyId == MdmPermissionPolicyIdentifiers.MergeMdmMaster)
                         {
-                            victim = this.m_dataManager.GetLocalFor(itm, AuthenticationContext.Current.Principal);
+                            victim = (TEntity)this.m_dataManager.GetLocalFor(itm, AuthenticationContext.Current.Principal);
                             if (victim == null)
                             {
                                 throw new DetectedIssueException(Core.BusinessRules.DetectedIssuePriorityType.Error, MdmConstants.INVALID_MERGE_ISSUE, $"Principal has no authority to merge {itm}", DetectedIssueKeys.SecurityIssue, e);

@@ -48,6 +48,26 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// Determine if the object is a master
         /// </summary>
         public abstract bool IsMaster(Guid dataKey);
+        
+        /// <summary>
+        /// Determine if the object is a local
+        /// </summary>
+        public abstract bool IsLocal(Guid dataKey);
+
+        /// <summary>
+        /// Determine if <paramref name="principal"/> is the owner of <paramref name="localKey"/>
+        /// </summary>
+        public abstract bool IsOwner(Guid localKey, IPrincipal principal);
+
+        /// <summary>
+        /// Get the local for <paramref name="masterKey"/> owned by <paramref name="principal"/>
+        /// </summary>
+        public abstract IdentifiedData GetLocalFor(Guid masterKey, IPrincipal principal);
+
+        /// <summary>
+        /// Create a local for <paramref name="masterRecord"/> owned by <paramref name="principal"/>
+        /// </summary>
+        public abstract IdentifiedData CreateLocalFor(IdentifiedData masterRecord);
 
         /// <summary>
         /// Refactor relationships
@@ -221,11 +241,6 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         }
 
         /// <summary>
-        /// Gets or creates a writable target object for the specified principal
-        /// </summary>
-        public abstract TModel GetLocalFor(Guid dataKey, IPrincipal principal);
-
-        /// <summary>
         /// Determine if the record is a ROT
         /// </summary>
         public abstract bool IsRecordOfTruth(TModel data);
@@ -340,7 +355,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         public TModel ResolveManagedSource(TModel forSource) => this.GetMasterRelationshipFor(forSource.Key.Value).LoadProperty(o => o.SourceEntity) as TModel;
 
         /// <inheritdoc/>
-        public TModel ResolveManagedTarget(TModel forSource) {
+        public TModel ResolveManagedTarget(TModel forSource)
+        {
             if (forSource.ClassConceptKey == MdmConstants.MasterRecordClassification)
             {
                 if (m_entityTypeMap.TryGetValue(forSource.TypeConceptKey.Value, out var mapType) && typeof(TModel) == mapType) // We are the correct handler for this
@@ -360,6 +376,58 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 return forSource;
         }
 
-
+        /// <summary>
+        /// For any relationship where the local points to a MASTER which is not appropriate for MDM - remove 
+        /// </summary>
+        /// <param name="local">The local record which may be pointing to masters</param>
+        /// <param name="principal">The principal under which a local should exist</param>
+        /// <param name="context">If the request is part of an existing bundle the bundle</param>
+        public virtual void RepointRelationshipsToLocals(TModel local, IPrincipal principal, List<IdentifiedData> context)
+        {
+            foreach (var rel in local.Relationships.Where(o => !MdmConstants.MDM_RELATIONSHIP_TYPES.Contains(o.AssociationTypeKey.Value)))
+            {
+                // TODO: Cross local pointers should not be permitted either - 
+                if (this.IsMaster(rel.TargetEntityKey.Value))
+                {
+                    var master = this.m_underlyingTypePersistence.Get(rel.TargetEntityKey.Value) as IHasTypeConcept;
+                    if (m_entityTypeMap.TryGetValue(master.TypeConceptKey.Value, out var managedType) &&
+                        MdmDataManagerFactory.TryGetDataManager(managedType, out var manager))
+                    {
+                        var localForTarget = manager.GetLocalFor(rel.TargetEntityKey.Value, principal);
+                        if (localForTarget == null)
+                        {
+                            localForTarget = manager.CreateLocalFor(master as IdentifiedData);
+                            if(context != null)
+                            {
+                                context.Add(localForTarget);
+                                rel.TargetEntityKey = localForTarget.Key;
+                            }
+                            else
+                            {
+                                rel.TargetEntity = localForTarget;
+                            }
+                        }
+                        else
+                        {
+                            rel.TargetEntityKey = localForTarget.Key;
+                        }
+                    }
+                }
+                else if(this.IsLocal(rel.TargetEntityKey.Value) && !this.IsOwner(rel.TargetEntityKey.Value, principal))
+                {
+                    // This should not happen - basically someone is trying to link directly to a local on another record 
+                    // We'll try to get an appropriate local
+                    var myLocal = this.GetLocalFor(this.GetMasterRelationshipFor(rel.TargetEntityKey.Value).TargetEntityKey.Value, principal);
+                    if(myLocal == null)
+                    {
+                        throw new InvalidOperationException("MDM does not permit local record to directly reference other locals not owned by the creator");
+                    }
+                    else
+                    {
+                        rel.TargetEntityKey = myLocal.Key;
+                    }
+                }
+            }
+        }
     }
 }

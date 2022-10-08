@@ -21,6 +21,7 @@
 using SanteDB.Core;
 using SanteDB.Core.BusinessRules;
 using SanteDB.Core.Diagnostics;
+using SanteDB.Core.i18n;
 using SanteDB.Core.Matching;
 using SanteDB.Core.Model;
 using SanteDB.Core.Model.Acts;
@@ -50,12 +51,6 @@ namespace SanteDB.Persistence.MDM.Services.Resources
     public class MdmEntityDataManager<TModel> : MdmDataManager<TModel>
         where TModel : Entity, new()
     {
-        private readonly Guid[] m_mdmRelationshipTypes = new Guid[]
-        {
-            MdmConstants.MasterRecordRelationship,
-            MdmConstants.CandidateLocalRelationship,
-            MdmConstants.MasterRecordOfTruthRelationship
-        };
 
         // Tracer
         private readonly Tracer m_traceSource = new Tracer(MdmConstants.TraceSourceName);
@@ -99,7 +94,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         public override bool IsMaster(Guid dataKey)
         {
-            return this.m_entityPersistenceService.Get(dataKey, null, AuthenticationContext.SystemPrincipal)?.ClassConceptKey == MdmConstants.MasterRecordClassification;
+            return this.m_entityPersistenceService.Query(o=>o.Key == dataKey && o.ClassConceptKey == MdmConstants.MasterRecordClassification, AuthenticationContext.SystemPrincipal).Any();
         }
 
         /// <summary>
@@ -130,13 +125,13 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// <summary>
         /// Get local for specified object
         /// </summary>
-        public override TModel GetLocalFor(Guid masterKey, IPrincipal principal)
+        public override IdentifiedData GetLocalFor(Guid masterKey, IPrincipal principal)
         {
             IIdentity identity = null;
             if (principal is IClaimsPrincipal claimsPrincipal)
             {
                 identity = claimsPrincipal?.Identities.OfType<IDeviceIdentity>().FirstOrDefault() as IIdentity ??
-                            claimsPrincipal?.Identities.OfType<IApplicationIdentity>().FirstOrDefault() as IIdentity;
+                            claimsPrincipal?.Identities.OfType<IApplicationIdentity>().FirstOrDefault();
             }
             else
             {
@@ -155,6 +150,39 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             else
             {
                 return null;
+            }
+        }
+
+        /// <inheritdoc/>
+        public override IdentifiedData CreateLocalFor(IdentifiedData masterRecord)
+        {
+            if(masterRecord is TModel tm) {
+                return this.CreateLocalFor(tm);
+            }
+            if(masterRecord is Entity ent &&
+                ent.ClassConceptKey == MdmConstants.MasterRecordClassification)
+            {
+                var retVal = new TModel();
+                Guid? originalClass = retVal.ClassConceptKey, originalDeterminer = retVal.DeterminerConceptKey;
+                retVal.SemanticCopyNullFields(masterRecord);
+                retVal.SemanticCopyNullFields(masterRecord); // HACK: First pass sometimes misses data
+                retVal.ClassConceptKey = originalClass;
+                retVal.DeterminerConceptKey = originalDeterminer;
+                retVal.Key = Guid.NewGuid();
+                retVal.VersionKey = Guid.NewGuid();
+                retVal.LoadProperty(o => o.Relationships).RemoveAll(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship || o.RelationshipTypeKey == MdmConstants.MasterRecordOfTruthRelationship);
+                retVal.Relationships.Add(new EntityRelationship(MdmConstants.MasterRecordRelationship, masterRecord.Key)
+                {
+                    SourceEntityKey = retVal.Key,
+                    ClassificationKey = MdmConstants.SystemClassification
+                });
+                // Rewrite all master relationships
+                //retVal.Relationships.Where(o => o.SourceEntityKey == masterRecord.Key).ToList().ForEach(r => r.SourceEntityKey = retVal.Key);
+                return retVal;
+            }
+            else
+            {
+                throw new InvalidOperationException(String.Format(ErrorMessages.ARGUMENT_INVALID_TYPE, typeof(Entity), masterRecord.GetType()));
             }
         }
 
@@ -376,18 +404,19 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         public override void RefactorRelationships(IEnumerable<IdentifiedData> item, Guid fromEntityKey, Guid toEntityKey)
         {
+            
             foreach (var obj in item)
             {
                 if (obj is Entity entity)
                 {
-                    entity.LoadProperty(o => o.Relationships)?.Where(o => o.SourceEntityKey == fromEntityKey && !this.m_mdmRelationshipTypes.Contains(o.RelationshipTypeKey.GetValueOrDefault())).ToList().ForEach(o => o.SourceEntityKey = toEntityKey);
-                    entity.LoadProperty(o => o.Relationships)?.Where(o => o.TargetEntityKey == fromEntityKey && !this.m_mdmRelationshipTypes.Contains(o.RelationshipTypeKey.GetValueOrDefault())).ToList().ForEach(o => o.TargetEntityKey = toEntityKey);
+                    entity.LoadProperty(o => o.Relationships)?.Where(o => o.SourceEntityKey == fromEntityKey && !MdmConstants.MDM_RELATIONSHIP_TYPES.Contains(o.RelationshipTypeKey.GetValueOrDefault())).ToList().ForEach(o => o.SourceEntityKey = toEntityKey);
+                    entity.LoadProperty(o => o.Relationships)?.Where(o => o.TargetEntityKey == fromEntityKey && !MdmConstants.MDM_RELATIONSHIP_TYPES.Contains(o.RelationshipTypeKey.GetValueOrDefault())).ToList().ForEach(o => o.TargetEntityKey = toEntityKey);
                 }
                 else if (obj is Act act)
                 {
                     act.LoadProperty(o => o.Participations)?.Where(o => o.PlayerEntityKey == fromEntityKey).ToList().ForEach(o => o.PlayerEntityKey = toEntityKey);
                 }
-                else if (obj is ITargetedAssociation entityRelationship && !this.m_mdmRelationshipTypes.Contains(entityRelationship.AssociationTypeKey.GetValueOrDefault()))
+                else if (obj is ITargetedAssociation entityRelationship && !MdmConstants.MDM_RELATIONSHIP_TYPES.Contains(entityRelationship.AssociationTypeKey.GetValueOrDefault()))
                 {
                     if (entityRelationship.SourceEntityKey == fromEntityKey)
                     {
@@ -1351,5 +1380,37 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// Create master container for the specified object
         /// </summary>
         public override IMdmMaster CreateMasterContainerForMasterEntity(IIdentifiedData masterObject) => new EntityMaster<TModel>(masterObject as Entity);
+
+        /// <summary>
+        /// Determine if the record is a local
+        /// </summary>
+        public override bool IsLocal(Guid dataKey) => this.m_entityPersistenceService.Query(o => o.Relationships.Any(r => r.RelationshipTypeKey == MdmConstants.MasterRecordRelationship), AuthenticationContext.SystemPrincipal).Any();
+
+        /// <summary>
+        /// Determine if the local is owned by the principal
+        /// </summary>
+        public override bool IsOwner(Guid localKey, IPrincipal principal)
+        {
+            var identity = principal.Identity;
+            if (principal is IClaimsPrincipal claimsPrincipal)
+            {
+                identity = claimsPrincipal?.Identities.OfType<IDeviceIdentity>().FirstOrDefault() as IIdentity ??
+                            claimsPrincipal?.Identities.OfType<IApplicationIdentity>().FirstOrDefault();
+            }
+
+            // Identity
+            if (identity is IDeviceIdentity deviceIdentity)
+            {
+                return this.m_persistenceService.Query(o => o.Key == localKey && o.CreatedBy.Device.Name.ToLowerInvariant() == deviceIdentity.Name.ToLowerInvariant(), AuthenticationContext.SystemPrincipal).Any();
+            }
+            else if (identity is IApplicationIdentity applicationIdentity)
+            {
+                return this.m_persistenceService.Query(o => o.Key == localKey && o.CreatedBy.Application.Name.ToLowerInvariant() == applicationIdentity.Name.ToLowerInvariant(), AuthenticationContext.SystemPrincipal).Any();
+            }
+            else
+            {
+                throw new InvalidOperationException("MDM only works on Device and Application identities");
+            }
+        }
     }
 }

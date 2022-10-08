@@ -459,7 +459,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             // Is the existing object a master?
             if (this.m_dataManager.IsMaster(e.Data))
             {
-                store = this.m_dataManager.GetLocalFor(e.Data.Key.GetValueOrDefault(), e.Principal); // Get a local for this object
+                store = (TModel)this.m_dataManager.GetLocalFor(e.Data.Key.GetValueOrDefault(), e.Principal); // Get a local for this object
                 if (store == null)
                 {
                     store = this.m_dataManager.CreateLocalFor(e.Data);
@@ -485,7 +485,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 //  Basically we never want to explicitly let the client send us an EntityRelationshipMaster on the
                 //  service instance. So we need to select back out of any provided relationships the
                 //  relationship masters to only those which apply to our object rather than the
-                //  redirected relationships
+                //  redirected relationships.
+                //  Additionally, if there are non-mdm relationships which are pointing to a master, we don't want to 
                 if (store is IHasRelationships irelationships)
                 {
                     // Now re-process the relationships
@@ -548,6 +549,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 store = this.m_dataManager.PromoteRecordOfTruth(store);
             }
 
+
             // Rewrite any relationships we need to
             if (sender is Bundle bundle)
             {
@@ -558,7 +560,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 }
                 bundle.Item.AddRange(this.m_dataManager.ExtractRelationships(store).OfType<IdentifiedData>());
                 this.m_dataManager.RefactorRelationships(bundle.Item, originalKey.Value, store.Key.Value);
-
+                this.m_dataManager.RepointRelationshipsToLocals(store, e.Principal, bundle.Item); // Repoint any relationships also under MDM control to a local
                 // Rewrite the focal object to the proper objects actually being actioned
                 if (originalKey != store.Key.Value)
                 {
@@ -573,6 +575,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             else
             {
                 this.m_dataManager.RefactorRelationships(new List<IdentifiedData>() { store }, originalKey.Value, store.Key.Value);
+                this.m_dataManager.RepointRelationshipsToLocals(store, e.Principal, null); // Repoint any relationships also under MDM control to a local
             }
 
             e.Data = store;
