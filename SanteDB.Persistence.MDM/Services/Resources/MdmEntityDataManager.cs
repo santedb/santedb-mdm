@@ -1384,7 +1384,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// <summary>
         /// Determine if the record is a local
         /// </summary>
-        public override bool IsLocal(Guid dataKey) => this.m_entityPersistenceService.Query(o => o.Relationships.Any(r => r.RelationshipTypeKey == MdmConstants.MasterRecordRelationship), AuthenticationContext.SystemPrincipal).Any();
+        public override bool IsLocal(Guid dataKey) => this.m_relationshipService.Query(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship && o.ObsoleteVersionSequenceId == null && o.SourceEntityKey == dataKey, AuthenticationContext.SystemPrincipal).Any();
 
         /// <summary>
         /// Determine if the local is owned by the principal
@@ -1401,11 +1401,11 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             // Identity
             if (identity is IDeviceIdentity deviceIdentity)
             {
-                return this.m_persistenceService.Query(o => o.Key == localKey && o.CreatedBy.Device.Name.ToLowerInvariant() == deviceIdentity.Name.ToLowerInvariant(), AuthenticationContext.SystemPrincipal).Any();
+                return this.m_persistenceService.Query(o => o.Key == localKey && o.CreatedBy.Device.Name == deviceIdentity.Name , AuthenticationContext.SystemPrincipal).Any();
             }
             else if (identity is IApplicationIdentity applicationIdentity)
             {
-                return this.m_persistenceService.Query(o => o.Key == localKey && o.CreatedBy.Application.Name.ToLowerInvariant() == applicationIdentity.Name.ToLowerInvariant(), AuthenticationContext.SystemPrincipal).Any();
+                return this.m_persistenceService.Query(o => o.Key == localKey && o.CreatedBy.Application.Name == applicationIdentity.Name , AuthenticationContext.SystemPrincipal).Any();
             }
             else
             {
