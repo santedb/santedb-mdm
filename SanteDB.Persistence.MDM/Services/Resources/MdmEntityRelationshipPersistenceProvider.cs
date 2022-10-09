@@ -29,7 +29,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         }
 
         /// <inheritdoc/>
-        public string ServiceName => throw new NotImplementedException();
+        public string ServiceName => "MDM Relationship Reroute Provider";
 
 
         /// <inheritdoc/>
