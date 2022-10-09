@@ -130,8 +130,8 @@ namespace SanteDB.Persistence.MDM.Services
 
             collector?.LogStartStage("blocking");
             // Identifiers in which entity has the unique authority
-            var uqIdentifiers = identifiers.Identifiers.OfType<IExternalIdentifier>().Where(o => this.m_uniqueAuthorities.Contains(o.Authority.Key ?? Guid.Empty));
-            if (uqIdentifiers?.Any(i => i.Authority == null) == true)
+            var uqIdentifiers = identifiers.Identifiers.OfType<IExternalIdentifier>().Where(o => this.m_uniqueAuthorities.Contains(o.IdentityDomain.Key ?? Guid.Empty));
+            if (uqIdentifiers?.Any(i => i.IdentityDomain == null) == true)
             {
                 throw new InvalidOperationException("Some identifiers are missing authorities, cannot perform identity match");
             }
@@ -156,7 +156,7 @@ namespace SanteDB.Persistence.MDM.Services
                     var nvc = new NameValueCollection();
                     foreach (var itm in uqIdentifiers)
                     {
-                        nvc.Add($"identifier[{itm.Authority.Key}].value", itm.Value);
+                        nvc.Add($"identifier[{itm.IdentityDomain.Key}].value", itm.Value);
                     }
 
                     var filterExpression = QueryExpressionParser.BuildLinqExpression<T>(nvc);
@@ -222,8 +222,8 @@ namespace SanteDB.Persistence.MDM.Services
                 }
 
                 // Identifiers in which entity has the unique authority
-                var uqIdentifiers = identifiers.Identifiers.OfType<IExternalIdentifier>().Where(o => this.m_uniqueAuthorities.Contains(o.Authority.Key ?? Guid.Empty));
-                if (uqIdentifiers?.Any(i => i.Authority.Key == null) == true)
+                var uqIdentifiers = identifiers.Identifiers.OfType<IExternalIdentifier>().Where(o => this.m_uniqueAuthorities.Contains(o.IdentityDomain.Key ?? Guid.Empty));
+                if (uqIdentifiers?.Any(i => i.IdentityDomain.Key == null) == true)
                 {
                     throw new InvalidOperationException("Some identifiers are missing authorities, cannot perform identity match");
                 }
@@ -242,7 +242,7 @@ namespace SanteDB.Persistence.MDM.Services
 
                             if (o is IHasIdentifiers oid)
                             {
-                                var isMatch = oid.Identifiers.Any(i => uqIdentifiers.Any(u => u.Authority.Key == i.Authority.Key && i.Value == u.Value));
+                                var isMatch = oid.Identifiers.Any(i => uqIdentifiers.Any(u => u.IdentityDomain.Key == i.IdentityDomain.Key && i.Value == u.Value));
 
                                 return new MdmIdentityMatchResult<T>(input, o, isMatch ? RecordMatchClassification.Match : RecordMatchClassification.NonMatch, isMatch ? 1.0f : 0.0f);
                             }

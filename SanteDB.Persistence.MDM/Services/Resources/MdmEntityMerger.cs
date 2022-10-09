@@ -257,7 +257,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     else if (isSurvivorMaster && !isVictimMaster) // LOCAL>MASTER = LINK
                     {
                         // Ensure that the local manipulation is allowed
-                        if (!this.m_dataManager.IsOwner((TEntity)victim, AuthenticationContext.Current.Principal))
+                        if (!this.m_dataManager.IsOwner((TEntity)victim, AuthenticationContext.Current.Principal) ||
+                            !this.m_dataManager.IsOwner((TEntity)survivor, AuthenticationContext.Current.Principal))
                         {
                             this.m_pepService.Demand(MdmPermissionPolicyIdentifiers.UnrestrictedMdm); // MUST BE ABLE TO MANIPULATE OTHER LOCALS
                         }

@@ -128,7 +128,7 @@ namespace SanteDB.Persistence.MDM.Services
             this.Configuration = MdmMatchConfigurationService.CreateIdentityMatchConfiguration<T>();
             if (input is IHasIdentifiers aIdentity && record is IHasIdentifiers bIdentity)
             {
-                this.Vectors = new IRecordMatchVector[] { new MdmIdentityMatchAttribute(classification, string.Join(",", aIdentity.Identifiers.Select(o => $"{o.Value} [{o.Authority.DomainName}]")), string.Join(",", bIdentity.Identifiers.Select(o => $"{o.Value} [{o.Authority.DomainName}]"))) };
+                this.Vectors = new IRecordMatchVector[] { new MdmIdentityMatchAttribute(classification, string.Join(",", aIdentity.Identifiers.Select(o => $"{o.Value} [{o.IdentityDomain.DomainName}]")), string.Join(",", bIdentity.Identifiers.Select(o => $"{o.Value} [{o.IdentityDomain.DomainName}]"))) };
             }
         }
 

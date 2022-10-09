@@ -94,7 +94,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         public override bool IsMaster(Guid dataKey)
         {
-            return this.m_entityPersistenceService.Query(o=>o.Key == dataKey && o.ClassConceptKey == MdmConstants.MasterRecordClassification, AuthenticationContext.SystemPrincipal).Any();
+            return this.m_entityPersistenceService.Query(o=>o.Key == dataKey && o.ClassConceptKey == MdmConstants.MasterRecordClassification && (o.ObsoletionTime == null || o.ObsoletionTime != null), AuthenticationContext.SystemPrincipal).Any();
         }
 
         /// <summary>

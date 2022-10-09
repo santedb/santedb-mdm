@@ -242,7 +242,7 @@ namespace SanteDB.Persistence.MDM.Model
                 }
                 else
                 {
-                    return null;
+                    return master;
                 }
             }
             else if (this.m_recordOfTruth == null) // We have to create a synthetic record

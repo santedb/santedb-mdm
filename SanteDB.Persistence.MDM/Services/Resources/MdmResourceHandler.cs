@@ -225,15 +225,16 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 }
 
                 var localQuery = query.ToDictionary(o => $"relationship[{MdmConstants.MasterRecordRelationship}].source@{ctype.Name}.{o}", o => (object)o).ToNameValueCollection();
-                if (!query.TryGetValue("statusConcept", out _))
-                {
-                    localQuery.Add($"relationship[{MdmConstants.MasterRecordRelationship}].source@{ctype.Name}.statusConcept", StatusKeys.ActiveStates.Select(o => o.ToString()));
-                    localQuery.Add("statusConcept", StatusKeys.ActiveStates.Select(o => o.ToString()));
-                }
-                else
-                {
-                    localQuery.Add("statusConcept", query["statusConcept"]);
-                }
+                // Status concept filters are not used anymore new delete method does not alter state
+                //if (!query.TryGetValue("statusConcept", out _))
+                //{
+                //    localQuery.Add($"relationship[{MdmConstants.MasterRecordRelationship}].source@{ctype.Name}.statusConcept", StatusKeys.ActiveStates.Select(o => o.ToString()));
+                //    localQuery.Add("statusConcept", StatusKeys.ActiveStates.Select(o => o.ToString()));
+                //}
+                //else
+                //{
+                //    localQuery.Add("statusConcept", query["statusConcept"]);
+                //}
                 localQuery.Add("obsoletionTime", "null");
                 localQuery.Add("classConcept", MdmConstants.MasterRecordClassification.ToString());
 
