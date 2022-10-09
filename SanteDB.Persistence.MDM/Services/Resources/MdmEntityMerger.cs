@@ -257,8 +257,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     else if (isSurvivorMaster && !isVictimMaster) // LOCAL>MASTER = LINK
                     {
                         // Ensure that the local manipulation is allowed
-                        if (!this.m_dataManager.IsOwner((TEntity)victim, AuthenticationContext.Current.Principal) ||
-                            !this.m_dataManager.IsOwner((TEntity)survivor, AuthenticationContext.Current.Principal))
+                        if (!this.m_dataManager.IsOwner((TEntity)victim, AuthenticationContext.Current.Principal))
                         {
                             this.m_pepService.Demand(MdmPermissionPolicyIdentifiers.UnrestrictedMdm); // MUST BE ABLE TO MANIPULATE OTHER LOCALS
                         }
@@ -269,6 +268,13 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     }
                     else if (!isSurvivorMaster && !isVictimMaster) // LOCAL>LOCAL = MERGE
                     {
+
+                        if (!this.m_dataManager.IsOwner(victim.Key.Value, AuthenticationContext.Current.Principal) ||
+                            !this.m_dataManager.IsOwner(survivor.Key.Value, AuthenticationContext.Current.Principal)
+                            )
+                        {
+                            this.m_pepService.Demand(MdmPermissionPolicyIdentifiers.UnrestrictedMdm); // MUST BE ABLE TO MANIPULATE OTHER LOCALS
+                        }
                         // First, target replaces victim
                         transactionBundle.Add(new EntityRelationship(EntityRelationshipTypeKeys.Replaces, survivor.Key, victim.Key, null)
                         {
