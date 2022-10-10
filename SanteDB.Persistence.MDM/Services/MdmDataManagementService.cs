@@ -338,7 +338,7 @@ namespace SanteDB.Persistence.MDM.Services
                             // Is the data obsoleted (removed)? If so, then ensure we don't have a hanging master
                             if (targetedAssociation.ObsoleteVersionSequenceId.HasValue || idData.BatchOperation == Core.Model.DataTypes.BatchOperationType.Delete)
                             {
-                                if (!this.m_entityRelationshipService.Query(r => r.TargetEntityKey == targetedAssociation.TargetEntityKey && !StatusKeys.InactiveStates.Contains(r.SourceEntity.StatusConceptKey.Value) && r.SourceEntityKey != targetedAssociation.SourceEntityKey && r.ObsoleteVersionSequenceId == null, AuthenticationContext.SystemPrincipal).Any())
+                                if (!this.m_entityRelationshipService.Query(r => r.TargetEntityKey == targetedAssociation.TargetEntityKey && r.RelationshipTypeKey == MdmConstants.MasterRecordRelationship && r.SourceEntityKey != targetedAssociation.SourceEntityKey && r.ObsoleteVersionSequenceId == null, AuthenticationContext.SystemPrincipal).Any())
                                 {
                                     this.m_entityService.Delete(targetedAssociation.TargetEntityKey.Value, mode, principal);
                                 }
