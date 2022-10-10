@@ -29,6 +29,8 @@ using SanteDB.Core.Model.DataTypes;
 using SanteDB.Core.Model.Entities;
 using SanteDB.Core.Model.Interfaces;
 using SanteDB.Core.Model.Query;
+using SanteDB.Core.PubSub.Broker;
+using SanteDB.Core.Queue;
 using SanteDB.Core.Security;
 using SanteDB.Core.Security.Audit;
 using SanteDB.Core.Services;
@@ -55,16 +57,18 @@ namespace SanteDB.Persistence.MDM.Rest
         private ResourceManagementConfigurationSection m_configuration;
 
         // Batch service
-        private IDataPersistenceService<Bundle> m_batchService;
+        private IRepositoryService<Bundle> m_batchService;
+        private readonly IDispatcherQueueManagerService m_queueService;
 
         /// <summary>
         /// Candidate operations manager
         /// </summary>
-        public MdmLinkResource(IConfigurationManager configurationManager, IDataPersistenceService<Bundle> batchService)
+        public MdmLinkResource(IConfigurationManager configurationManager, IRepositoryService<Bundle> batchService, IDispatcherQueueManagerService queueService)
         {
             this.m_configuration = configurationManager.GetSection<ResourceManagementConfigurationSection>();
             this.ParentTypes = this.m_configuration?.ResourceTypes.Select(o => o.Type).ToArray() ?? Type.EmptyTypes;
             this.m_batchService = batchService;
+            this.m_queueService = queueService;
         }
 
         /// <summary>
@@ -103,14 +107,21 @@ namespace SanteDB.Persistence.MDM.Rest
                 throw new NotSupportedException($"MDM is not configured for {scopingType}");
             }
 
-            // Detach
+            // Attach
             if (scopingKey is Guid scopedKey && item is IdentifiedDataReference childObject)
             {
                 try
                 {
                     var transaction = new Bundle(dataManager.MdmTxMasterLink(scopedKey, childObject.Key.Value, new IdentifiedData[0], true));
-
-                    var retVal = this.m_batchService.Insert(transaction, TransactionMode.Commit, AuthenticationContext.Current.Principal);
+                    var retVal = this.m_batchService.Insert(transaction);
+                    // HACK: Notify of update on the source - this is fixed in v3 
+                    var masterTx = transaction.Item.OfType<ITargetedAssociation>().Where(o => o.AssociationTypeKey == MdmConstants.MasterRecordRelationship)
+                        .OfType<IdentifiedData>().FirstOrDefault(o => o.BatchOperation == BatchOperationType.Insert);
+                    if(masterTx != null)
+                    {
+                        var source = masterTx.LoadProperty(nameof(ITargetedAssociation.SourceEntity));
+                        this.m_queueService.Enqueue(PubSubBroker.QueueName, new PubSubNotifyQueueEntry(source.GetType(), Core.PubSub.PubSubEventType.Update, source));
+                    }
                     return retVal;
                 }
                 catch (Exception e)
@@ -209,7 +220,17 @@ namespace SanteDB.Persistence.MDM.Rest
                 {
                     var transaction = new Bundle(dataManager.MdmTxMasterUnlink(scopedKey, childKey, new IdentifiedData[0]));
 
-                    var retVal = this.m_batchService.Insert(transaction, TransactionMode.Commit, AuthenticationContext.Current.Principal);
+                    var retVal = this.m_batchService.Insert(transaction);
+
+                    // HACK: Notify of update on the source - this is fixed in v3 
+                    var masterTx = transaction.Item.OfType<ITargetedAssociation>().Where(o => o.AssociationTypeKey == MdmConstants.MasterRecordRelationship)
+                        .OfType<IdentifiedData>().FirstOrDefault(o => o.BatchOperation == BatchOperationType.Insert);
+                    if (masterTx != null)
+                    {
+                        var source = masterTx.LoadProperty(nameof(ITargetedAssociation.SourceEntity));
+                        this.m_queueService.Enqueue(PubSubBroker.QueueName, new PubSubNotifyQueueEntry(source.GetType(), Core.PubSub.PubSubEventType.Update, source));
+                    }
+
                     return retVal;
                 }
                 catch (Exception e)
