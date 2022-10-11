@@ -115,7 +115,7 @@ namespace SanteDB.Persistence.MDM.Rest
                     var transaction = new Bundle(dataManager.MdmTxMasterLink(scopedKey, childObject.Key.Value, new IdentifiedData[0], true));
                     var retVal = this.m_batchService.Insert(transaction);
                     // HACK: Notify of update on the source - this is fixed in v3 
-                    var masterTx = transaction.Item.OfType<ITargetedAssociation>().Where(o => o.AssociationTypeKey == MdmConstants.MasterRecordRelationship)
+                    var masterTx = retVal.Item.OfType<ITargetedAssociation>().Where(o => o.AssociationTypeKey == MdmConstants.MasterRecordRelationship)
                         .OfType<IdentifiedData>().FirstOrDefault(o => o.BatchOperation == BatchOperationType.Insert);
                     if(masterTx != null)
                     {
@@ -223,7 +223,7 @@ namespace SanteDB.Persistence.MDM.Rest
                     var retVal = this.m_batchService.Insert(transaction);
 
                     // HACK: Notify of update on the source - this is fixed in v3 
-                    var masterTx = transaction.Item.OfType<ITargetedAssociation>().Where(o => o.AssociationTypeKey == MdmConstants.MasterRecordRelationship)
+                    var masterTx = retVal.Item.OfType<ITargetedAssociation>().Where(o => o.AssociationTypeKey == MdmConstants.MasterRecordRelationship)
                         .OfType<IdentifiedData>().FirstOrDefault(o => o.BatchOperation == BatchOperationType.Insert);
                     if (masterTx != null)
                     {
