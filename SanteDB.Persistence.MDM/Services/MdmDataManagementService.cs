@@ -384,7 +384,7 @@ namespace SanteDB.Persistence.MDM.Services
                 }
                 // Get the data manager for this type
                 if (res is IHasClassConcept classifiable &&
-                    res is IIdentifiedData iddata &&
+                    res is IAnnotatedResource iddata &&
                     classifiable.ClassConceptKey != MdmConstants.MasterRecordClassification)
                 {
                     var dataManager = MdmDataManagerFactory.GetDataManager(res.GetType());

@@ -117,7 +117,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// <summary>
         /// Get a MDM Master for the specified local key
         /// </summary>
-        public abstract IMdmMaster CreateMasterContainerForMasterEntity(IIdentifiedData masterObject);
+        public abstract IMdmMaster CreateMasterContainerForMasterEntity(IAnnotatedResource masterObject);
 
         /// <summary>
         /// Merge two master records together

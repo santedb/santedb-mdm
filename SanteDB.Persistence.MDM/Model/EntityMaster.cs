@@ -356,12 +356,12 @@ namespace SanteDB.Persistence.MDM.Model
         /// <summary>
         /// Get master record
         /// </summary>
-        IIdentifiedData IMdmMaster.Synthesize(IPrincipal principal) => this.Synthesize(principal);
+        IAnnotatedResource IMdmMaster.Synthesize(IPrincipal principal) => this.Synthesize(principal);
 
         /// <summary>
         /// Gets local records
         /// </summary>
         [XmlIgnore, JsonIgnore]
-        IEnumerable<IIdentifiedData> IMdmMaster.LocalRecords => this.LocalRecords.OfType<IIdentifiedData>();
+        IEnumerable<IAnnotatedResource> IMdmMaster.LocalRecords => this.LocalRecords.OfType<IAnnotatedResource>();
     }
 }

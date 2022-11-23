@@ -32,18 +32,18 @@ namespace SanteDB.Persistence.MDM.Model
         /// <summary>
         /// Constructs the master record from local records
         /// </summary>
-        IIdentifiedData Synthesize(IPrincipal principal);
+        IAnnotatedResource Synthesize(IPrincipal principal);
 
         /// <summary>
         /// Gets the local records
         /// </summary>
-        IEnumerable<IIdentifiedData> LocalRecords { get; }
+        IEnumerable<IAnnotatedResource> LocalRecords { get; }
     }
 
     /// <summary>
     /// Marks a class as an MDM master record
     /// </summary>
-    public interface IMdmMaster<T> : IMdmMaster, IVersionedData, IIdentifiedData, ITaggable
+    public interface IMdmMaster<T> : IMdmMaster, IVersionedData, IAnnotatedResource, ITaggable
     {
         /// <summary>
         /// Constructs the master record from local records
