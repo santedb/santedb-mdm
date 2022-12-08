@@ -43,6 +43,9 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         // Principal consuming this result set
         private readonly IPrincipal m_principal;
 
+        /// <inheritdoc/>
+        public Type ElementType => typeof(TModel);
+
         /// <summary>
         /// Creates a new mdm query result set
         /// </summary>
