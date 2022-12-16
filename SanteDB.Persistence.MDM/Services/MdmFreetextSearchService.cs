@@ -37,6 +37,7 @@ namespace SanteDB.Persistence.MDM.Services
     /// <remarks>Only use this freetext search service if your freetext search service implementation interacts directly with the
     /// SanteDB database, not if you're using something like Lucene or Redshift as those are index based and the fetch should
     /// be done via the IRepositoryService</remarks>
+    [PreferredService(typeof(IFreetextSearchService))]
     public class MdmFreetextSearchService : IFreetextSearchService
     {
         /// <summary>

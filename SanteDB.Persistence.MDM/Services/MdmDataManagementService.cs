@@ -64,7 +64,7 @@ namespace SanteDB.Persistence.MDM.Services
     /// <seealso cref="MdmResourceMerger{TModel}"/>
     /// <seealso cref="MdmResourceHandler{TModel}"/>
     [ServiceProvider("MDM Data Repository")]
-    public class MdmDataManagementService : IDaemonService, IDisposable, IDataManagementPattern
+    public class MdmDataManagementService : IDisposable, IDataManagementPattern
     {
         /// <summary>
         /// Gets the service name
@@ -104,30 +104,6 @@ namespace SanteDB.Persistence.MDM.Services
         // Listeners
         private List<IDisposable> m_listeners = new List<IDisposable>();
 
-        // True if the service is running
-        public bool IsRunning => this.m_listeners.Count > 0;
-
-        /// <summary>
-        /// Daemon is starting
-        /// </summary>
-        public event EventHandler Starting;
-
-        /// <summary>
-        /// Daemon is stopping
-        /// </summary>
-        public event EventHandler Stopping;
-
-        /// <summary>
-        /// Daemon has started
-        /// </summary>
-        public event EventHandler Started;
-
-        /// <summary>
-        /// Daemon has stopped
-        /// </summary>
-        public event EventHandler Stopped;
-
-
         /// <summary>
         /// Create injected service
         /// </summary>
@@ -144,7 +120,7 @@ namespace SanteDB.Persistence.MDM.Services
             {
                 throw new InvalidOperationException("Cannot run MDM and SIM in same mode");
             }
-
+            this.Initialize();
         }
 
         /// <summary>
@@ -163,9 +139,8 @@ namespace SanteDB.Persistence.MDM.Services
         /// <summary>
         /// Start the daemon
         /// </summary>
-        public bool Start()
+        private void Initialize()
         {
-            this.Starting?.Invoke(this, EventArgs.Empty);
 
             // Pre-register types for serialization
             foreach (var itm in this.m_configuration.ResourceTypes)
@@ -185,77 +160,70 @@ namespace SanteDB.Persistence.MDM.Services
                 ModelSerializationBinder.RegisterModelType(typeName, rt);
             }
 
-            // Wait until application context is started
-            ApplicationServiceContext.Current.Started += (o, e) =>
+            if (this.m_matchingService == null)
             {
-                if (this.m_matchingService == null)
-                {
-                    this.m_traceSource.TraceWarning("The MDM Service should be using a record matching service");
-                }
+                this.m_traceSource.TraceWarning("The MDM Service should be using a record matching service");
+            }
 
-                // Replace matching
-                var mdmMatcher = this.m_serviceManager.CreateInjected<MdmRecordMatchingService>();
-                this.m_serviceManager.AddServiceProvider(mdmMatcher);
-                var mdmMatchConfig = this.m_serviceManager.CreateInjected<MdmMatchConfigurationService>();
-                this.m_serviceManager.AddServiceProvider(mdmMatchConfig);
-                if (this.m_matchingService != null)
-                {
-                    this.m_serviceManager.RemoveServiceProvider(this.m_matchingService.GetType());
-                }
-                if (this.m_matchConfigurationService != null)
-                {
-                    this.m_serviceManager.RemoveServiceProvider(this.m_matchConfigurationService.GetType());
-                }
+            // Replace matching
+            var mdmMatcher = this.m_serviceManager.CreateInjected<MdmRecordMatchingService>();
+            this.m_serviceManager.AddServiceProvider(mdmMatcher);
+            var mdmMatchConfig = this.m_serviceManager.CreateInjected<MdmMatchConfigurationService>();
+            this.m_serviceManager.AddServiceProvider(mdmMatchConfig);
+            if (this.m_matchingService != null)
+            {
+                this.m_serviceManager.RemoveServiceProvider(this.m_matchingService.GetType());
+            }
+            if (this.m_matchConfigurationService != null)
+            {
+                this.m_serviceManager.RemoveServiceProvider(this.m_matchConfigurationService.GetType());
+            }
 
-                foreach (var itm in this.m_configuration.ResourceTypes)
-                {
-                    this.m_traceSource.TraceInfo("Adding MDM listener for {0}...", itm.Type.Name);
-                    MdmDataManagerFactory.RegisterDataManager(itm.Type);
-                    var idt = typeof(MdmResourceHandler<>).MakeGenericType(itm.Type);
-                    var ids = this.m_serviceManager.CreateInjected(idt) as IDisposable;
-                    this.m_listeners.Add(ids);
-                    this.m_serviceManager.AddServiceProvider(ids);
-                    this.m_serviceManager.AddServiceProvider(MdmDataManagerFactory.CreateMerger(itm.Type));
+            foreach (var itm in this.m_configuration.ResourceTypes)
+            {
+                this.m_traceSource.TraceInfo("Adding MDM listener for {0}...", itm.Type.Name);
+                MdmDataManagerFactory.RegisterDataManager(itm.Type);
+                var idt = typeof(MdmResourceHandler<>).MakeGenericType(itm.Type);
+                var ids = this.m_serviceManager.CreateInjected(idt) as IDisposable;
+                this.m_listeners.Add(ids);
+                this.m_serviceManager.AddServiceProvider(ids);
+                this.m_serviceManager.AddServiceProvider(MdmDataManagerFactory.CreateMerger(itm.Type));
 
-                    // Add job
-                    var jobType = typeof(MdmMatchJob<>).MakeGenericType(itm.Type);
-                    var job = this.m_serviceManager.CreateInjected(jobType) as IJob;
-                    this.m_jobManager?.AddJob(job, JobStartType.Never);
-                }
+                // Add job
+                var jobType = typeof(MdmMatchJob<>).MakeGenericType(itm.Type);
+                var job = this.m_serviceManager.CreateInjected(jobType) as IJob;
+                this.m_jobManager?.AddJob(job, JobStartType.Never);
+            }
 
-                // Add an entity relationship and act relationship watcher to the persistence layer for after update
-                // this will ensure that appropriate cleanup is performed on successful processing of data
-                this.m_entityRelationshipService = ApplicationServiceContext.Current.GetService<IDataPersistenceServiceEx<EntityRelationship>>();
-                this.m_entityService = ApplicationServiceContext.Current.GetService<IDataPersistenceService<Entity>>();
+            // Add an entity relationship and act relationship watcher to the persistence layer for after update
+            // this will ensure that appropriate cleanup is performed on successful processing of data
+            this.m_entityRelationshipService = ApplicationServiceContext.Current.GetService<IDataPersistenceServiceEx<EntityRelationship>>();
+            this.m_entityService = ApplicationServiceContext.Current.GetService<IDataPersistenceService<Entity>>();
 
-                ApplicationServiceContext.Current.GetService<IDataPersistenceService<Bundle>>().Inserted += RecheckBundleTrigger;
-                ApplicationServiceContext.Current.GetService<IDataPersistenceService<Bundle>>().Updated += RecheckBundleTrigger;
-                ApplicationServiceContext.Current.GetService<IDataPersistenceService<Bundle>>().Deleted += RecheckBundleTrigger;
-                this.m_entityRelationshipService.Inserted += RecheckRelationshipTrigger;
-                this.m_entityRelationshipService.Updated += RecheckRelationshipTrigger;
-                this.m_entityRelationshipService.Deleted += RecheckRelationshipTrigger;
+            ApplicationServiceContext.Current.GetService<IDataPersistenceService<Bundle>>().Inserted += RecheckBundleTrigger;
+            ApplicationServiceContext.Current.GetService<IDataPersistenceService<Bundle>>().Updated += RecheckBundleTrigger;
+            ApplicationServiceContext.Current.GetService<IDataPersistenceService<Bundle>>().Deleted += RecheckBundleTrigger;
+            this.m_entityRelationshipService.Inserted += RecheckRelationshipTrigger;
+            this.m_entityRelationshipService.Updated += RecheckRelationshipTrigger;
+            this.m_entityRelationshipService.Deleted += RecheckRelationshipTrigger;
 
-                // Add an MDM listener for subscriptions
-                if (this.m_subscriptionExecutor != null)
-                {
-                    m_subscriptionExecutor.Executed += MdmSubscriptionExecuted;
-                }
-                this.m_listeners.Add(new BundleResourceInterceptor(this.m_listeners));
+            // Add an MDM listener for subscriptions
+            if (this.m_subscriptionExecutor != null)
+            {
+                m_subscriptionExecutor.Executed += MdmSubscriptionExecuted;
+            }
+            this.m_listeners.Add(new BundleResourceInterceptor(this.m_listeners));
 
-                // Slipstream the MdmEntityProvider
-                //EntitySource.Current = new EntitySource(new MdmEntityProvider());
+            // Slipstream the MdmEntityProvider
+            //EntitySource.Current = new EntitySource(new MdmEntityProvider());
 
-                // HACK: Replace any freetext service with our own
-                this.m_serviceManager.RemoveServiceProvider(typeof(IFreetextSearchService));
-                m_serviceManager.AddServiceProvider(new MdmFreetextSearchService());
+            // HACK: Replace any freetext service with our own
+            this.m_serviceManager.RemoveServiceProvider(typeof(IFreetextSearchService));
+            m_serviceManager.AddServiceProvider(new MdmFreetextSearchService());
 
-                // Insert the MdmEntityRelationshipMaster repository services
-                this.m_serviceManager.AddServiceProvider(typeof(MdmEntityRelationshipPersistenceProvider));
+            // Insert the MdmEntityRelationshipMaster repository services
+            this.m_serviceManager.AddServiceProvider(typeof(MdmEntityRelationshipPersistenceProvider));
 
-            };
-
-            this.Started?.Invoke(this, EventArgs.Empty);
-            return true;
         }
 
         /// <summary>
@@ -395,26 +363,6 @@ namespace SanteDB.Persistence.MDM.Services
                     return res;
                 }
             });
-        }
-
-        /// <summary>
-        /// Stop the daemon
-        /// </summary>
-        /// <returns></returns>
-        public bool Stop()
-        {
-            this.Stopping?.Invoke(this, EventArgs.Empty);
-
-            // Unregister
-            foreach (var i in this.m_listeners)
-            {
-                i.Dispose();
-            }
-
-            this.m_listeners.Clear();
-
-            this.Stopped?.Invoke(this, EventArgs.Empty);
-            return true;
         }
 
     }
