@@ -84,7 +84,7 @@
       <add type="SanteDB.Persistence.Data.Services.AdoPersistenceService, SanteDB.Persistence.Data" />
       <add type="SanteDB.Persistence.Data.Services.AdoPersistenceService, SanteDB.Persistence.Data" />
       <add type="SanteDB.Core.Security.DefaultDataSigningService, SanteDB.Core.Api" />
-      <add type="SanteDB.Core.Security.SimpleTfaSecretGenerator, SanteDB.Core.Api" />
+      <add type="SanteDB.Core.Security.Tfa.Rfc4226TfaCodeProvider, SanteDB.Core.Api" />
       <add type="SanteDB.Core.Security.SHA256PasswordHashingService,SanteDB.Core.Api" />
       <add type="SanteDB.Core.Security.RegexPasswordValidator, SanteDB.Core.Api" />
       <add type="SanteDB.Core.Security.DefaultPolicyDecisionService, SanteDB.Core.Api" />
