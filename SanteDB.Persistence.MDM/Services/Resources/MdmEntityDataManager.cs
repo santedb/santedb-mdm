@@ -268,7 +268,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 local.Names?.ForEach(o =>
                 {
                     o.Key = null;
-                    o.Component?.ForEach(c => c.Key = null);
+                    ExtensionMethods.ForEach(o.Component, c => c.Key = null);
                     o.SourceEntityKey = null;
                 });
                 local.Addresses?.ForEach(o =>
@@ -460,7 +460,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 resultSet = resultSet.Union(masterLinq);
             }
 
-            return new MdmEntityResultSet<TModel>(resultSet, asPrincipal);
+            return new MdmEntityResultSet<TModel>(resultSet.Distinct(), asPrincipal);
         }
 
         /// <summary>
@@ -569,7 +569,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
 
             // Ensure that ROT points to a master
             var rotRel = context.OfType<EntityRelationship>().FirstOrDefault(o => o.TargetEntityKey == data.Key && o.RelationshipTypeKey == MdmConstants.MasterRecordOfTruthRelationship) ??
-                data.LoadCollection(o => o.Relationships).FirstOrDefault(o => o.TargetEntityKey == data.Key && o.RelationshipTypeKey == MdmConstants.MasterRecordOfTruthRelationship);
+                master.LoadCollection(o => o.Relationships).FirstOrDefault(o => o.TargetEntityKey == data.Key && o.RelationshipTypeKey == MdmConstants.MasterRecordOfTruthRelationship);
             if (rotRel == null)
             {
                 retVal.AddLast(new EntityRelationship(MdmConstants.MasterRecordOfTruthRelationship, data.Key) { SourceEntityKey = master.Key });
@@ -692,7 +692,9 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             }
             var ignoreList = ignoreSet.Select(o => o.TargetEntityKey.Value);
 
-            ignoreList = ignoreList.Union(context.OfType<EntityRelationship>().Where(o => o.RelationshipTypeKey == MdmConstants.IgnoreCandidateRelationship && o.BatchOperation != BatchOperationType.Delete).Select(o => o.TargetEntityKey.Value)).ToArray();
+            ignoreList = ignoreList
+                .Union(context.OfType<EntityRelationship>().Where(o => o.RelationshipTypeKey == MdmConstants.IgnoreCandidateRelationship && o.BatchOperation != BatchOperationType.Delete).Select(o => o.TargetEntityKey.Value))
+                .Union(context.OfType<EntityRelationship>().Where(o => o.RelationshipTypeKey == MdmConstants.IgnoreCandidateRelationship && o.BatchOperation != BatchOperationType.Delete).Select(o => o.SourceEntityKey.Value)).ToArray();
 
             // It may be possible the ignore was un-ignored
             ignoreList = ignoreList.Where(i => !context.OfType<EntityRelationship>().Any(c => c.RelationshipTypeKey == MdmConstants.IgnoreCandidateRelationship && c.TargetEntityKey == i && c.BatchOperation == BatchOperationType.Delete)).ToList();
@@ -1070,8 +1072,10 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 local.LoadCollection(o => o.Relationships);
                 local.Relationships.RemoveAll(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship);
 
+                var localIgnores = this.GetAssociatedLocals(fromKey).Select(o => new EntityRelationship(MdmConstants.IgnoreCandidateRelationship, existingRelationship.HolderKey, o.SourceEntityKey, MdmConstants.SystemClassification));
+                
                 // Next, establsh a new MDM master
-                foreach (var itm in this.MdmTxMatchMasters(local, new IdentifiedData[] { existingRelationship, ignoreRelationship }))
+                foreach (var itm in this.MdmTxMatchMasters(local, new IdentifiedData[] { existingRelationship, ignoreRelationship }.Union(localIgnores)))
                 {
                     yield return itm;
                 }
@@ -1317,7 +1321,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     // We have a master - so we want to get the locals for checking / insert
                     if (this.IsMaster(r.Record.Key.Value))
                     {
-                        foreach (var local in this.GetAssociatedLocals(r.Record.Key.Value).Where(q => !ignoreList.Contains(q.SourceEntityKey.Value)))
+                        foreach (var local in this.GetAssociatedLocals(r.Record.Key.Value).ToList().Where(q => !ignoreList.Contains(q.SourceEntityKey.Value)))
                         {
                             var src = local.LoadProperty(o => o.SourceEntity) as Entity;
                             if (src.DeterminerConceptKey != MdmConstants.RecordOfTruthDeterminer)

@@ -20,6 +20,7 @@
  */
 using Newtonsoft.Json;
 using SanteDB.Core;
+using SanteDB.Core.Diagnostics.Performance;
 using SanteDB.Core.i18n;
 using SanteDB.Core.Model;
 using SanteDB.Core.Model.Attributes;
@@ -32,6 +33,7 @@ using SanteDB.Core.Security.Services;
 using SanteDB.Core.Services;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Security.Principal;
 using System.Xml.Serialization;
@@ -56,6 +58,7 @@ namespace SanteDB.Persistence.MDM.Model
         /// </summary>
         public EntityRelationshipMaster(Entity master, Entity local, EntityRelationship relationship)
         {
+
             this.OriginalHolderKey = relationship.HolderKey;
             this.OriginalTargetKey = relationship.TargetEntityKey;
             this.Key = relationship.Key; // HACK: This is just for the FHIR layer to track RP
@@ -80,10 +83,10 @@ namespace SanteDB.Persistence.MDM.Model
             }
 
             // Does the target point at a local which has a master? If so, we want to synthesize the
-            var targetMaster = this.GetTargetAs<Entity>().GetRelationships().FirstOrDefault(mr => mr.RelationshipTypeKey == MdmConstants.MasterRecordRelationship);
+            var targetMaster = EntitySource.Current.Provider.Query<EntityRelationship>(r => r.RelationshipTypeKey == MdmConstants.MasterRecordRelationship && r.SourceEntityKey == this.TargetEntityKey).Select(o=>o.SourceEntityKey).FirstOrDefault();
             if (targetMaster != null)
             {
-                this.TargetEntityKey = targetMaster.TargetEntityKey;
+                this.TargetEntityKey = targetMaster;
             }
 
             this.m_annotations.Clear();
@@ -223,7 +226,10 @@ namespace SanteDB.Persistence.MDM.Model
         /// </summary>
         public T Synthesize(IPrincipal principal)
         {
-
+#if DEBUG
+            var sw = new Stopwatch();
+            sw.Start();
+#endif
             var master = new T();
             master.CopyObjectData<IdentifiedData>(this.m_masterRecord, onlyNullFields: true, overwritePopulatedWithNull: false, ignoreTypeMismatch: true);
 
@@ -317,7 +323,13 @@ namespace SanteDB.Persistence.MDM.Model
                     break;
             }
 
+#if DEBUG
+            sw.Stop();
+            PerformanceTracer.WritePerformanceTrace(sw.ElapsedMilliseconds);
+#endif
+
             return master;
+
         }
 
         /// <summary>
@@ -340,14 +352,11 @@ namespace SanteDB.Persistence.MDM.Model
             {
                 if (this.m_localRecords == null)
                 {
-                    this.m_localRecords = EntitySource.Current.Provider.Query<EntityRelationship>(o => o.TargetEntityKey == this.Key && o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship).Select(o => o.SourceEntityKey).ToArray()
-                        .Select(o =>
-                        {
-                            using (DataPersistenceControlContext.Create(LoadMode.SyncLoad))
-                            {
-                                return EntitySource.Current.Provider.Get<T>(o);
-                            }
-                        }).ToList();
+                    using (DataPersistenceControlContext.Create(LoadMode.SyncLoad))
+                    {
+                        // EntitySource.Current.Provider.Query<EntityRelationship>(o => o.TargetEntityKey == this.Key && o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship).Select(o => o.SourceEntityKey).ToArray()
+                        this.m_localRecords = EntitySource.Current.Provider.Query<T>(o => o.Relationships.Any(r => r.RelationshipTypeKey == MdmConstants.MasterRecordRelationship && r.TargetEntityKey == this.Key)).ToList();
+                    }
                 }
                 return this.m_localRecords;
             }

@@ -81,6 +81,16 @@ namespace SanteDB.Persistence.MDM.Services
         /// </summary>
         internal class MdmIdentityRecordMatchConfiguration : IRecordMatchingConfiguration
         {
+
+            /// <summary>
+            /// Serialization ctor
+            /// </summary>
+            public MdmIdentityRecordMatchConfiguration()
+            {
+                this.AppliesTo = new Type[0];
+                this.Metadata = new MdmIdentityRecordMatchMetadata();
+            }
+
             /// <summary>
             /// Create a new identity match configuration
             /// </summary>
@@ -131,7 +141,7 @@ namespace SanteDB.Persistence.MDM.Services
         /// <summary>
         /// Gets the configuration
         /// </summary>
-        public IEnumerable<IRecordMatchingConfiguration> Configurations => this.m_matchingConfigurationService?.Configurations.Union(this.r_matchConfiguration) ?? this.r_matchConfiguration;
+        public IEnumerable<IRecordMatchingConfiguration> Configurations => this.m_matchingConfigurationService?.Configurations.Union(this.r_matchConfiguration);
 
         /// <summary>
         /// Gets the service name

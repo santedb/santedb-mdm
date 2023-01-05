@@ -384,10 +384,14 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// <param name="context">If the request is part of an existing bundle the bundle</param>
         public virtual void RepointRelationshipsToLocals(TModel local, IPrincipal principal, List<IdentifiedData> context)
         {
-            foreach (var rel in local.Relationships.Where(o => !MdmConstants.MDM_RELATIONSHIP_TYPES.Contains(o.AssociationTypeKey.Value)))
+            foreach (var rel in local.Relationships.Where(o => !MdmConstants.MDM_RELATIONSHIP_TYPES.Contains(o.AssociationTypeKey.GetValueOrDefault())))
             {
                 // TODO: Cross local pointers should not be permitted either - 
-                if (this.IsMaster(rel.TargetEntityKey.Value))
+                if(!rel.TargetEntityKey.HasValue) // no target?
+                {
+                    continue;
+                }
+                else if (this.IsMaster(rel.TargetEntityKey.Value))
                 {
                     var master = this.m_underlyingTypePersistence.Get(rel.TargetEntityKey.Value) as IHasTypeConcept;
                     if (m_entityTypeMap.TryGetValue(master.TypeConceptKey.Value, out var managedType) &&

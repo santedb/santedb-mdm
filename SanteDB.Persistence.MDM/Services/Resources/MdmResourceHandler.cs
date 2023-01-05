@@ -288,7 +288,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             if (this.m_dataManager.IsMaster(e.Id.Value)) // object is a master
             {
                 e.Cancel = true;
-                e.Result = (TModel)this.m_dataManager.MdmGet(e.Id.Value).Synthesize(e.Principal);
+                e.Result = (TModel)this.m_dataManager.MdmGet(e.Id.Value)?.Synthesize(e.Principal);
             }
         }
 

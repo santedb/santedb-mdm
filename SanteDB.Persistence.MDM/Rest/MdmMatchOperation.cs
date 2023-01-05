@@ -26,6 +26,7 @@ using SanteDB.Core.Model.Entities;
 using SanteDB.Core.Model.Parameters;
 using SanteDB.Core.Security;
 using SanteDB.Core.Services;
+using System.Linq;
 using SanteDB.Persistence.MDM.Exceptions;
 using SanteDB.Persistence.MDM.Jobs;
 using SanteDB.Persistence.MDM.Services.Resources;
@@ -93,7 +94,7 @@ namespace SanteDB.Persistence.MDM.Rest
 
                 if (parameters.TryGet<bool>("clear", out bool clear) && clear)
                 {
-                    foreach (var itm in dataManager.GetCandidateLocals(scopingObjectKey).Where(o => o.ClassificationKey == MdmConstants.AutomagicClassification))
+                    foreach (var itm in dataManager.GetCandidateLocals(scopingObjectKey).ToList().Where(o => o.ClassificationKey == MdmConstants.AutomagicClassification))
                     {
                         if (itm is EntityRelationship er)
                         {
@@ -113,7 +114,10 @@ namespace SanteDB.Persistence.MDM.Rest
                 // Now we want to save?
                 try
                 {
-                    retVal = this.m_batchService.Insert(retVal, TransactionMode.Commit, AuthenticationContext.Current.Principal);
+                    if (retVal.Item.Any())
+                    {
+                        retVal = this.m_batchService.Insert(retVal, TransactionMode.Commit, AuthenticationContext.Current.Principal);
+                    }
                 }
                 catch (Exception e)
                 {

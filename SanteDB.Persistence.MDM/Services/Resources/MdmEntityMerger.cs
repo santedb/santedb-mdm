@@ -413,176 +413,73 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 this.m_pepService.Demand(MdmPermissionPolicyIdentifiers.UnrestrictedMdm);
 
                 // Fetch all locals
-                // TODO: Update to the new persistence layer
                 Guid queryId = Guid.NewGuid();
-                int totalResults = 1, batchSize = Environment.ProcessorCount * 64;
-
-                var processStack = new ConcurrentStack<TEntity>();
-                var fetchQueue = new ConcurrentQueue<TEntity>();
-                var writeQueue = new ConcurrentQueue<Bundle>();
-                long completeProcess = 0;
+                var fetchStack = new ConcurrentStack<TEntity>();
                 Exception haltException = null;
+                bool fetchComplete = false, processComplete = false; ;
 
                 using (var fetchEvent = new ManualResetEventSlim(false))
-                using (var writeEvent = new ManualResetEventSlim(false))
                 {
-
-                    bool completeProcessing = false;
 
                     // Matcher queue
                     this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs(0f, $"Gathering sources..."));
 
-                    // Monitor thread
+                    // Worker thread
                     this.m_threadPool.QueueUserWorkItem(_ =>
                     {
-                        var sw = new Stopwatch();
-                        sw.Start();
-                        while (!completeProcessing && !this.m_disposed)
+                        try
                         {
-                            var dr = Interlocked.Read(ref completeProcess);
-
-                            sw.Stop();
-                            var rps = (dr / (float)sw.ElapsedTicks) + 0.000001f;
-                            this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)dr / (float)totalResults, $"Matching {completeProcess:#,###,###} of {totalResults:#,###,###} - {rps * TimeSpan.TicksPerSecond:#0}/s - ETA {new TimeSpan((long)((totalResults - completeProcess) / rps)):d\\.hh\\:mm\\:ss} (Out: {writeQueue.Count})"));
-                            sw.Start();
-                            Thread.Sleep(1000);
-                        }
-                    });
-
-                    // Worker Thread
-                    this.m_threadPool.QueueUserWorkItem(_ =>
-                    {
-                        var processList = new TEntity[Environment.ProcessorCount];
-                        int idx = 0, inProcess = 0; // index and in-process requests
-                        while ((!completeProcessing || !fetchQueue.IsEmpty) && !this.m_disposed && haltException == null)
-                        {
-                            try
+                            TEntity[] batchOfEntities = new TEntity[16];
+                            while (!fetchComplete)
                             {
                                 fetchEvent.Wait(1000);
-                                if (inProcess <= Environment.ProcessorCount * 4)
+                                int batchSize = 0;
+                                processComplete = false;
+                                while ((batchSize = fetchStack.TryPopRange(batchOfEntities)) > 0)
                                 {
-                                    while (fetchQueue.TryDequeue(out var candidate))
-                                    {
-                                        processList[idx++] = candidate;
-                                        if (idx == processList.Length)
-                                        {
-                                            if (Environment.ProcessorCount >= 2) // Is it worth it to dole out work?
-                                            {
-                                                Interlocked.Increment(ref inProcess);
-                                                this.m_threadPool.QueueUserWorkItem(o =>
-                                                {
-                                                    try
-                                                    {
-                                                        if (!this.m_disposed)
-                                                        {
-                                                            writeQueue.Enqueue(new Bundle(o.SelectMany(r => this.m_dataManager.MdmTxMatchMasters(r, new IdentifiedData[0]))));
-                                                        }
-
-                                                        Interlocked.Add(ref completeProcess, o.Length);
-                                                        writeEvent.Set();
-                                                    }
-                                                    finally
-                                                    {
-                                                        Interlocked.Decrement(ref inProcess);
-                                                    }
-                                                }, processList.ToArray());
-
-                                                if (inProcess > Environment.ProcessorCount * 4)
-                                                {
-                                                    idx = 0;
-                                                    break;
-                                                }
-                                            }
-                                            else // Nope so just do it here
-                                            {
-                                                writeQueue.Enqueue(new Bundle(processList.SelectMany(r => this.m_dataManager.MdmTxMatchMasters(r, new IdentifiedData[0]))));
-                                                Interlocked.Add(ref completeProcess, idx);
-                                                writeEvent.Set();
-                                            }
-                                            idx = 0;
-                                        }
-                                    }
+                                    var matches = batchOfEntities.Take(batchSize).SelectMany(o => this.m_dataManager.MdmTxMatchMasters(o, new IdentifiedData[0]));
+                                    this.m_batchPersistence.Insert(new Bundle(matches), TransactionMode.Commit, AuthenticationContext.SystemPrincipal);
+                                    processComplete = true;
                                 }
-                                fetchEvent.Reset();
-                            }
-                            catch (ObjectDisposedException)
-                            {
-                                break;
-                            }
-                            catch (Exception e)
-                            {
-                                this.m_tracer.TraceError("Cannot complement the background merging of patients");
-                                haltException = e;
-                                break;
                             }
                         }
-
-                        writeQueue.Enqueue(new Bundle(processList.Take(idx).SelectMany(r => this.m_dataManager.MdmTxMatchMasters(r, new IdentifiedData[0]))));
-                        writeEvent.Set();
-                    });
-
-                    // Writer Thread
-                    this.m_threadPool.QueueUserWorkItem(_ =>
-                    {
-                        while ((!completeProcessing || !writeQueue.IsEmpty) && !this.m_disposed && haltException == null)
+                        catch(Exception e)
                         {
-                            try
-                            {
-                                writeEvent.Wait(100);
-                                while (writeQueue.TryDequeue(out var bundle))
-                                {
-                                    if (bundle.Item.Count > 0)
-                                    {
-                                        this.m_batchPersistence.Insert(bundle, TransactionMode.Commit, AuthenticationContext.SystemPrincipal);
-                                    }
-                                }
-                                writeEvent.Reset();
-                            }
-                            catch (ObjectDisposedException)
-                            {
-                                break;
-                            }
-                            catch (Exception e)
-                            {
-                                haltException = e;
-                                break;
-                            }
+                            haltException = e;
                         }
-
-                        // Finish writing out results
-                        while (writeQueue.TryDequeue(out var bundle))
+                        finally
                         {
-                            this.m_batchPersistence.Insert(bundle, TransactionMode.Commit, AuthenticationContext.SystemPrincipal);
+                            processComplete = true;
                         }
                     });
 
                     // Main program loop - 
                     try
                     {
-                        foreach (var itm in this.m_entityPersistence.Query(o => StatusKeys.ActiveStates.Contains(o.StatusConceptKey.Value) && o.DeterminerConceptKey != MdmConstants.RecordOfTruthDeterminer, AuthenticationContext.SystemPrincipal))
+                        var toProcess = this.m_entityPersistence.Query(o => StatusKeys.ActiveStates.Contains(o.StatusConceptKey.Value) && o.DeterminerConceptKey != MdmConstants.RecordOfTruthDeterminer, AuthenticationContext.SystemPrincipal);
+                        var totalRecords = toProcess.Count();
+                        var loaded = 0;
+                        foreach (var itm in toProcess)
                         {
-                            fetchQueue.Enqueue(itm);
+                            this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs(loaded++ / (float)totalRecords, $"Loading & Matching ({fetchStack.Count} to be processed)"));
+                            fetchStack.Push(itm);
                             fetchEvent.Set();
-
+                            if(haltException != null) { break; }
                         }
 
                         this.m_tracer.TraceVerbose("DetectGlobalMergeCandidate: Finished reading data - waiting for merge process to complete");
                         do
                         {
-                            if (haltException != null)
-                            {
-                                throw haltException;
-                            }
                             Thread.Sleep(1000);
-                            writeEvent.Set();
                             fetchEvent.Set();
+                            this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs(1.0f, $"Matching ({fetchStack.Count} remaining)"));
+
                         }
-                        while (!writeQueue.IsEmpty || !fetchQueue.IsEmpty);
+                        while (haltException == null && !fetchStack.IsEmpty && processComplete);
                     }
                     finally
                     {
-                        completeProcessing = true; // let threads die
-
+                        fetchComplete = true; // let threads die
                     }
                     this.m_tracer.TraceVerbose("DetectGlobalMergeCandidate: Completed matching");
                 }
