@@ -369,14 +369,24 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 return null;
             }
 
-            var masRel = context?.OfType<EntityRelationship>().FirstOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship && o.SourceEntityKey == localKey);
-            if (masRel != null)
+            var masterKey = $"mdm.master.{localKey}";
+
+            if(this.m_adhocCache?.TryGet<EntityRelationship>(masterKey, out var retVal) == true)
             {
-                return masRel;
+                return retVal;
             }
-            else
-            {
-                return this.m_relationshipService.Query(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship && o.SourceEntityKey == localKey && o.ObsoleteVersionSequenceId == null, AuthenticationContext.SystemPrincipal).FirstOrDefault();
+            else { 
+                retVal = context?.OfType<EntityRelationship>().FirstOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship && o.SourceEntityKey == localKey);
+                if (retVal != null)
+                {
+                    return retVal;
+                }
+                else
+                {
+                    retVal = this.m_relationshipService.Query(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship && o.SourceEntityKey == localKey && o.ObsoleteVersionSequenceId == null, AuthenticationContext.SystemPrincipal).FirstOrDefault();
+                    this.m_adhocCache?.Add(masterKey, retVal);
+                    return retVal;
+                }
             }
         }
 
@@ -385,8 +395,18 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         private EntityRelationship GetMasterRelationshipFor(TModel local, IEnumerable<IdentifiedData> context)
         {
-            return local.LoadCollection(o => o.Relationships).FirstOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship)
-                ?? this.GetMasterRelationshipFor(local.Key, context);
+            var masterKey = $"mdm.master.{local.Key}";
+            if (this.m_adhocCache?.TryGet<EntityRelationship>(masterKey, out var retVal) == true)
+            {
+                return retVal;
+            }
+            else
+            {
+                retVal = local.LoadCollection(o => o.Relationships).FirstOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship)
+                    ?? this.GetMasterRelationshipFor(local.Key, context);
+                this.m_adhocCache?.Add(masterKey, retVal);
+                return retVal;
+            }
         }
 
         /// <summary>
@@ -1061,6 +1081,9 @@ namespace SanteDB.Persistence.MDM.Services.Resources
 
                 // First, add an ignore instruction
                 existingRelationship.BatchOperation = BatchOperationType.Delete;
+
+                this.m_adhocCache?.Remove($"mdm.master.{toKey}");
+
                 yield return existingRelationship;
 
                 // Next we we add an ignore

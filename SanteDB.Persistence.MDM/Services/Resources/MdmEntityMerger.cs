@@ -336,11 +336,11 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 var inserted = this.m_batchPersistence.Insert(transactionBundle, TransactionMode.Commit, AuthenticationContext.Current.Principal);
 
                 // Trigger appropriate events
-                if(recordMergeStatus.HasFlag(RecordMergeStatus.DestructiveMerge))
+                if (recordMergeStatus.HasFlag(RecordMergeStatus.DestructiveMerge))
                 {
                     this.FireMerged(survivor.Key.Value, replaced);
                 }
-                else if(recordMergeStatus.HasFlag(RecordMergeStatus.LinkInsteadOfMerge))
+                else if (recordMergeStatus.HasFlag(RecordMergeStatus.LinkInsteadOfMerge))
                 {
                     inserted.Item.ForEach(o =>
                     {
@@ -414,38 +414,52 @@ namespace SanteDB.Persistence.MDM.Services.Resources
 
                 // Fetch all locals
                 Guid queryId = Guid.NewGuid();
-                var fetchStack = new ConcurrentStack<TEntity>();
+                var fetchQueue = new ConcurrentQueue<TEntity>();
                 Exception haltException = null;
                 bool fetchComplete = false, processComplete = false; ;
 
                 using (var fetchEvent = new ManualResetEventSlim(false))
+                using (var loadEvent = new ManualResetEventSlim(true))
                 {
 
                     // Matcher queue
                     this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs(0f, $"Gathering sources..."));
-                    var matched = 0;
+                    int matched = 0, availableWorkers = (Environment.ProcessorCount / 2) + 1;
                     // Worker thread
-                    for (int i = 0; i < (Environment.ProcessorCount / 4) + 1; i++)
+                    for (int i = availableWorkers; i >= 0; i--)
                     {
                         this.m_threadPool.QueueUserWorkItem(_ =>
                         {
                             try
                             {
-                                TEntity[] batchOfEntities = new TEntity[16];
-                                while (!fetchComplete || !fetchStack.IsEmpty)
+                                while (!fetchComplete || !fetchQueue.IsEmpty)
                                 {
-                                    if(fetchEvent.Wait(1000))
+                                    if (fetchEvent.Wait(1000))
                                     {
                                         fetchEvent.Reset();
                                     }
-                                    int batchSize = 0;
-                                    processComplete = false;
-                                    while ((batchSize = fetchStack.TryPopRange(batchOfEntities)) > 0)
+
+                                   
+                                    while (fetchQueue.TryDequeue(out var entity))
                                     {
-                                        var matches = batchOfEntities.Take(batchSize).SelectMany(o => this.m_dataManager.MdmTxMatchMasters(o, new IdentifiedData[0]));
-                                        this.m_batchPersistence.Insert(new Bundle(matches), TransactionMode.Commit, AuthenticationContext.SystemPrincipal);
-                                        processComplete = true;
-                                        Interlocked.Add(ref matched, batchSize);
+                                        // All our workers are assigned work so instruct the loader thread to stop loading
+                                        if (Interlocked.Decrement(ref availableWorkers) == 0)
+                                        {
+                                            loadEvent.Reset();
+                                        }
+
+                                        try
+                                        {
+                                            var matches = this.m_dataManager.MdmTxMatchMasters(entity, new IdentifiedData[0]);
+                                            this.m_batchPersistence.Insert(new Bundle(matches), TransactionMode.Commit, AuthenticationContext.SystemPrincipal);
+                                            processComplete = true;
+                                            Interlocked.Increment(ref matched);
+                                        }
+                                        finally
+                                        {
+                                            Interlocked.Increment(ref availableWorkers);
+                                            loadEvent.Set();
+                                        }
                                     }
                                 }
                             }
@@ -453,10 +467,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                             {
                                 haltException = e;
                             }
-                            finally
-                            {
-                                processComplete = true;
-                            }
+
                         });
                     }
 
@@ -470,12 +481,12 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                         sw.Start();
                         foreach (var itm in toProcess)
                         {
-
+                            loadEvent.Wait();
                             this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs(matched / (float)totalRecords, $"Matching {matched} recs @ {rps:#.#} r/s"));
                             rps = 1000.0f * (float)matched / (float)sw.ElapsedMilliseconds;
-                            fetchStack.Push(itm);
+                            fetchQueue.Enqueue(itm);
                             fetchEvent.Set();
-                            if(haltException != null) { break; }
+                            if (haltException != null) { break; }
                         }
 
                         this.m_tracer.TraceVerbose("DetectGlobalMergeCandidate: Finished reading data - waiting for merge process to complete");
@@ -487,8 +498,13 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                             this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs(matched / (float)totalRecords, $"Matching {matched} recs @ {rps:#.#} r/s"));
 
                         }
-                        while (haltException == null && !fetchStack.IsEmpty && processComplete);
+                        while (haltException == null && !fetchQueue.IsEmpty && processComplete);
                         sw.Stop();
+
+                        if(haltException != null)
+                        {
+                            throw haltException;
+                        }
                         this.m_tracer.TraceInfo("Matched {0} records in {1}", matched, sw.Elapsed);
                     }
                     finally
