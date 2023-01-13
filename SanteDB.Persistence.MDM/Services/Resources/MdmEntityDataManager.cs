@@ -699,6 +699,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                         o.RelationshipTypeKey == MdmConstants.OriginalMasterRelationship);
                 }
             }
+            var masterKey = $"mdm.master.{local.Key}";
+            this.m_adhocCache?.Remove(masterKey);
 
             // Get the ignore list
             // We ignore any candidate where:
