@@ -365,5 +365,10 @@ namespace SanteDB.Persistence.MDM.Services
             });
         }
 
+        /// <inheritdoc/>
+        public IDataManagedLinkProvider<T> GetLinkProvider<T>() where T : IdentifiedData => MdmDataManagerFactory.GetDataManager(typeof(T)) as IDataManagedLinkProvider<T>;
+
+        /// <inheritdoc/>
+        public IDataManagedLinkProvider GetLinkProvider(Type forType) => MdmDataManagerFactory.GetDataManager(forType);
     }
 }

@@ -42,7 +42,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
     /// <summary>
     /// A non-generic data manager
     /// </summary>
-    public abstract class MdmDataManager
+    public abstract class MdmDataManager : IDataManagedLinkProvider
     {
         /// <summary>
         /// Determine if the object is a master
@@ -192,6 +192,11 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         {
             this.ManagedLinkRemoved?.Invoke(this, new DataManagementLinkEventArgs(establishedLink));
         }
+
+        /// <inheritdoc/>
+        public abstract IdentifiedData ResolveManagedRecord(IdentifiedData forSource);
+        /// <inheritdoc/>
+        public abstract IdentifiedData ResolveOwnedRecord(IdentifiedData forTarget, IPrincipal ownerPrincipal);
     }
 
     /// <summary>
@@ -352,10 +357,22 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// <summary>
         /// Get master for <paramref name="forSource"/> or, if it is already a master or not MDM controlled return <paramref name="forSource"/>
         /// </summary>
-        public TModel ResolveManagedSource(TModel forSource) => this.GetMasterRelationshipFor(forSource.Key.Value).LoadProperty(o => o.SourceEntity) as TModel;
+        public TModel ResolveOwnedRecord(TModel forSource, IPrincipal ownerPrincipal)
+        {
+            IdentifiedData master = forSource;
+            if(forSource.ClassConceptKey != MdmConstants.MasterRecordClassification) 
+            {
+                master = this.GetMasterRelationshipFor(forSource.Key.Value).LoadProperty(o=>o.TargetEntity) as IdentifiedData;
+                if (master == null)
+                {
+                    return null;
+                }
+            }
+            return (TModel)this.GetLocalFor(master.Key.Value, ownerPrincipal);
+        }
 
         /// <inheritdoc/>
-        public TModel ResolveManagedTarget(TModel forSource)
+        public TModel ResolveManagedRecord(TModel forSource)
         {
             if (forSource.ClassConceptKey == MdmConstants.MasterRecordClassification)
             {
@@ -433,5 +450,12 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 }
             }
         }
+
+        /// <inheritdoc/>
+        public override IdentifiedData ResolveManagedRecord(IdentifiedData forSource) => this.ResolveManagedRecord((TModel)forSource);
+
+        /// <inheritdoc/>
+        public override IdentifiedData ResolveOwnedRecord(IdentifiedData forTarget, IPrincipal ownerPrincipal) => this.ResolveOwnedRecord((TModel)forTarget, ownerPrincipal);
+
     }
 }

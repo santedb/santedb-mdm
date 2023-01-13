@@ -539,10 +539,6 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             {
                 store.Key = Guid.NewGuid(); // Ensure that we have a key for the object.
             }
-            else
-            {
-                var masterRel = this.m_dataManager.GetMasterRelationshipFor(e.Data.Key.Value);
-            }
 
             // Is this a ROT?
             if (this.m_dataManager.IsRecordOfTruth(e.Data))
