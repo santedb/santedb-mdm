@@ -424,7 +424,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
 
                     // Matcher queue
                     this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs(0f, $"Gathering sources..."));
-                    int matched = 0, availableWorkers = (Environment.ProcessorCount / 4) + 1;
+                    int matched = 0, availableWorkers = (Environment.ProcessorCount / 2) + 1;
                     // Worker thread
                     for (int i = availableWorkers; i >= 0; i--)
                     {
