@@ -291,7 +291,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 });
                 if (local is Person psn)
                 {
-                    psn.LanguageCommunication.ForEach(o =>
+                    psn.LoadProperty(o=>o.LanguageCommunication).ForEach(o =>
                     {
                         o.Key = null;
                         o.SourceEntityKey = null;
@@ -694,7 +694,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     rematchMaster = this.m_relationshipService.Query(r => r.TargetEntityKey == existingMasterRel.TargetEntityKey && r.SourceEntityKey != local.Key && r.RelationshipTypeKey == MdmConstants.MasterRecordRelationship && r.ObsoleteVersionSequenceId == null, AuthenticationContext.SystemPrincipal).Any(); // we'll need to rematch
 
                     // Remove any references to MDM controlled objects in the actual object itself - they'll be used in the TX bundle
-                    local.Relationships.RemoveAll(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship ||
+                    local.LoadProperty(o=>o.Relationships).RemoveAll(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship ||
                         o.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship ||
                         o.RelationshipTypeKey == MdmConstants.OriginalMasterRelationship);
                 }
@@ -980,6 +980,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 }
 
                 var existingRelationship = this.GetMasterRelationshipFor(localKey, context);
+                this.m_adhocCache?.Remove($"mdm.master.{localKey}");
 
                 // Obsolete the existing
                 if (existingRelationship != null)

@@ -130,7 +130,7 @@ namespace SanteDB.Persistence.MDM.Services
 
             collector?.LogStartStage("blocking");
             // Identifiers in which entity has the unique authority
-            var uqIdentifiers = identifiers.Identifiers.OfType<IExternalIdentifier>().Where(o => this.m_uniqueAuthorities.Contains(o.IdentityDomain.Key ?? Guid.Empty));
+            var uqIdentifiers = identifiers.LoadProperty(o=>o.Identifiers).OfType<IExternalIdentifier>().Where(o => this.m_uniqueAuthorities.Contains(o.IdentityDomain.Key ?? Guid.Empty));
             if (uqIdentifiers?.Any(i => i.IdentityDomain == null) == true)
             {
                 throw new InvalidOperationException("Some identifiers are missing authorities, cannot perform identity match");
@@ -163,8 +163,8 @@ namespace SanteDB.Persistence.MDM.Services
                     // Now we want to filter returning the masters
                     using (AuthenticationContext.EnterSystemContext())
                     {
-                        var repository = ApplicationServiceContext.Current.GetService<IRepositoryService<T>>();
-                        var retVal = repository.Find(filterExpression).Where(o => !ignoreKeys.Contains(o.Key.Value)).OfType<T>().Select(o => new MdmIdentityMatchResult<T>(entity, o, RecordMatchClassification.Match));
+                        var repository = ApplicationServiceContext.Current.GetService<IDataPersistenceService<T>>();
+                        var retVal = repository.Query(filterExpression, AuthenticationContext.SystemPrincipal).Where(o => !ignoreKeys.Contains(o.Key.Value)).OfType<T>().Select(o => new MdmIdentityMatchResult<T>(entity, o, RecordMatchClassification.Match));
                         collector?.LogSample(filterExpression.ToString(), retVal.Count());
                         return retVal;
                     }

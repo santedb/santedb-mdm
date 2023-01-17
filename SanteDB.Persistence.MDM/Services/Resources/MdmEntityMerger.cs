@@ -50,7 +50,120 @@ namespace SanteDB.Persistence.MDM.Services.Resources
     public class MdmEntityMerger<TEntity> : MdmResourceMerger<TEntity>, IReportProgressChanged, IDisposable
         where TEntity : Entity, new()
     {
+        private class BackgroundMatchContext: IDisposable
+        {
 
+            private readonly ConcurrentStack<TEntity> m_entityStack = new ConcurrentStack<TEntity>();
+            private readonly ManualResetEventSlim m_processEvent = new ManualResetEventSlim(false);
+            private readonly ManualResetEventSlim m_loadEvent = new ManualResetEventSlim(true);
+            private readonly int m_maxWorkers;
+            private Exception m_haltException;
+            private int m_loadedRecords = 0;
+            private int m_availableWorkers;
+            private int m_recordsProcessed = 0;
+            private bool m_isRunning = true;
+
+            /// <summary>
+            /// True if the background processors should be executing
+            /// </summary>
+            public bool IsRunning => this.m_isRunning;
+
+            /// <summary>
+            /// Records processed
+            /// </summary>
+            public int RecordsProcessed => this.m_recordsProcessed;
+
+            /// <summary>
+            /// Create new background matching context
+            /// </summary>
+            public BackgroundMatchContext(int maxWorkers)
+            {
+                this.m_maxWorkers = this.m_availableWorkers = maxWorkers;
+            }
+
+            /// <summary>
+            /// Halt processing 
+            /// </summary>
+            public void Halt(Exception e)
+            {
+                this.m_haltException = e;
+            }
+
+            /// <summary>
+            /// Queue a loaded record
+            /// </summary>
+            public void QueueLoadedRecord(TEntity record)
+            {
+                // Main thread
+                if(this.m_haltException != null)
+                {
+                    throw this.m_haltException;
+                }
+
+                if (this.m_loadEvent.Wait(1000))
+                {  // ensure that we are allowed to add or wait for avialable worker
+                    this.m_entityStack.Push(record);
+                    if (this.m_loadedRecords++ % 16 == 0)
+                    {
+                        this.m_processEvent.Set(); // Signal the processing threads that they may process
+                    }
+                }
+            }
+
+            /// <summary>
+            /// De-queue a loaded record
+            /// </summary>
+            public int DeQueueLoadedRecords(TEntity[] records)
+            {
+                if (this.m_processEvent.Wait(1000))
+                {
+                    var retVal = this.m_entityStack.TryPopRange(records);
+                    if (retVal > 0)
+                    {
+                        if (Interlocked.Decrement(ref this.m_availableWorkers) == 0)
+                        {
+                            this.m_loadEvent.Reset();
+                        }
+                    }
+
+                    return retVal;
+                }
+                else
+                {
+                    return 0;
+                }
+            }
+
+            /// <summary>
+            /// Release a worker
+            /// </summary>
+            public void ReleaseWorker(int recordsProcessed)
+            {
+                if(Interlocked.Increment(ref this.m_availableWorkers) > 0)
+                {
+                    this.m_loadEvent.Set(); // Allow loading of records
+                    this.m_processEvent.Reset();
+                }
+                Interlocked.Add(ref this.m_recordsProcessed, recordsProcessed);
+
+            }
+
+            /// <summary>
+            /// Dispose of this context
+            /// </summary>
+            public void Dispose()
+            {
+                this.m_isRunning = false;
+                while(this.m_availableWorkers != this.m_maxWorkers || // still someone processing
+                        !this.m_entityStack.IsEmpty && this.m_haltException == null)
+                {
+                    this.m_processEvent.Set();
+                    Thread.Sleep(1000);
+                }
+                this.m_loadEvent.Dispose();
+                this.m_processEvent.Dispose();
+            }
+        }
 
         // Data manager
         private MdmDataManager<TEntity> m_dataManager;
@@ -413,103 +526,48 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 this.m_pepService.Demand(MdmPermissionPolicyIdentifiers.UnrestrictedMdm);
 
                 // Fetch all locals
-                Guid queryId = Guid.NewGuid();
-                var fetchQueue = new ConcurrentQueue<TEntity>();
-                Exception haltException = null;
-                bool fetchComplete = false, processComplete = false; ;
+                int maxWorkers = Environment.ProcessorCount / 3;
+                if(maxWorkers == 0)
+                {
+                    maxWorkers = 1;
+                }
 
-                using (var fetchEvent = new ManualResetEventSlim(false))
-                using (var loadEvent = new ManualResetEventSlim(true))
+                using(var matchContext = new BackgroundMatchContext(maxWorkers))
                 {
 
                     // Matcher queue
                     this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs(0f, $"Gathering sources..."));
-                    int matched = 0, availableWorkers = (Environment.ProcessorCount / 2) + 1;
-                    // Worker thread
-                    for (int i = availableWorkers; i >= 0; i--)
+                    
+                    for(var i = 0; i < maxWorkers; i++)
                     {
-                        this.m_threadPool.QueueUserWorkItem(_ =>
-                        {
-                            try
-                            {
-                                while (!fetchComplete || !fetchQueue.IsEmpty)
-                                {
-                                    if (fetchEvent.Wait(1000))
-                                    {
-                                        fetchEvent.Reset();
-                                    }
-
-                                   
-                                    while (fetchQueue.TryDequeue(out var entity))
-                                    {
-                                        // All our workers are assigned work so instruct the loader thread to stop loading
-                                        if (Interlocked.Decrement(ref availableWorkers) == 0)
-                                        {
-                                            loadEvent.Reset();
-                                        }
-
-                                        try
-                                        {
-                                            var matches = this.m_dataManager.MdmTxMatchMasters(entity, new IdentifiedData[0]);
-                                            this.m_batchPersistence.Insert(new Bundle(matches), TransactionMode.Commit, AuthenticationContext.SystemPrincipal);
-                                            processComplete = true;
-                                            Interlocked.Increment(ref matched);
-                                        }
-                                        finally
-                                        {
-                                            Interlocked.Increment(ref availableWorkers);
-                                            loadEvent.Set();
-                                        }
-                                    }
-                                }
-                            }
-                            catch (Exception e)
-                            {
-                                haltException = e;
-                            }
-
-                        });
+                        this.m_threadPool.QueueUserWorkItem(this.BackgroundMatchProcess, matchContext);
                     }
 
-                    // Main program loop - 
+                    // Main matching loop - 
                     try
                     {
-                        var toProcess = this.m_entityPersistence.Query(o => StatusKeys.ActiveStates.Contains(o.StatusConceptKey.Value) && o.DeterminerConceptKey != MdmConstants.RecordOfTruthDeterminer, AuthenticationContext.SystemPrincipal);
-                        var totalRecords = toProcess.Count();
+                        var recordsToProcess = this.m_entityPersistence.Query(o => StatusKeys.ActiveStates.Contains(o.StatusConceptKey.Value) && o.DeterminerConceptKey != MdmConstants.RecordOfTruthDeterminer, AuthenticationContext.SystemPrincipal);
+                        var totalRecords = recordsToProcess.Count();
                         var rps = 0.0f;
                         var sw = new Stopwatch();
+                        var nRecordsLoaded = 0;
                         sw.Start();
-                        foreach (var itm in toProcess)
+
+                        using (DataPersistenceControlContext.Create(LoadMode.QuickLoad))
                         {
-                            loadEvent.Wait();
-                            this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs(matched / (float)totalRecords, $"Matching {matched} recs @ {rps:#.#} r/s"));
-                            rps = 1000.0f * (float)matched / (float)sw.ElapsedMilliseconds;
-                            fetchQueue.Enqueue(itm);
-                            fetchEvent.Set();
-                            if (haltException != null) { break; }
+                            foreach (var itm in recordsToProcess)
+                            {
+                                this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs(nRecordsLoaded++ / (float)totalRecords, $"Matching {matchContext.RecordsProcessed} recs @ {rps:#.#} r/s"));
+                                rps = 1000.0f * (float)matchContext.RecordsProcessed / (float)sw.ElapsedMilliseconds;
+                                matchContext.QueueLoadedRecord(itm);
+                            }
                         }
 
-                        this.m_tracer.TraceVerbose("DetectGlobalMergeCandidate: Finished reading data - waiting for merge process to complete");
-                        do
-                        {
-                            Thread.Sleep(2000);
-                            fetchEvent.Set();
-                            rps = 1000.0f * (float)matched / (float)sw.ElapsedMilliseconds;
-                            this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs(matched / (float)totalRecords, $"Matching {matched} recs @ {rps:#.#} r/s"));
-
-                        }
-                        while (haltException == null && !fetchQueue.IsEmpty && processComplete);
                         sw.Stop();
-
-                        if(haltException != null)
-                        {
-                            throw haltException;
-                        }
-                        this.m_tracer.TraceInfo("Matched {0} records in {1}", matched, sw.Elapsed);
                     }
-                    finally
+                    catch(Exception e)
                     {
-                        fetchComplete = true; // let threads die
+                        matchContext.Halt(e);
                     }
                     this.m_tracer.TraceVerbose("DetectGlobalMergeCandidate: Completed matching");
                 }
@@ -517,6 +575,37 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             catch (Exception e)
             {
                 throw new Exception("Error running detect of global merge candidates", e);
+            }
+        }
+
+        /// <summary>
+        /// Process background matches
+        /// </summary>
+        private void BackgroundMatchProcess(BackgroundMatchContext matchContext)
+        {
+            try
+            {
+                while(matchContext.IsRunning)
+                {
+                    var records = new TEntity[16];
+                    var nRecords = 0;
+                    while((nRecords = matchContext.DeQueueLoadedRecords(records)) > 0)
+                    {
+                        try
+                        {
+                            var matches = records.Take(nRecords).SelectMany(o => this.m_dataManager.MdmTxMatchMasters(o, new IdentifiedData[0]));
+                            this.m_batchPersistence.Insert(new Bundle(matches), TransactionMode.Commit, AuthenticationContext.SystemPrincipal);
+                        }
+                        finally
+                        {
+                            matchContext.ReleaseWorker(nRecords);
+                        }
+                    }
+                }
+            }
+            catch(Exception e)
+            {
+                matchContext.Halt(e);
             }
         }
 
