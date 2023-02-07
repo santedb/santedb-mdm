@@ -625,7 +625,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
 
                 using (DataPersistenceControlContext.Create(DeleteMode.PermanentDelete).WithName("Clearing Candidates"))
                 {
-                    this.m_relationshipPersistence.DeleteAll(o => classKeys.Contains(o.SourceEntity.ClassConceptKey.Value) && o.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship && o.ClassificationKey == MdmConstants.AutomagicClassification && o.ObsoleteVersionSequenceId == null, TransactionMode.Commit, AuthenticationContext.Current.Principal);
+                    this.m_relationshipPersistence.DeleteAll(o => classKeys.Contains(o.SourceEntity.ClassConceptKey.Value) && o.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship && o.ClassificationKey == MdmConstants.AutomagicClassification, TransactionMode.Commit, AuthenticationContext.Current.Principal);
                 }
             }
             catch (Exception e)
