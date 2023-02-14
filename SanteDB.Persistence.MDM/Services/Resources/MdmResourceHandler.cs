@@ -335,7 +335,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 {
                     // need to create a new list to avoid the collection being modified during enumeration
                     var transactionItems = new List<IdentifiedData>(this.PrepareTransaction(e.Data, bundle.Item));
-                    bundle.Item.InsertRange(bundle.Item.FindIndex(o => o.Key == e.Data.Key), transactionItems.Where(o => o != e.Data));
+                    bundle.Item.InsertRange(bundle.Item.FindIndex(o => o.Key == e.Data.Key), transactionItems.Where(o => o != e.Data && !bundle.Item.Contains(o)));
                 }
                 else
                 {

@@ -58,6 +58,9 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         // Entity persistence serviuce
         private IDataPersistenceService<Entity> m_entityPersistenceService;
 
+        // entity tag persistence
+        private IDataPersistenceService<EntityExtension> m_entityTagPersistenceService;
+
         // Policy enforcement service
         private IPolicyEnforcementService m_policyEnforcement;
 
@@ -81,6 +84,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             ModelSerializationBinder.RegisterModelType(typeof(EntityMaster<TModel>));
             ModelSerializationBinder.RegisterModelType($"{typeof(TModel).Name}Master", typeof(EntityMaster<TModel>));
 
+            this.m_entityTagPersistenceService = ApplicationServiceContext.Current.GetService<IDataPersistenceService<EntityExtension>>();
             this.m_policyEnforcement = ApplicationServiceContext.Current.GetService<IPolicyEnforcementService>(); ;
             this.m_matchingConfigurationService = ApplicationServiceContext.Current.GetService<IRecordMatchingConfigurationService>(); ;
             this.m_entityPersistenceService = base.m_underlyingTypePersistence as IDataPersistenceService<Entity>;

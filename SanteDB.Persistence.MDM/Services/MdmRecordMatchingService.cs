@@ -48,6 +48,8 @@ namespace SanteDB.Persistence.MDM.Services
 
         // Unique authorities
         private ICollection<Guid> m_uniqueAuthorities;
+        // Unique authorities domain
+        private ICollection<string> m_uniqueAuthoritiesDomain;
 
         // Entity relationship
         private IDataPersistenceService<EntityRelationship> m_erService;
@@ -64,6 +66,7 @@ namespace SanteDB.Persistence.MDM.Services
             this.m_erService = erService;
             this.m_arService = arService;
             this.m_uniqueAuthorities = authorityService.Query(o => o.IsUnique, AuthenticationContext.SystemPrincipal).Select(o => o.Key.Value).ToList();
+            this.m_uniqueAuthoritiesDomain = authorityService.Query(o => o.IsUnique, AuthenticationContext.SystemPrincipal).Select(o => o.DomainName).ToList();
             bundleService.Inserted += (o, e) =>
             {
                 foreach (var i in e.Data.Item.OfType<IdentityDomain>())
@@ -71,10 +74,12 @@ namespace SanteDB.Persistence.MDM.Services
                     if (i.BatchOperation == BatchOperationType.Delete || i.ObsoletionTime.HasValue)
                     {
                         this.m_uniqueAuthorities.Remove(i.Key.Value);
+                        this.m_uniqueAuthoritiesDomain.Remove(i.DomainName);
                     }
                     else if (i.IsUnique)
                     {
                         this.m_uniqueAuthorities.Add(i.Key.Value);
+                        this.m_uniqueAuthoritiesDomain.Add(i.DomainName);
                     }
                 }
             };
@@ -130,7 +135,7 @@ namespace SanteDB.Persistence.MDM.Services
 
             collector?.LogStartStage("blocking");
             // Identifiers in which entity has the unique authority
-            var uqIdentifiers = identifiers.LoadProperty(o=>o.Identifiers).OfType<IExternalIdentifier>().Where(o => this.m_uniqueAuthorities.Contains(o.IdentityDomain.Key ?? Guid.Empty));
+            var uqIdentifiers = identifiers.LoadProperty(o=>o.Identifiers).OfType<IExternalIdentifier>().Where(o => this.m_uniqueAuthorities.Contains(o.IdentityDomain.Key ?? Guid.Empty) || this.m_uniqueAuthoritiesDomain.Contains(o.IdentityDomain.DomainName));
             if (uqIdentifiers?.Any(i => i.IdentityDomain == null) == true)
             {
                 throw new InvalidOperationException("Some identifiers are missing authorities, cannot perform identity match");
