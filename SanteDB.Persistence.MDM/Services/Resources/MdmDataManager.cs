@@ -215,7 +215,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             { EntityClassKeys.CityOrTown, typeof(Place) },
             { EntityClassKeys.Country, typeof(Place) },
             { EntityClassKeys.CountyOrParish, typeof(Place) },
-            { EntityClassKeys.State, typeof(Place) },
+            { EntityClassKeys.StateOrProvince, typeof(Place) },
             { EntityClassKeys.PrecinctOrBorough, typeof(Place) },
             { EntityClassKeys.ServiceDeliveryLocation, typeof(Place) },
             { EntityClassKeys.Person, typeof(Person) },
