@@ -16,40 +16,33 @@
  * the License.
  * 
  * User: fyfej
- * Date: 2021-10-29
+ * Date: 2022-5-30
  */
 using SanteDB.Core;
 using SanteDB.Core.Configuration;
+using SanteDB.Core.Data;
 using SanteDB.Core.Diagnostics;
+using SanteDB.Core.Event;
+using SanteDB.Core.i18n;
+using SanteDB.Core.Jobs;
+using SanteDB.Core.Matching;
+using SanteDB.Core.Model;
 using SanteDB.Core.Model.Acts;
+using SanteDB.Core.Model.Collection;
+using SanteDB.Core.Model.Constants;
 using SanteDB.Core.Model.Entities;
 using SanteDB.Core.Model.Interfaces;
+using SanteDB.Core.Model.Query;
+using SanteDB.Core.Model.Roles;
 using SanteDB.Core.Model.Serialization;
+using SanteDB.Core.Security;
 using SanteDB.Core.Services;
-using SanteDB.Core.Services.Impl;
+using SanteDB.Persistence.MDM.Jobs;
 using SanteDB.Persistence.MDM.Model;
+using SanteDB.Persistence.MDM.Services.Resources;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
-using System.Linq.Expressions;
-using SanteDB.Core.Model;
-using SanteDB.Core.Model.Subscription;
-using SanteDB.Core.Security;
-using SanteDB.Core.Model.EntityLoader;
-using SanteDB.Core.Data;
-using SanteDB.Core.Model.Constants;
-using SanteDB.Core.Model.Roles;
-using SanteDB.Core.Model.Map;
-using SanteDB.Core.Interfaces;
-using SanteDB.Core.Model.Query;
-using SanteDB.Core.Exceptions;
-using SanteDB.Persistence.MDM.Services.Resources;
-using SanteDB.Core.Jobs;
-using SanteDB.Persistence.MDM.Jobs;
-using SanteDB.Core.Model.Collection;
-using SanteDB.Core.Event;
-using SanteDB.Core.Matching;
 using System.Security.Principal;
 
 namespace SanteDB.Persistence.MDM.Services
@@ -71,7 +64,7 @@ namespace SanteDB.Persistence.MDM.Services
     /// <seealso cref="MdmResourceMerger{TModel}"/>
     /// <seealso cref="MdmResourceHandler{TModel}"/>
     [ServiceProvider("MDM Data Repository")]
-    public class MdmDataManagementService : IDaemonService, IDisposable, IDataManagementPattern
+    public class MdmDataManagementService : IDisposable, IDataManagementPattern
     {
         /// <summary>
         /// Gets the service name
@@ -91,7 +84,7 @@ namespace SanteDB.Persistence.MDM.Services
         private IJobManagerService m_jobManager;
 
         // Entity relationship service
-        private IDataPersistenceService<EntityRelationship> m_entityRelationshipService;
+        private IDataPersistenceServiceEx<EntityRelationship> m_entityRelationshipService;
 
         // Entity service
         private IDataPersistenceService<Entity> m_entityService;
@@ -103,36 +96,13 @@ namespace SanteDB.Persistence.MDM.Services
         private readonly IDataCachingService m_dataCachingService;
 
         // TRace source
-        private Tracer m_traceSource = new Tracer(MdmConstants.TraceSourceName);
+        private readonly Tracer m_traceSource = new Tracer(MdmConstants.TraceSourceName);
 
         // Configuration
         private ResourceManagementConfigurationSection m_configuration;
 
         // Listeners
         private List<IDisposable> m_listeners = new List<IDisposable>();
-
-        // True if the service is running
-        public bool IsRunning => this.m_listeners.Count > 0;
-
-        /// <summary>
-        /// Daemon is starting
-        /// </summary>
-        public event EventHandler Starting;
-
-        /// <summary>
-        /// Daemon is stopping
-        /// </summary>
-        public event EventHandler Stopping;
-
-        /// <summary>
-        /// Daemon has started
-        /// </summary>
-        public event EventHandler Started;
-
-        /// <summary>
-        /// Daemon has stopped
-        /// </summary>
-        public event EventHandler Stopped;
 
         /// <summary>
         /// Create injected service
@@ -150,6 +120,7 @@ namespace SanteDB.Persistence.MDM.Services
             {
                 throw new InvalidOperationException("Cannot run MDM and SIM in same mode");
             }
+            this.Initialize();
         }
 
         /// <summary>
@@ -158,16 +129,18 @@ namespace SanteDB.Persistence.MDM.Services
         public void Dispose()
         {
             foreach (var i in this.m_listeners)
+            {
                 i.Dispose();
+            }
+
             this.m_listeners.Clear();
         }
 
         /// <summary>
         /// Start the daemon
         /// </summary>
-        public bool Start()
+        private void Initialize()
         {
-            this.Starting?.Invoke(this, EventArgs.Empty);
 
             // Pre-register types for serialization
             foreach (var itm in this.m_configuration.ResourceTypes)
@@ -180,78 +153,77 @@ namespace SanteDB.Persistence.MDM.Services
                 var rt = itm.Type;
                 string typeName = $"{rt.Name}Master";
                 if (typeof(Entity).IsAssignableFrom(rt))
+                {
                     rt = typeof(EntityMaster<>).MakeGenericType(rt);
-                else if (typeof(Act).IsAssignableFrom(rt))
-                    rt = typeof(ActMaster<>).MakeGenericType(rt);
+                }
+
                 ModelSerializationBinder.RegisterModelType(typeName, rt);
             }
 
-            // Wait until application context is started
-            ApplicationServiceContext.Current.Started += (o, e) =>
+            if (this.m_matchingService == null)
             {
-                if (this.m_matchingService == null)
-                    this.m_traceSource.TraceWarning("The MDM Service should be using a record matching service");
+                this.m_traceSource.TraceWarning("The MDM Service should be using a record matching service");
+            }
 
-                // Replace matching
-                var mdmMatcher = this.m_serviceManager.CreateInjected<MdmRecordMatchingService>();
-                this.m_serviceManager.AddServiceProvider(mdmMatcher);
-                var mdmMatchConfig = this.m_serviceManager.CreateInjected<MdmMatchConfigurationService>();
-                this.m_serviceManager.AddServiceProvider(mdmMatchConfig);
-                if (this.m_matchingService != null)
-                {
-                    this.m_serviceManager.RemoveServiceProvider(this.m_matchingService.GetType());
-                }
-                if (this.m_matchConfigurationService != null)
-                {
-                    this.m_serviceManager.RemoveServiceProvider(this.m_matchConfigurationService.GetType());
-                }
+            // Replace matching
+            var mdmMatcher = this.m_serviceManager.CreateInjected<MdmRecordMatchingService>();
+            this.m_serviceManager.AddServiceProvider(mdmMatcher);
+            var mdmMatchConfig = this.m_serviceManager.CreateInjected<MdmMatchConfigurationService>();
+            this.m_serviceManager.AddServiceProvider(mdmMatchConfig);
+            if (this.m_matchingService != null)
+            {
+                this.m_serviceManager.RemoveServiceProvider(this.m_matchingService.GetType());
+            }
+            if (this.m_matchConfigurationService != null)
+            {
+                this.m_serviceManager.RemoveServiceProvider(this.m_matchConfigurationService.GetType());
+            }
 
-                foreach (var itm in this.m_configuration.ResourceTypes)
-                {
-                    this.m_traceSource.TraceInfo("Adding MDM listener for {0}...", itm.Type.Name);
-                    MdmDataManagerFactory.RegisterDataManager(itm.Type);
-                    var idt = typeof(MdmResourceHandler<>).MakeGenericType(itm.Type);
-                    var ids = this.m_serviceManager.CreateInjected(idt) as IDisposable;
-                    this.m_listeners.Add(ids);
-                    this.m_serviceManager.AddServiceProvider(ids);
-                    this.m_serviceManager.AddServiceProvider(MdmDataManagerFactory.CreateMerger(itm.Type));
+            foreach (var itm in this.m_configuration.ResourceTypes)
+            {
+                this.m_traceSource.TraceInfo("Adding MDM listener for {0}...", itm.Type.Name);
+                MdmDataManagerFactory.RegisterDataManager(itm.Type);
+                var idt = typeof(MdmResourceHandler<>).MakeGenericType(itm.Type);
+                var ids = this.m_serviceManager.CreateInjected(idt) as IDisposable;
+                this.m_listeners.Add(ids);
+                this.m_serviceManager.AddServiceProvider(ids);
+                this.m_serviceManager.AddServiceProvider(MdmDataManagerFactory.CreateMerger(itm.Type));
 
-                    // Add job
-                    var jobType = typeof(MdmMatchJob<>).MakeGenericType(itm.Type);
-                    var job = this.m_serviceManager.CreateInjected(jobType) as IJob;
-                    this.m_jobManager?.AddJob(job, JobStartType.Never);
-                }
+                // Add job
+                var jobType = typeof(MdmMatchJob<>).MakeGenericType(itm.Type);
+                var job = this.m_serviceManager.CreateInjected(jobType) as IJob;
+                this.m_jobManager?.AddJob(job, JobStartType.Never);
+            }
 
-                // Add an entity relationship and act relationship watcher to the persistence layer for after update
-                // this will ensure that appropriate cleanup is performed on successful processing of data
-                this.m_entityRelationshipService = ApplicationServiceContext.Current.GetService<IDataPersistenceService<EntityRelationship>>();
-                this.m_entityService = ApplicationServiceContext.Current.GetService<IDataPersistenceService<Entity>>();
+            // Add an entity relationship and act relationship watcher to the persistence layer for after update
+            // this will ensure that appropriate cleanup is performed on successful processing of data
+            this.m_entityRelationshipService = ApplicationServiceContext.Current.GetService<IDataPersistenceServiceEx<EntityRelationship>>();
+            this.m_entityService = ApplicationServiceContext.Current.GetService<IDataPersistenceService<Entity>>();
 
-                ApplicationServiceContext.Current.GetService<IDataPersistenceService<Bundle>>().Inserted += RecheckBundleTrigger;
-                ApplicationServiceContext.Current.GetService<IDataPersistenceService<Bundle>>().Updated += RecheckBundleTrigger;
-                ApplicationServiceContext.Current.GetService<IDataPersistenceService<Bundle>>().Obsoleted += RecheckBundleTrigger;
-                this.m_entityRelationshipService.Inserted += RecheckRelationshipTrigger;
-                this.m_entityRelationshipService.Updated += RecheckRelationshipTrigger;
-                this.m_entityRelationshipService.Obsoleted += RecheckRelationshipTrigger;
+            ApplicationServiceContext.Current.GetService<IDataPersistenceService<Bundle>>().Inserted += RecheckBundleTrigger;
+            ApplicationServiceContext.Current.GetService<IDataPersistenceService<Bundle>>().Updated += RecheckBundleTrigger;
+            ApplicationServiceContext.Current.GetService<IDataPersistenceService<Bundle>>().Deleted += RecheckBundleTrigger;
+            this.m_entityRelationshipService.Inserted += RecheckRelationshipTrigger;
+            this.m_entityRelationshipService.Updated += RecheckRelationshipTrigger;
+            this.m_entityRelationshipService.Deleted += RecheckRelationshipTrigger;
 
-                // Add an MDM listener for subscriptions
-                if (this.m_subscriptionExecutor != null)
-                {
-                    m_subscriptionExecutor.Executing += MdmSubscriptionExecuting;
-                    m_subscriptionExecutor.Executed += MdmSubscriptionExecuted;
-                }
-                this.m_listeners.Add(new BundleResourceInterceptor(this.m_listeners));
+            // Add an MDM listener for subscriptions
+            if (this.m_subscriptionExecutor != null)
+            {
+                m_subscriptionExecutor.Executed += MdmSubscriptionExecuted;
+            }
+            this.m_listeners.Add(new BundleResourceInterceptor(this.m_listeners));
 
-                // Slipstream the MdmEntityProvider
-                //EntitySource.Current = new EntitySource(new MdmEntityProvider());
+            // Slipstream the MdmEntityProvider
+            //EntitySource.Current = new EntitySource(new MdmEntityProvider());
 
-                // HACK: Replace any freetext service with our own
-                this.m_serviceManager.RemoveServiceProvider(typeof(IFreetextSearchService));
-                m_serviceManager.AddServiceProvider(new MdmFreetextSearchService());
-            };
+            // HACK: Replace any freetext service with our own
+            this.m_serviceManager.RemoveServiceProvider(typeof(IFreetextSearchService));
+            m_serviceManager.AddServiceProvider(new MdmFreetextSearchService());
 
-            this.Started?.Invoke(this, EventArgs.Empty);
-            return true;
+            // Insert the MdmEntityRelationshipMaster repository services
+            this.m_serviceManager.AddServiceProvider(typeof(MdmEntityRelationshipPersistenceProvider));
+
         }
 
         /// <summary>
@@ -259,27 +231,17 @@ namespace SanteDB.Persistence.MDM.Services
         /// </summary>
         private void RecheckRelationshipTrigger(object sender, DataPersistedEventArgs<EntityRelationship> e)
         {
-            this.RecheckRelationship(e.Data, e.Mode, e.Principal);
-            this.m_dataCachingService.Remove(e.Data);
-        }
-
-        /// <summary>
-        /// Recheck relationship
-        /// </summary>
-        private void RecheckRelationship(ITargetedVersionedExtension targetedAssociation, TransactionMode mode, IPrincipal principal)
-        {
-            if (targetedAssociation is IdentifiedData idData)
+            using (DataPersistenceControlContext.Create(this.m_configuration.MasterDataDeletionMode))
             {
-                switch (targetedAssociation.AssociationTypeKey.ToString())
+                switch (e.Data.RelationshipTypeKey.ToString())
                 {
                     case MdmConstants.MASTER_RECORD_RELATIONSHIP:
                         // Is the data obsoleted (removed)? If so, then ensure we don't have a hanging master
-                        if (targetedAssociation.ObsoleteVersionSequenceId.HasValue || idData.BatchOperation == Core.Model.DataTypes.BatchOperationType.Delete)
+                        if (e.Data.ObsoleteVersionSequenceId.HasValue || e.Data.BatchOperation == Core.Model.DataTypes.BatchOperationType.Delete)
                         {
-                            if (this.m_entityRelationshipService.Count(r => r.TargetEntityKey == targetedAssociation.TargetEntityKey && !StatusKeys.InactiveStates.Contains(r.TargetEntity.StatusConceptKey.Value) && r.SourceEntityKey != targetedAssociation.SourceEntityKey && r.ObsoleteVersionSequenceId == null) == 0)
+                            if (!this.m_entityRelationshipService.Query(r => r.TargetEntityKey == e.Data.TargetEntityKey && !StatusKeys.InactiveStates.Contains(r.SourceEntity.StatusConceptKey.Value) && r.SourceEntityKey != e.Data.SourceEntityKey && r.ObsoleteVersionSequenceId == null, AuthenticationContext.SystemPrincipal).Any())
                             {
-                                // TODO: Replace this with the Delete() call instead - since it is an orphan and we don't know why
-                                this.m_entityService.Obsolete(new Entity() { Key = targetedAssociation.TargetEntityKey, StatusConceptKey = StatusKeys.Inactive }, mode, principal);
+                                this.m_entityService.Delete(e.Data.TargetEntityKey.Value, e.Mode, e.Principal);
                             }
                             return; // no need to de-dup check on obsoleted object
                         }
@@ -290,23 +252,16 @@ namespace SanteDB.Persistence.MDM.Services
                         // You cannot have:
                         // A =[MDM-Duplicate]=> B
                         // A =[MDM-Original]=> B
-                        foreach (var itm in this.m_entityRelationshipService.Query(q => q.RelationshipTypeKey != MdmConstants.MasterRecordRelationship && q.SourceEntityKey == targetedAssociation.SourceEntityKey && q.TargetEntityKey == targetedAssociation.TargetEntityKey && q.ObsoleteVersionSequenceId == null, principal))
-                        {
-                            itm.BatchOperation = Core.Model.DataTypes.BatchOperationType.Delete;
-                            this.m_entityRelationshipService.Update(itm, mode, principal);
-                        }
+                        this.m_entityRelationshipService.DeleteAll(q => q.RelationshipTypeKey != MdmConstants.MasterRecordRelationship && q.SourceEntityKey == e.Data.SourceEntityKey && q.TargetEntityKey == e.Data.TargetEntityKey && q.ObsoleteVersionSequenceId == null, e.Mode, e.Principal);
 
                         break;
 
                     case MdmConstants.RECORD_OF_TRUTH_RELATIONSHIP:
                         // Is the ROT being assigned, and if so is there another ?
-                        if (!targetedAssociation.ObsoleteVersionSequenceId.HasValue || idData.BatchOperation == Core.Model.DataTypes.BatchOperationType.Delete)
+                        if (!e.Data.ObsoleteVersionSequenceId.HasValue || e.Data.BatchOperation == Core.Model.DataTypes.BatchOperationType.Delete)
                         {
-                            foreach (var rotRel in this.m_entityRelationshipService.Query(r => r.SourceEntityKey == targetedAssociation.SourceEntityKey && r.TargetEntityKey != targetedAssociation.TargetEntityKey && r.ObsoleteVersionSequenceId == null, principal))
-                            {
-                                //Obsolete other ROTs (there can only be one)
-                                this.m_entityRelationshipService.Obsolete(rotRel, mode, principal);
-                            }
+                            //Obsolete other ROTs (there can only be one)
+                            this.m_entityRelationshipService.DeleteAll(r => r.SourceEntityKey == e.Data.SourceEntityKey && r.TargetEntityKey != e.Data.TargetEntityKey && r.ObsoleteVersionSequenceId == null, e.Mode, e.Principal);
                         }
                         break;
                 }
@@ -326,90 +281,94 @@ namespace SanteDB.Persistence.MDM.Services
             // Remove dependent objects from cache
             foreach (var itm in e.Data.Item.OfType<IHasRelationships>())
             {
-                foreach (var rel in itm.Relationships.OfType<ITargetedVersionedExtension>())
+                if (itm.Relationships != null)
                 {
-                    this.RecheckRelationship(rel, e.Mode, e.Principal);
+                    foreach (var rel in itm.Relationships.OfType<ITargetedVersionedExtension>())
+                    {
+                        this.RecheckRelationship(rel, e.Mode, e.Principal);
+                    }
                 }
             }
         }
 
         /// <summary>
-        /// The subscription is executing
+        /// Recheck relationship
         /// </summary>
-        private void MdmSubscriptionExecuting(object sender, Core.Event.QueryRequestEventArgs<IdentifiedData> e)
+        private void RecheckRelationship(ITargetedVersionedExtension targetedAssociation, TransactionMode mode, IPrincipal principal)
         {
-            e.Count = e.Count + 1; // Fetch one additional record
-            e.UseFuzzyTotals = true;
-        }
+            if (targetedAssociation is IdentifiedData idData)
+            {
+                using (DataPersistenceControlContext.Create(this.m_configuration.MasterDataDeletionMode))
+                {
+                    switch (targetedAssociation.AssociationTypeKey.ToString())
+                    {
+                        case MdmConstants.MASTER_RECORD_RELATIONSHIP:
+                            // Is the data obsoleted (removed)? If so, then ensure we don't have a hanging master
+                            if (targetedAssociation.ObsoleteVersionSequenceId.HasValue || idData.BatchOperation == Core.Model.DataTypes.BatchOperationType.Delete)
+                            {
+                                if (!this.m_entityRelationshipService.Query(r => r.TargetEntityKey == targetedAssociation.TargetEntityKey && r.RelationshipTypeKey == MdmConstants.MasterRecordRelationship && r.SourceEntityKey != targetedAssociation.SourceEntityKey && r.ObsoleteVersionSequenceId == null, AuthenticationContext.SystemPrincipal).Any())
+                                {
+                                    this.m_entityService.Delete(targetedAssociation.TargetEntityKey.Value, mode, principal);
+                                }
+                                return; // no need to de-dup check on obsoleted object
+                            }
 
+                            // MDM relationship should be the only active relationship between
+                            // So when:
+                            // A =[MDM-Master]=> B
+                            // You cannot have:
+                            // A =[MDM-Duplicate]=> B
+                            // A =[MDM-Original]=> B
+                            this.m_entityRelationshipService.DeleteAll(q => q.RelationshipTypeKey != MdmConstants.MasterRecordRelationship && q.SourceEntityKey == targetedAssociation.SourceEntityKey && q.TargetEntityKey == targetedAssociation.TargetEntityKey && q.ObsoleteVersionSequenceId == null, mode, principal);
+
+                            break;
+
+                        case MdmConstants.RECORD_OF_TRUTH_RELATIONSHIP:
+                            // Is the ROT being assigned, and if so is there another ?
+                            if (!targetedAssociation.ObsoleteVersionSequenceId.HasValue || idData.BatchOperation == Core.Model.DataTypes.BatchOperationType.Delete)
+                            {
+                                //Obsolete other ROTs (there can only be one)
+                                this.m_entityRelationshipService.DeleteAll(r => r.SourceEntityKey == targetedAssociation.SourceEntityKey && r.TargetEntityKey != targetedAssociation.TargetEntityKey && r.ObsoleteVersionSequenceId == null, mode, principal);
+                            }
+                            break;
+                    }
+                }
+            }
+        }
         /// <summary>
         /// Fired when the MDM Subscription has been executed
         /// </summary>
-        private void MdmSubscriptionExecuted(object sender, Core.Event.QueryResultEventArgs<Core.Model.IdentifiedData> e)
+        private void MdmSubscriptionExecuted(object sender, SubscriptionExecutedEventArgs e)
         {
             var authPrincipal = AuthenticationContext.Current.Principal;
 
             // Results contain LOCAL records most likely
             // We have a resource type that matches
-            e.Results = e.Results.Select((res) =>
+            e.Results = new NestedQueryResultSet(e.Results, (res) =>
             {
-                if (!this.m_configuration.ResourceTypes.Any(o => o.Type == res.GetType())) return res;
-                // Result is taggable and a tag exists for MDM
-                if (res is Entity entity)
+                if (!this.m_configuration.ResourceTypes.Any(o => o.Type == res.GetType()))
                 {
-                    if (entity.ClassConceptKey != MdmConstants.MasterRecordClassification)
-                    {
-                        // just a regular record
-                        // Attempt to load the master and add to the results
-                        var master = entity.LoadCollection<EntityRelationship>(nameof(Entity.Relationships)).FirstOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship);
-                        if (master == null) // load from DB
-                            master = EntitySource.Current.Provider.Query<EntityRelationship>(o => o.SourceEntityKey == entity.Key && o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship).FirstOrDefault();
-
-                        var masterType = typeof(EntityMaster<>).MakeGenericType(res.GetType());
-
-                        if (master != null)
-                            return (Activator.CreateInstance(masterType, master.LoadProperty<Entity>(nameof(EntityRelationship.TargetEntity))) as IMdmMaster).Synthesize(authPrincipal);
-                        else
-                        {
-                            entity.Tags.Add(new Core.Model.DataTypes.EntityTag("$mdm.type", "O")); // Orphan record
-                            return entity;
-                        }
-                    }
-                    else // is a master
-                    {
-                        var masterType = typeof(EntityMaster<>).MakeGenericType(MapUtil.GetModelTypeFromClassKey(entity.ClassConceptKey.Value));
-                        return (Activator.CreateInstance(masterType, entity) as IMdmMaster).Synthesize(authPrincipal);
-                    }
+                    return res;
                 }
-                else if (res is Act act && act.ClassConceptKey != MdmConstants.MasterRecordClassification)
+                // Get the data manager for this type
+                if (res is IHasClassConcept classifiable &&
+                    res is IAnnotatedResource iddata &&
+                    classifiable.ClassConceptKey != MdmConstants.MasterRecordClassification)
                 {
-                    // Attempt to load the master and add to the results
-                    var master = act.LoadCollection<ActRelationship>(nameof(Act.Relationships)).FirstOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship);
-                    if (master == null) // load from DB
-                        master = EntitySource.Current.Provider.Query<ActRelationship>(o => o.SourceEntityKey == act.Key && o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship).FirstOrDefault();
-                    var masterType = typeof(EntityMaster<>).MakeGenericType(res.GetType());
-                    return (Activator.CreateInstance(masterType, master.LoadProperty<Act>(nameof(ActRelationship.TargetAct))) as IMdmMaster).Synthesize(authPrincipal);
+                    var dataManager = MdmDataManagerFactory.GetDataManager(res.GetType());
+                    return dataManager.GetMasterFor(iddata.Key.Value).Synthesize(AuthenticationContext.Current.Principal) as IdentifiedData;
                 }
                 else
-                    throw new InvalidOperationException($"Result of type {res.GetType().Name} is not supported in MDM contexts");
-            }).OfType<IdentifiedData>().ToArray();
+                {
+                    return res;
+                }
+            });
         }
 
-        /// <summary>
-        /// Stop the daemon
-        /// </summary>
-        /// <returns></returns>
-        public bool Stop()
-        {
-            this.Stopping?.Invoke(this, EventArgs.Empty);
+        /// <inheritdoc/>
+        public IDataManagedLinkProvider<T> GetLinkProvider<T>() where T : IdentifiedData => MdmDataManagerFactory.GetDataManager(typeof(T)) as IDataManagedLinkProvider<T>;
 
-            // Unregister
-            foreach (var i in this.m_listeners)
-                i.Dispose();
-            this.m_listeners.Clear();
-
-            this.Stopped?.Invoke(this, EventArgs.Empty);
-            return true;
-        }
+        /// <inheritdoc/>
+        public IDataManagedLinkProvider GetLinkProvider(Type forType) => MdmDataManagerFactory.GetDataManager(forType);
     }
 }

@@ -16,13 +16,13 @@
  * the License.
  * 
  * User: fyfej
- * Date: 2021-10-29
+ * Date: 2022-5-30
  */
+using SanteDB.Core.Matching;
 using SanteDB.Core.Model;
 using SanteDB.Core.Model.Entities;
-using SanteDB.Core.Matching;
-using System.Collections.Generic;
 using SanteDB.Core.Model.Interfaces;
+using System.Collections.Generic;
 using System.Linq;
 
 namespace SanteDB.Persistence.MDM.Services
@@ -128,7 +128,7 @@ namespace SanteDB.Persistence.MDM.Services
             this.Configuration = MdmMatchConfigurationService.CreateIdentityMatchConfiguration<T>();
             if (input is IHasIdentifiers aIdentity && record is IHasIdentifiers bIdentity)
             {
-                this.Vectors = new IRecordMatchVector[] { new MdmIdentityMatchAttribute(classification, string.Join(",", aIdentity.Identifiers.Select(o=>$"{o.Value} [{o.Authority.DomainName}]")), string.Join(",", bIdentity.Identifiers.Select(o=>$"{o.Value} [{o.Authority.DomainName}]"))) };
+                this.Vectors = new IRecordMatchVector[] { new MdmIdentityMatchAttribute(classification, string.Join(",", aIdentity.Identifiers.Select(o => $"{o.Value} [{o.IdentityDomain.DomainName}]")), string.Join(",", bIdentity.Identifiers.Select(o => $"{o.Value} [{o.IdentityDomain.DomainName}]"))) };
             }
         }
 

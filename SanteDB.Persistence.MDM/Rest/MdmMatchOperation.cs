@@ -16,7 +16,7 @@
  * the License.
  * 
  * User: fyfej
- * Date: 2021-10-29
+ * Date: 2022-5-30
  */
 using SanteDB.Core.Interop;
 using SanteDB.Core.Jobs;
@@ -26,15 +26,13 @@ using SanteDB.Core.Model.Entities;
 using SanteDB.Core.Model.Parameters;
 using SanteDB.Core.Security;
 using SanteDB.Core.Services;
+using System.Linq;
 using SanteDB.Persistence.MDM.Exceptions;
 using SanteDB.Persistence.MDM.Jobs;
 using SanteDB.Persistence.MDM.Services.Resources;
-using SanteDB.Rest.Common;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using System.Linq;
-using System.Text;
 
 namespace SanteDB.Persistence.MDM.Rest
 {
@@ -42,7 +40,7 @@ namespace SanteDB.Persistence.MDM.Rest
     /// Represents a re-linking operation
     /// </summary>
     /// <remarks>This operation forces a re-matching operation</remarks>
-    [ExcludeFromCodeCoverage]
+    [ExcludeFromCodeCoverage] // REST operations require a REST client to test
     public class MdmMatchOperation : MdmOperationBase
     {
         // Job manager
@@ -96,7 +94,7 @@ namespace SanteDB.Persistence.MDM.Rest
 
                 if (parameters.TryGet<bool>("clear", out bool clear) && clear)
                 {
-                    foreach (var itm in dataManager.GetCandidateLocals(scopingObjectKey).Where(o => o.ClassificationKey == MdmConstants.AutomagicClassification))
+                    foreach (var itm in dataManager.GetCandidateLocals(scopingObjectKey).ToList().Where(o => o.ClassificationKey == MdmConstants.AutomagicClassification))
                     {
                         if (itm is EntityRelationship er)
                         {
@@ -116,7 +114,10 @@ namespace SanteDB.Persistence.MDM.Rest
                 // Now we want to save?
                 try
                 {
-                    retVal = this.m_batchService.Insert(retVal, TransactionMode.Commit, AuthenticationContext.Current.Principal);
+                    if (retVal.Item.Any())
+                    {
+                        retVal = this.m_batchService.Insert(retVal, TransactionMode.Commit, AuthenticationContext.Current.Principal);
+                    }
                 }
                 catch (Exception e)
                 {

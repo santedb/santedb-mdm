@@ -16,7 +16,7 @@
  * the License.
  * 
  * User: fyfej
- * Date: 2021-10-29
+ * Date: 2022-5-30
  */
 using SanteDB.Core;
 using SanteDB.Core.Diagnostics;
@@ -49,7 +49,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
     /// Represents a class that only intercepts events from the repository layer
     /// </summary>
     public class MdmResourceHandler<TModel> : IDisposable, IMdmResourceHandler
-        where TModel : IdentifiedData, new()
+        where TModel : IdentifiedData, IHasTypeConcept, IHasClassConcept, IHasRelationships,  new()
     {
         // Class concept key
         private Guid[] m_classConceptKey;
@@ -58,7 +58,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         private IPolicyEnforcementService m_policyEnforcement;
 
         // Tracer
-        private Tracer m_traceSource = new Tracer(MdmConstants.TraceSourceName);
+        private readonly Tracer m_traceSource = new Tracer(MdmConstants.TraceSourceName);
 
         // The notification repository
         private INotifyRepositoryService<TModel> m_notifyRepository;
@@ -88,17 +88,19 @@ namespace SanteDB.Persistence.MDM.Services.Resources
 
             this.m_notifyRepository = ApplicationServiceContext.Current.GetService<IRepositoryService<TModel>>() as INotifyRepositoryService<TModel>;
             if (this.m_notifyRepository == null)
+            {
                 throw new InvalidOperationException($"Could not find repository service for {typeof(TModel)}");
+            }
 
             this.m_classConceptKey = typeof(TModel).GetCustomAttributes<ClassConceptKeyAttribute>(false).Select(o => Guid.Parse(o.ClassConcept)).ToArray();
 
             // Subscribe
             this.m_notifyRepository.Inserting += this.OnPrePersistenceValidate;
             this.m_notifyRepository.Saving += this.OnPrePersistenceValidate;
-            this.m_notifyRepository.Obsoleting += this.OnPrePersistenceValidate;
+            this.m_notifyRepository.Deleting += this.OnPrePersistenceValidate;
             this.m_notifyRepository.Inserting += this.OnInserting;
             this.m_notifyRepository.Saving += this.OnSaving;
-            this.m_notifyRepository.Obsoleting += this.OnObsoleting;
+            this.m_notifyRepository.Deleting += this.OnObsoleting;
             this.m_notifyRepository.Retrieved += this.OnRetrieved;
             this.m_notifyRepository.Retrieving += this.OnRetrieving;
             this.m_notifyRepository.Querying += this.OnQuerying;
@@ -123,7 +125,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 var parameter = Expression.Parameter(parmType);
                 var dataAccess = Expression.MakeMemberAccess(parameter, parmType.GetProperty("Results"));
                 var principalAccess = Expression.MakeMemberAccess(parameter, parmType.GetProperty("Principal"));
-                var methodInfo = this.GetType().GetGenericMethod(nameof(OnGenericQueried), new Type[] { baseType }, new Type[] { typeof(IEnumerable<>).MakeGenericType(baseType), typeof(IPrincipal) });
+                var methodInfo = this.GetType().GetGenericMethod(nameof(OnGenericQueried), new Type[] { baseType }, new Type[] { typeof(IQueryResultSet<>).MakeGenericType(baseType), typeof(IPrincipal) });
                 var lambdaMethod = typeof(Expression).GetGenericMethod(nameof(Expression.Lambda), new Type[] { eventHandler.EventHandlerType }, new Type[] { typeof(Expression), typeof(ParameterExpression[]) });
                 var lambdaAccess = lambdaMethod.Invoke(null, new object[] { Expression.Assign(dataAccess, Expression.Call(Expression.Constant(this), (MethodInfo)methodInfo, dataAccess, principalAccess)), new ParameterExpression[] { Expression.Parameter(typeof(Object)), parameter } }) as LambdaExpression;
                 eventHandler.AddEventHandler(repoInstance, lambdaAccess.Compile());
@@ -136,27 +138,27 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// <summary>
         /// Handles when a generic repository (above the repository this is subscribed to) is queried
         /// </summary>
-        public IEnumerable<TReturn> OnGenericQueried<TReturn>(IEnumerable<TReturn> results, IPrincipal principal)
+        public IQueryResultSet<TReturn> OnGenericQueried<TReturn>(IQueryResultSet<TReturn> results, IPrincipal principal)
             where TReturn : IdentifiedData
         {
-            return results.Select(o =>
+            return new NestedQueryResultSet<TReturn>(results, o =>
             {
                 // It is a type controlled by this handler - so we want to ensure we return the master rather than a local
                 if (o is TModel tmodel && !this.m_dataManager.IsMaster(tmodel))
                 {
-                    return this.m_dataManager.GetMasterContainerForMasterEntity(tmodel.Key.Value).Synthesize(principal);
+                    return this.m_dataManager.GetMasterFor(tmodel.Key.Value).Synthesize(principal) as TReturn;
                 }
                 // It is a type which is classified as a master and has a type concept
                 else if (o is IHasClassConcept ihcc && ihcc.ClassConceptKey == MdmConstants.MasterRecordClassification &&
                     o is IHasTypeConcept ihtc && this.m_classConceptKey.Contains(ihtc.TypeConceptKey.GetValueOrDefault()))
                 {
-                    return this.m_dataManager.GetMasterContainerForMasterEntity(o.Key.Value).Synthesize(principal);
+                    return this.m_dataManager.GetMasterFor(o.Key.Value).Synthesize(principal) as TReturn;
                 }
                 else
                 {
                     return o;
                 }
-            }).OfType<TReturn>();
+            });
         }
 
         /// <summary>
@@ -179,15 +181,15 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         internal virtual void OnQuerying(object sender, QueryRequestEventArgs<TModel> e)
         {
             // system does whatever tf they want
-            var query = new NameValueCollection(QueryExpressionBuilder.BuildQuery<TModel>(e.Query).ToArray());
+            var query = QueryExpressionBuilder.BuildQuery<TModel>(e.Query, true, true);
 
             // They are specifically asking for records
-            if (query.TryGetValue("tag[$mdm.type]", out List<String> mdmFilter))
+            if (query.TryGetValue("tag[$mdm.type]", out var mdmFilter))
             {
                 if (mdmFilter.Contains("L"))
                 {
                     this.m_policyEnforcement.Demand(MdmPermissionPolicyIdentifiers.ReadMdmLocals, e.Principal);
-                    mdmFilter.Remove("L"); // Just allow the repo to be queried
+                    query.Remove("tag[$mdm.type]");
                 }
                 else if (mdmFilter.Contains("M")) // pure master query
                 {
@@ -200,82 +202,81 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 // Determine the level of casting required
                 var castStack = new Stack<Type>();
                 var ctype = typeof(TModel);
-                while(ctype != typeof(IdentifiedData))
+                while (ctype != typeof(IdentifiedData))
                 {
                     if (ctype.GetCustomAttribute<XmlRootAttribute>() != null)
+                    {
                         castStack.Push(ctype);
+                    }
+
                     ctype = ctype.BaseType;
                 }
+
                 // Iterate through the query and determine the level of casting
-                while(castStack.Count > 0)
+                while (castStack.Count > 0)
                 {
                     ctype = castStack.Pop();
                     try
                     {
-                        query.Select(o => QueryExpressionParser.BuildPropertySelector(ctype, o.Key)).ToArray();
-                        break;
+                        query.AllKeys.Select(o => QueryExpressionParser.BuildPropertySelector(ctype, o)).ToArray();
+                        break; // the first time we can parse the query is be max level of the object we can rewrite to
                     }
                     catch { }
                 }
-                
-                var localQuery = new NameValueCollection(query.ToDictionary(o => $"relationship[{MdmConstants.MasterRecordRelationship}].source@{ctype.Name}.{o.Key}", o => new List<string>(o.Value)));
-                if (!query.TryGetValue("statusConcept", out _))
-                {
-                    localQuery.Add($"relationship[{MdmConstants.MasterRecordRelationship}].source@{ctype.Name}.statusConcept", StatusKeys.ActiveStates.Select(o => o.ToString()));
-                    localQuery.Add("statusConcept", StatusKeys.ActiveStates.Select(o => o.ToString()));
-                }
-                else
-                {
-                    localQuery.Add("statusConcept", query["statusConcept"]);
-                }
+
+                var localQuery = query.ToDictionary(o => $"relationship[{MdmConstants.MasterRecordRelationship}].source@{ctype.Name}.{o}", o => (object)o).ToNameValueCollection();
+                // Status concept filters are not used anymore new delete method does not alter state
+                //if (!query.TryGetValue("statusConcept", out _))
+                //{
+                //    localQuery.Add($"relationship[{MdmConstants.MasterRecordRelationship}].source@{ctype.Name}.statusConcept", StatusKeys.ActiveStates.Select(o => o.ToString()));
+                //    localQuery.Add("statusConcept", StatusKeys.ActiveStates.Select(o => o.ToString()));
+                //}
+                //else
+                //{
+                //    localQuery.Add("statusConcept", query["statusConcept"]);
+                //}
                 localQuery.Add("obsoletionTime", "null");
+                localQuery.Add("classConcept", MdmConstants.MasterRecordClassification.ToString());
 
                 e.Cancel = true; // We want to cancel the callers query
 
                 //// Trim the local query
-                foreach (var itm in query.ToArray())
+                foreach (var itm in query.AllKeys)
                 {
-                    var keyField = itm.Key.Split('[', '.');
+                    var keyField = itm.Split('[', '.');
                     switch (keyField[0])
                     {
                         case "identifier":
                             break;
                         case "id":
-                            itm.Value.RemoveAll(o => o == "!null" || o.StartsWith("!"));
-                            if(itm.Value.Any())
+                            if (query.GetValues(itm).Any(o => o != "!null" && !o.StartsWith("!")))
                             {
                                 break;
                             }
                             else
                             {
-                                query.Remove(itm.Key);
+                                query.Remove(itm);
                             }
                             break;
                         default:
-                            query.Remove(itm.Key);
+                            query.Remove(itm);
                             break;
                     }
                 }
 
-                if (query.Any())
+                if (query.AllKeys.Any())
                 {
                     query.Add("classConcept", MdmConstants.MasterRecordClassification.ToString());
-                    if (localQuery.TryGetValue("statusConcept", out var status)) {
+                    if (localQuery.TryGetValue("statusConcept", out var status))
+                    {
                         query.Add("statusConcept", status);
                     }
                 }
 
                 // We are wrapping an entity, so we query entity masters
-                if (Environment.ProcessorCount > 4)
-                {
-                    e.Results = this.m_dataManager.MdmQuery(query, localQuery, e.QueryId, e.Offset, e.Count, out int tr, e.OrderBy).AsParallel().AsOrdered().Select(o => o.Synthesize(e.Principal)).OfType<TModel>().ToList();
-                    e.TotalResults = tr;
-                }
-                else
-                {
-                    e.Results = this.m_dataManager.MdmQuery(query, localQuery, e.QueryId, e.Offset, e.Count, out int tr, e.OrderBy).Select(o => o.Synthesize(e.Principal)).OfType<TModel>().ToList();
-                    e.TotalResults = tr;
-                }
+                // TODO: Ensure that the query mapping actually performs this on dataquery exhaustion rather than on
+                //       a batch observation.
+                e.Results = this.m_dataManager.MdmQuery(query, localQuery, e.Principal);
             }
         }
 
@@ -287,7 +288,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             if (this.m_dataManager.IsMaster(e.Id.Value)) // object is a master
             {
                 e.Cancel = true;
-                e.Result = (TModel)this.m_dataManager.MdmGet(e.Id.Value).Synthesize(e.Principal);
+                e.Result = (TModel)this.m_dataManager.MdmGet(e.Id.Value)?.Synthesize(e.Principal);
             }
         }
 
@@ -321,17 +322,11 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             try
             {
                 // Prevent duplicate processing
-                if (e.Data is ITaggable taggable)
+                if (e.Data.GetAnnotations<String>().Contains(MdmConstants.MdmProcessedTag))
                 {
-                    if (!String.IsNullOrEmpty(taggable.GetTag(MdmConstants.MdmProcessedTag)))
-                    {
-                        return;
-                    }
-                    else
-                    {
-                        taggable.AddTag(MdmConstants.MdmProcessedTag, "true");
-                    }
+                    return;
                 }
+                e.Data.AddAnnotation(MdmConstants.MdmProcessedTag);
 
                 // Is the sender a bundle?
                 e.Data.BatchOperation = Core.Model.DataTypes.BatchOperationType.InsertOrUpdate;
@@ -340,7 +335,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 {
                     // need to create a new list to avoid the collection being modified during enumeration
                     var transactionItems = new List<IdentifiedData>(this.PrepareTransaction(e.Data, bundle.Item));
-                    bundle.Item.InsertRange(bundle.Item.FindIndex(o => o.Key == e.Data.Key), transactionItems.Where(o => o != e.Data));
+                    bundle.Item.InsertRange(bundle.Item.FindIndex(o => o.Key == e.Data.Key), transactionItems.Where(o => o != e.Data && !bundle.Item.Contains(o)));
                 }
                 else
                 {
@@ -349,6 +344,10 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     var bre = ApplicationServiceContext.Current.GetBusinessRuleService(typeof(Bundle));
                     bundle = (Bundle)bre?.BeforeUpdate(bundle) ?? bundle;
                     bundle = this.m_batchRepository.Update(bundle, TransactionMode.Commit, e.Principal);
+
+                    // Handle the insertions
+                    this.TriggerLinkEvents(bundle.Item);
+
                     bundle = (Bundle)bre?.AfterUpdate(bundle) ?? bundle;
                     e.Data = bundle.Item.Find(o => o.Key == e.Data.Key) as TModel; // copy to get key data
                 }
@@ -359,6 +358,28 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             catch (Exception ex)
             {
                 throw new MdmException(e.Data, "Error Executing UPDATE trigger", ex);
+            }
+        }
+
+        /// <summary>
+        /// Trigger linkage events
+        /// </summary>
+        private void TriggerLinkEvents(IEnumerable<IdentifiedData> item)
+        {
+            foreach(var itm in item)
+            {
+                if(itm is ITargetedAssociation ita && ita.AssociationTypeKey == MdmConstants.MasterRecordRelationship)
+                {
+                    switch(itm.BatchOperation)
+                    {
+                        case Core.Model.DataTypes.BatchOperationType.Insert:
+                            this.m_dataManager.FireManagedLinkEstablished(ita);
+                            break;
+                        case Core.Model.DataTypes.BatchOperationType.Delete:
+                            this.m_dataManager.FireManagedLinkRemoved(ita);
+                            break;
+                    }
+                }
             }
         }
 
@@ -391,17 +412,11 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             try
             {
                 // Prevent duplicate processing
-                if (e.Data is ITaggable taggable)
+                if (e.Data.GetAnnotations<String>().Contains(MdmConstants.MdmProcessedTag))
                 {
-                    if (!String.IsNullOrEmpty(taggable.GetTag(MdmConstants.MdmProcessedTag)))
-                    {
-                        return;
-                    }
-                    else
-                    {
-                        taggable.AddTag(MdmConstants.MdmProcessedTag, "true");
-                    }
+                    return;
                 }
+                e.Data.AddAnnotation(MdmConstants.MdmProcessedTag);
 
                 // Is the sender a bundle?
                 e.Data.BatchOperation = Core.Model.DataTypes.BatchOperationType.InsertOrUpdate;
@@ -416,6 +431,10 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     var bre = ApplicationServiceContext.Current.GetBusinessRuleService(typeof(Bundle));
                     bundle = (Bundle)bre?.BeforeInsert(bundle) ?? bundle;
                     bundle = this.m_batchRepository.Insert(bundle, TransactionMode.Commit, e.Principal);
+
+                    // Handle the insertions
+                    this.TriggerLinkEvents(bundle.Item);
+
                     bundle = (Bundle)bre?.AfterInsert(bundle) ?? bundle;
 
                     e.Data = bundle.Item.Find(o => o.Key == e.Data.Key) as TModel; // copy to get key data
@@ -441,7 +460,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             // Is the existing object a master?
             if (this.m_dataManager.IsMaster(e.Data))
             {
-                store = this.m_dataManager.GetLocalFor(e.Data.Key.GetValueOrDefault(), e.Principal); // Get a local for this object
+                store = (TModel)this.m_dataManager.GetLocalFor(e.Data.Key.GetValueOrDefault(), e.Principal); // Get a local for this object
                 if (store == null)
                 {
                     store = this.m_dataManager.CreateLocalFor(e.Data);
@@ -452,11 +471,11 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     var oldStore = store.Clone() as TModel;
                     store = e.Data.Clone() as TModel;
                     store.Key = oldStore.Key;
-                    if(store is IHasState state && oldStore is IHasState oldState)
+                    if (store is IHasState state && oldStore is IHasState oldState)
                     {
                         state.StatusConceptKey = oldState.StatusConceptKey;
                     }
-                    if(store is Entity storeEnt && oldStore is Entity oldEnt)
+                    if (store is Entity storeEnt && oldStore is Entity oldEnt)
                     {
                         storeEnt.DeterminerConceptKey = oldEnt.DeterminerConceptKey;
                         storeEnt.ClassConceptKey = oldEnt.ClassConceptKey;
@@ -467,7 +486,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 //  Basically we never want to explicitly let the client send us an EntityRelationshipMaster on the
                 //  service instance. So we need to select back out of any provided relationships the
                 //  relationship masters to only those which apply to our object rather than the
-                //  redirected relationships
+                //  redirected relationships.
+                //  Additionally, if there are non-mdm relationships which are pointing to a master, we don't want to 
                 if (store is IHasRelationships irelationships)
                 {
                     // Now re-process the relationships
@@ -493,7 +513,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                         {
                             irelationships.RemoveRelationship(itm);
                         }
-                        
+
                     }
                 }
 
@@ -505,7 +525,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     taggable.RemoveTag(MdmConstants.MdmRotIndicatorTag);
                     taggable.RemoveTag(MdmConstants.MdmResourceTag);
                 }
-                if (store is IVersionedEntity versioned)
+                if (store is IVersionedData versioned)
                 {
                     versioned.VersionSequence = null;
                     versioned.VersionKey = null;
@@ -519,16 +539,13 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             {
                 store.Key = Guid.NewGuid(); // Ensure that we have a key for the object.
             }
-            else
-            {
-                var masterRel = this.m_dataManager.GetMasterRelationshipFor(e.Data.Key.Value);
-            }
 
             // Is this a ROT?
             if (this.m_dataManager.IsRecordOfTruth(e.Data))
             {
                 store = this.m_dataManager.PromoteRecordOfTruth(store);
             }
+
 
             // Rewrite any relationships we need to
             if (sender is Bundle bundle)
@@ -540,7 +557,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 }
                 bundle.Item.AddRange(this.m_dataManager.ExtractRelationships(store).OfType<IdentifiedData>());
                 this.m_dataManager.RefactorRelationships(bundle.Item, originalKey.Value, store.Key.Value);
-
+                this.m_dataManager.RepointRelationshipsToLocals(store, e.Principal, bundle.Item); // Repoint any relationships also under MDM control to a local
                 // Rewrite the focal object to the proper objects actually being actioned
                 if (originalKey != store.Key.Value)
                 {
@@ -555,6 +572,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             else
             {
                 this.m_dataManager.RefactorRelationships(new List<IdentifiedData>() { store }, originalKey.Value, store.Key.Value);
+                this.m_dataManager.RepointRelationshipsToLocals(store, e.Principal, null); // Repoint any relationships also under MDM control to a local
             }
 
             e.Data = store;
@@ -569,10 +587,11 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             {
                 this.m_notifyRepository.Inserting -= this.OnPrePersistenceValidate;
                 this.m_notifyRepository.Saving -= this.OnPrePersistenceValidate;
+                this.m_notifyRepository.Deleting -= this.OnPrePersistenceValidate;
                 this.m_notifyRepository.Inserting -= this.OnInserting;
                 this.m_notifyRepository.Saving -= this.OnSaving;
                 this.m_notifyRepository.Retrieving -= this.OnRetrieving;
-                this.m_notifyRepository.Obsoleting -= this.OnObsoleting;
+                this.m_notifyRepository.Deleting -= this.OnObsoleting;
                 this.m_notifyRepository.Querying -= this.OnQuerying;
             }
         }

@@ -16,40 +16,35 @@
  * the License.
  * 
  * User: fyfej
- * Date: 2021-10-29
+ * Date: 2022-5-30
  */
+using RestSrvr;
 using SanteDB.Core;
 using SanteDB.Core.Configuration;
 using SanteDB.Core.Diagnostics;
 using SanteDB.Core.Interop;
+using SanteDB.Core.Matching;
 using SanteDB.Core.Model;
-using SanteDB.Core.Model.Acts;
 using SanteDB.Core.Model.Collection;
-using SanteDB.Core.Model.Entities;
-using SanteDB.Core.Model.Interfaces;
 using SanteDB.Core.Model.Query;
 using SanteDB.Core.Security;
 using SanteDB.Core.Services;
-using SanteDB.Core.Matching;
-using SanteDB.Persistence.MDM.Exceptions;
-using SanteDB.Persistence.MDM.Services.Resources;
 using SanteDB.Rest.Common;
 using System;
 using System.Collections.Generic;
+using System.Collections.Specialized;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
-using System.Text;
-using RestSrvr;
 
 namespace SanteDB.Persistence.MDM.Rest
 {
     /// <summary>
     /// Exposees the $mdm-candidate API onto the REST layer
     /// </summary>
-    [ExcludeFromCodeCoverage]
+    [ExcludeFromCodeCoverage] // REST operations require a REST client to test
     public class MdmCandidateOperation : IApiChildResourceHandler
     {
-        private Tracer m_tracer = Tracer.GetTracer(typeof(MdmCandidateOperation));
+        private readonly Tracer m_tracer = Tracer.GetTracer(typeof(MdmCandidateOperation));
 
         // Configuration
         private ResourceManagementConfigurationSection m_configuration;
@@ -163,7 +158,7 @@ namespace SanteDB.Persistence.MDM.Rest
         /// <summary>
         /// Query the candidate links
         /// </summary>
-        public IEnumerable<object> Query(Type scopingType, object scopingKey, NameValueCollection filter, int offset, int count, out int totalCount)
+        public IQueryResultSet Query(Type scopingType, object scopingKey, NameValueCollection filter)
         {
             var merger = ApplicationServiceContext.Current.GetService(typeof(IRecordMergingService<>).MakeGenericType(scopingType)) as IRecordMergingService;
             if (merger == null)
@@ -171,16 +166,14 @@ namespace SanteDB.Persistence.MDM.Rest
                 throw new InvalidOperationException("No merging service configuration");
             }
 
-            IEnumerable<IdentifiedData> result = null;
-            if (scopingKey == null) // TODO: This is being refactored to the new yield pattern this is just a temporary performance thing
+            IQueryResultSet result = null;
+            if (scopingKey == null) // class call
             {
-                result = merger.GetGlobalMergeCandidates(offset, count, out totalCount).OfType<IdentifiedData>();
+                result = merger.GetGlobalMergeCandidates();
             }
             else
             {
                 result = merger.GetMergeCandidates((Guid)scopingKey);
-                totalCount = result.Count();
-                result = result.Skip(offset).Take(count);
             }
 
             return result;

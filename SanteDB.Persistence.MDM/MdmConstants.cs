@@ -16,7 +16,7 @@
  * the License.
  * 
  * User: fyfej
- * Date: 2021-10-29
+ * Date: 2022-5-30
  */
 using System;
 
@@ -27,6 +27,8 @@ namespace SanteDB.Persistence.MDM
     /// </summary>
     public static class MdmConstants
     {
+
+        
         public const string MASTER_RECORD_RELATIONSHIP = "97730a52-7e30-4dcd-94cd-fd532d111578";
         public const string CANDIDATE_RECORD_RELATIONSHIP = "56cfb115-8207-4f89-b52e-d20dbad8f8cc";
         public const string IGNORE_CANDIDATE_RELATIONSHIP = "decfb115-8207-4f89-b52e-d20dbad8f8cc";
@@ -145,6 +147,17 @@ namespace SanteDB.Persistence.MDM
         /// Gets the auto-link setting
         /// </summary>
         public const string AutoLinkSetting = "$mdm.auto-link";
+
+        /// <summary>
+        /// Relationship types which are under MDM control 
+        /// </summary>
+        public static readonly Guid[] MDM_RELATIONSHIP_TYPES = new Guid[]
+        {
+            MdmConstants.MasterRecordRelationship,
+            MdmConstants.CandidateLocalRelationship,
+            MdmConstants.MasterRecordOfTruthRelationship,
+            MdmConstants.IgnoreCandidateRelationship
+        };
 
     }
 }

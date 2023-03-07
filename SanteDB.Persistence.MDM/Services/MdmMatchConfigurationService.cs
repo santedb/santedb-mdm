@@ -16,7 +16,7 @@
  * the License.
  * 
  * User: fyfej
- * Date: 2021-10-29
+ * Date: 2022-5-30
  */
 using SanteDB.Core.Configuration;
 using SanteDB.Core.Matching;
@@ -24,7 +24,6 @@ using SanteDB.Core.Services;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 
 namespace SanteDB.Persistence.MDM.Services
 {
@@ -82,6 +81,16 @@ namespace SanteDB.Persistence.MDM.Services
         /// </summary>
         internal class MdmIdentityRecordMatchConfiguration : IRecordMatchingConfiguration
         {
+
+            /// <summary>
+            /// Serialization ctor
+            /// </summary>
+            public MdmIdentityRecordMatchConfiguration()
+            {
+                this.AppliesTo = new Type[0];
+                this.Metadata = new MdmIdentityRecordMatchMetadata();
+            }
+
             /// <summary>
             /// Create a new identity match configuration
             /// </summary>
@@ -132,7 +141,7 @@ namespace SanteDB.Persistence.MDM.Services
         /// <summary>
         /// Gets the configuration
         /// </summary>
-        public IEnumerable<IRecordMatchingConfiguration> Configurations => this.m_matchingConfigurationService?.Configurations.Union(this.r_matchConfiguration) ?? this.r_matchConfiguration;
+        public IEnumerable<IRecordMatchingConfiguration> Configurations => this.m_matchingConfigurationService?.Configurations.Union(this.r_matchConfiguration);
 
         /// <summary>
         /// Gets the service name

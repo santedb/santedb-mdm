@@ -1,18 +1,34 @@
-﻿using SanteDB.Core;
-using SanteDB.Core.BusinessRules;
+﻿/*
+ * Copyright (C) 2021 - 2022, SanteSuite Inc. and the SanteSuite Contributors (See NOTICE.md for full copyright notices)
+ * Copyright (C) 2019 - 2021, Fyfe Software Inc. and the SanteSuite Contributors
+ * Portions Copyright (C) 2015-2018 Mohawk College of Applied Arts and Technology
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you
+ * may not use this file except in compliance with the License. You may
+ * obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations under
+ * the License.
+ *
+ * User: fyfej
+ * Date: 2022-5-30
+ */
+using SanteDB.Core;
 using SanteDB.Core.Model;
 using SanteDB.Core.Model.Collection;
 using SanteDB.Core.Model.DataTypes;
 using SanteDB.Core.Model.Roles;
 using SanteDB.Core.Services;
-using SanteDB.Core.Services.Impl;
 using SanteDB.Persistence.MDM.Model;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace SanteDB.Persistence.MDM.Test
 {
@@ -28,7 +44,10 @@ namespace SanteDB.Persistence.MDM.Test
         public override Bundle BeforeInsert(Bundle data)
         {
             for (int i = 0; i < data.Item.Count; i++)
+            {
                 data.Item[i] = ApplicationServiceContext.Current.GetBusinessRuleService(data.Item[i].GetType())?.BeforeInsert(data.Item[i]) as IdentifiedData ?? data.Item[i];
+            }
+
             return base.BeforeInsert(data);
         }
 
@@ -38,7 +57,10 @@ namespace SanteDB.Persistence.MDM.Test
         public override Bundle BeforeUpdate(Bundle data)
         {
             for (int i = 0; i < data.Item.Count; i++)
+            {
                 data.Item[i] = ApplicationServiceContext.Current.GetBusinessRuleService(data.Item[i].GetType())?.BeforeUpdate(data.Item[i]) as IdentifiedData ?? data.Item[i];
+            }
+
             return base.BeforeUpdate(data);
         }
 
@@ -50,6 +72,8 @@ namespace SanteDB.Persistence.MDM.Test
     [ExcludeFromCodeCoverage]
     public class NationalHealthIdRule : BaseBusinessRulesService<EntityMaster<Patient>>
     {
+
+        private static readonly Guid m_aaid = Guid.NewGuid();
 
         public static int LastGeneratedNhid = 0;
 
@@ -74,11 +98,15 @@ namespace SanteDB.Persistence.MDM.Test
         /// </summary>
         private EntityMaster<Patient> DoAttach(EntityMaster<Patient> data)
         {
-            if (!data.Identifiers.Any(o => o.LoadProperty(i => i.Authority).DomainName == "NHID"))
-                data.Identifiers.Add(new Core.Model.DataTypes.EntityIdentifier(new AssigningAuthority("NHID", "NHID", "3.2.2.3.2.2.3.2")
+            if (!data.LoadProperty(o => o.Identifiers).Any(o => o.LoadProperty(i => i.IdentityDomain).DomainName == "NHID"))
+            {
+                data.Identifiers.Add(new Core.Model.DataTypes.EntityIdentifier(new IdentityDomain("NHID", "NHID", "3.2.2.3.2.2.3.2")
                 {
+                    Key = m_aaid,
                     AuthorityScopeXml = new List<Guid>() { MdmConstants.MasterRecordClassification }
                 }, (++LastGeneratedNhid).ToString()));
+            }
+
             return base.BeforeInsert(data);
         }
     }

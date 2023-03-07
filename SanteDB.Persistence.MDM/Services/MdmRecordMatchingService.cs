@@ -16,9 +16,10 @@
  * the License.
  * 
  * User: fyfej
- * Date: 2021-10-29
+ * Date: 2022-5-30
  */
 using SanteDB.Core;
+using SanteDB.Core.Matching;
 using SanteDB.Core.Model;
 using SanteDB.Core.Model.Acts;
 using SanteDB.Core.Model.Collection;
@@ -28,14 +29,11 @@ using SanteDB.Core.Model.Interfaces;
 using SanteDB.Core.Model.Query;
 using SanteDB.Core.Security;
 using SanteDB.Core.Services;
-using SanteDB.Core.Matching;
-using SanteDB.Persistence.MDM.Services.Resources;
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Collections.Specialized;
 using System.Linq;
-using System.Linq.Expressions;
-using System.Text;
 
 namespace SanteDB.Persistence.MDM.Services
 {
@@ -50,6 +48,8 @@ namespace SanteDB.Persistence.MDM.Services
 
         // Unique authorities
         private ICollection<Guid> m_uniqueAuthorities;
+        // Unique authorities domain
+        private ICollection<string> m_uniqueAuthoritiesDomain;
 
         // Entity relationship
         private IDataPersistenceService<EntityRelationship> m_erService;
@@ -60,23 +60,26 @@ namespace SanteDB.Persistence.MDM.Services
         /// <summary>
         /// Existing match service
         /// </summary>
-        public MdmRecordMatchingService(IDataPersistenceService<AssigningAuthority> authorityService, IDataPersistenceService<Bundle> bundleService, IDataPersistenceService<EntityRelationship> erService, IDataPersistenceService<ActRelationship> arService,  IRecordMatchingService existingMatchService = null)
+        public MdmRecordMatchingService(IDataPersistenceService<IdentityDomain> authorityService, IDataPersistenceService<Bundle> bundleService, IDataPersistenceService<EntityRelationship> erService, IDataPersistenceService<ActRelationship> arService, IRecordMatchingService existingMatchService = null)
         {
             this.m_matchService = existingMatchService;
             this.m_erService = erService;
             this.m_arService = arService;
             this.m_uniqueAuthorities = authorityService.Query(o => o.IsUnique, AuthenticationContext.SystemPrincipal).Select(o => o.Key.Value).ToList();
+            this.m_uniqueAuthoritiesDomain = authorityService.Query(o => o.IsUnique, AuthenticationContext.SystemPrincipal).Select(o => o.DomainName).ToList();
             bundleService.Inserted += (o, e) =>
             {
-                foreach (var i in e.Data.Item.OfType<AssigningAuthority>())
+                foreach (var i in e.Data.Item.OfType<IdentityDomain>())
                 {
                     if (i.BatchOperation == BatchOperationType.Delete || i.ObsoletionTime.HasValue)
                     {
                         this.m_uniqueAuthorities.Remove(i.Key.Value);
+                        this.m_uniqueAuthoritiesDomain.Remove(i.DomainName);
                     }
                     else if (i.IsUnique)
                     {
                         this.m_uniqueAuthorities.Add(i.Key.Value);
+                        this.m_uniqueAuthoritiesDomain.Add(i.DomainName);
                     }
                 }
             };
@@ -87,7 +90,7 @@ namespace SanteDB.Persistence.MDM.Services
                     this.m_uniqueAuthorities.Add(e.Data.Key.Value);
                 }
             };
-            authorityService.Obsoleted += (o, e) =>
+            authorityService.Deleted += (o, e) =>
             {
                 this.m_uniqueAuthorities.Remove(e.Data.Key.Value);
             };
@@ -126,58 +129,72 @@ namespace SanteDB.Persistence.MDM.Services
         private IEnumerable<IRecordMatchResult<T>> PerformIdentityMatch<T>(T entity, IEnumerable<Guid> ignoreKeys, IRecordMatchingDiagnosticSession collector) where T : IdentifiedData
         {
             if (!(entity is IHasIdentifiers identifiers))
-                throw new InvalidOperationException($"Cannot perform identity match on {typeof(T)}");
-            try
             {
-                collector?.LogStartStage("blocking");
-                // Identifiers in which entity has the unique authority
-                var uqIdentifiers = identifiers.Identifiers.OfType<IExternalIdentifier>().Where(o => this.m_uniqueAuthorities.Contains(o.Authority?.Key ?? Guid.Empty));
-                if (uqIdentifiers?.Any(i => i.Authority == null) == true)
-                    throw new InvalidOperationException("Some identifiers are missing authorities, cannot perform identity match");
+                throw new InvalidOperationException($"Cannot perform identity match on {typeof(T)}");
+            }
 
-                if (uqIdentifiers?.Any() != true)
-                    return new List<IRecordMatchResult<T>>();
-                else
+            collector?.LogStartStage("blocking");
+            // Identifiers in which entity has the unique authority
+            var uqIdentifiers = identifiers.LoadProperty(o=>o.Identifiers).OfType<IExternalIdentifier>().Where(o => this.m_uniqueAuthorities.Contains(o.IdentityDomain.Key ?? Guid.Empty) || this.m_uniqueAuthoritiesDomain.Contains(o.IdentityDomain.DomainName));
+            if (uqIdentifiers?.Any(i => i.IdentityDomain == null) == true)
+            {
+                throw new InvalidOperationException("Some identifiers are missing authorities, cannot perform identity match");
+            }
+
+            if (uqIdentifiers?.Any() != true)
+            {
+                return new List<IRecordMatchResult<T>>();
+            }
+            else
+            {
+                try
                 {
-                    try
+                    collector?.LogStartAction("block-identity");
+                    // TODO: Build this using Expression trees rather than relying on the parsing methods
+                    //var filterParameter = Expression.Parameter(typeof(T));
+                    //Expression identityFilterExpresion = null;
+                    //foreach(var itm in uqIdentifiers)
+                    //{
+                    //    Expression identityCheck = Expression.MakeMemberAccess(filterParameter, typeof(T).GetProperty(nameof(Entity.Identifiers)));
+                    //    identityCheck = Expression.Call(typeof(Enumerable).GetGenericMethod(nameof(Enumerable.Where), new Type[] { identityCheck.Type.StripGeneric() }, 
+                    //}
+                    var nvc = new NameValueCollection();
+                    foreach (var itm in uqIdentifiers)
                     {
-                        collector?.LogStartAction("block-identity");
-                        // TODO: Build this using Expression trees rather than relying on the parsing methods
-                        NameValueCollection nvc = new NameValueCollection();
-                        foreach (var itm in uqIdentifiers)
-                            nvc.Add($"identifier[{itm.Authority.Key}].value", itm.Value);
-
-                        var filterExpression = QueryExpressionParser.BuildLinqExpression<T>(nvc);
-                        // Now we want to filter returning the masters
-                        using (AuthenticationContext.EnterSystemContext())
-                        {
-                            var repository = ApplicationServiceContext.Current.GetService<IRepositoryService<T>>();
-                            var results = repository.Find(filterExpression).Where(o => !ignoreKeys.Contains(o.Key.Value)).Select(o => new MdmIdentityMatchResult<T>(entity, o));
-                            collector?.LogSample(filterExpression.ToString(), results.Count());
-                            return results;
-                        }
+                        nvc.Add($"identifier[{itm.IdentityDomain.Key}].value", itm.Value);
                     }
-                    finally
+
+                    var filterExpression = QueryExpressionParser.BuildLinqExpression<T>(nvc);
+                    // Now we want to filter returning the masters
+                    using (AuthenticationContext.EnterSystemContext())
                     {
-                        collector?.LogEndAction();
+                        var repository = ApplicationServiceContext.Current.GetService<IDataPersistenceService<T>>();
+                        var retVal = repository.Query(filterExpression, AuthenticationContext.SystemPrincipal).Where(o => !ignoreKeys.Contains(o.Key.Value)).OfType<T>().Select(o => new MdmIdentityMatchResult<T>(entity, o, RecordMatchClassification.Match));
+                        collector?.LogSample(filterExpression.ToString(), retVal.Count());
+                        return retVal;
                     }
                 }
-            }
-            finally
-            {
-                collector?.LogEnd();
+                finally
+                {
+                    collector?.LogEnd();
+                }
             }
         }
+
 
         /// <summary>
         /// Perform a blocking stage setting
         /// </summary>
-        public IEnumerable<T> Block<T>(T input, string configurationName, IEnumerable<Guid> ignoreKeys, IRecordMatchingDiagnosticSession collector = null) where T : IdentifiedData
+        public IQueryResultSet<T> Block<T>(T input, string configurationName, IEnumerable<Guid> ignoreKeys, IRecordMatchingDiagnosticSession collector = null) where T : IdentifiedData
         {
             if (MdmConstants.MdmIdentityMatchConfiguration.Equals(configurationName))
-                return this.PerformIdentityMatch(input, this.GetIgnoreList(ignoreKeys, input), collector).Select(o => o.Record);
+            {
+                return this.PerformIdentityMatch(input, this.GetIgnoreList(ignoreKeys, input), collector).Select(o => o.Record).AsResultSet<T>();
+            }
             else
+            {
                 return this.m_matchService?.Block<T>(input, configurationName, this.GetIgnoreList(ignoreKeys, input));
+            }
         }
 
         /// <summary>
@@ -186,9 +203,13 @@ namespace SanteDB.Persistence.MDM.Services
         public IEnumerable<IRecordMatchResult<T>> Classify<T>(T input, IEnumerable<T> blocks, string configurationName, IRecordMatchingDiagnosticSession collector = null) where T : IdentifiedData
         {
             if (MdmConstants.MdmIdentityMatchConfiguration.Equals(configurationName))
+            {
                 return this.PerformIdentityClassify(input, blocks, collector);
+            }
             else
+            {
                 return this.m_matchService?.Classify<T>(input, blocks, configurationName);
+            }
         }
 
         /// <summary>
@@ -201,15 +222,21 @@ namespace SanteDB.Persistence.MDM.Services
                 collector?.LogStartStage("scoring");
 
                 if (!(input is IHasIdentifiers identifiers))
+                {
                     throw new InvalidOperationException($"Cannot perform identity match on {typeof(T)}");
+                }
 
                 // Identifiers in which entity has the unique authority
-                var uqIdentifiers = identifiers.Identifiers.OfType<IExternalIdentifier>().Where(o => this.m_uniqueAuthorities.Contains(o.Authority?.Key ?? Guid.Empty));
-                if (uqIdentifiers?.Any(i => i.Authority == null) == true)
+                var uqIdentifiers = identifiers.Identifiers.OfType<IExternalIdentifier>().Where(o => this.m_uniqueAuthorities.Contains(o.IdentityDomain.Key ?? Guid.Empty));
+                if (uqIdentifiers?.Any(i => i.IdentityDomain.Key == null) == true)
+                {
                     throw new InvalidOperationException("Some identifiers are missing authorities, cannot perform identity match");
+                }
 
                 if (uqIdentifiers?.Any() != true)
+                {
                     return blocks.Select(o => new MdmIdentityMatchResult<T>(input, o, RecordMatchClassification.NonMatch, 0.0f));
+                }
                 else
                 {
                     return blocks.Select(o =>
@@ -220,7 +247,7 @@ namespace SanteDB.Persistence.MDM.Services
 
                             if (o is IHasIdentifiers oid)
                             {
-                                var isMatch = oid.Identifiers.Any(i => uqIdentifiers.Any(u => u.Authority.Key == i.Authority.Key && i.Value == u.Value));
+                                var isMatch = oid.Identifiers.Any(i => uqIdentifiers.Any(u => u.IdentityDomain.Key == i.IdentityDomain.Key && i.Value == u.Value));
 
                                 return new MdmIdentityMatchResult<T>(input, o, isMatch ? RecordMatchClassification.Match : RecordMatchClassification.NonMatch, isMatch ? 1.0f : 0.0f);
                             }
@@ -250,9 +277,13 @@ namespace SanteDB.Persistence.MDM.Services
             // Fetch ignore keys if none provided
 
             if (MdmConstants.MdmIdentityMatchConfiguration.Equals(configurationName))
+            {
                 return this.PerformIdentityMatch(input, this.GetIgnoreList(ignoreKeys, input), collector);
+            }
             else
+            {
                 return this.m_matchService?.Match(input, configurationName, this.GetIgnoreList(ignoreKeys, input), collector);
+            }
         }
 
         /// <summary>

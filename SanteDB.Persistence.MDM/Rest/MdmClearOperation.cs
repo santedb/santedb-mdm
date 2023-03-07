@@ -16,25 +16,22 @@
  * the License.
  * 
  * User: fyfej
- * Date: 2021-10-29
+ * Date: 2022-5-30
  */
 using SanteDB.Core;
 using SanteDB.Core.Interop;
 using SanteDB.Core.Model.Collection;
 using SanteDB.Core.Model.Parameters;
 using SanteDB.Core.Services;
-using SanteDB.Rest.Common;
 using System;
-using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using System.Text;
 
 namespace SanteDB.Persistence.MDM.Rest
 {
     /// <summary>
     /// MDM Clear operation
     /// </summary>
-    [ExcludeFromCodeCoverage]
+    [ExcludeFromCodeCoverage] // REST operations require a REST client to test
     public class MdmClearOperation : MdmOperationBase
     {
         /// <summary>

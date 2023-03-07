@@ -16,40 +16,35 @@
  * the License.
  * 
  * User: fyfej
- * Date: 2021-10-29
+ * Date: 2022-5-30
  */
-using SanteDB.Core;
 using SanteDB.Core.Configuration;
 using SanteDB.Core.Diagnostics;
 using SanteDB.Core.Interop;
 using SanteDB.Core.Model;
-using SanteDB.Core.Model.Acts;
 using SanteDB.Core.Model.Collection;
 using SanteDB.Core.Model.DataTypes;
-using SanteDB.Core.Model.Entities;
 using SanteDB.Core.Model.Interfaces;
 using SanteDB.Core.Model.Query;
 using SanteDB.Core.Security;
-using SanteDB.Core.Security.Audit;
 using SanteDB.Core.Services;
 using SanteDB.Persistence.MDM.Exceptions;
 using SanteDB.Persistence.MDM.Services.Resources;
 using SanteDB.Rest.Common;
 using System;
-using System.Collections.Generic;
+using System.Collections.Specialized;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
-using System.Text;
 
 namespace SanteDB.Persistence.MDM.Rest
 {
     /// <summary>
     /// Exposees the $mdm-candidate API onto the REST layer
     /// </summary>
-    [ExcludeFromCodeCoverage]
+    [ExcludeFromCodeCoverage] // REST operations require a REST client to test
     public class MdmLinkResource : IApiChildResourceHandler
     {
-        private Tracer m_tracer = Tracer.GetTracer(typeof(MdmLinkResource));
+        private readonly Tracer m_tracer = Tracer.GetTracer(typeof(MdmLinkResource));
 
         // Configuration
         private ResourceManagementConfigurationSection m_configuration;
@@ -103,14 +98,16 @@ namespace SanteDB.Persistence.MDM.Rest
                 throw new NotSupportedException($"MDM is not configured for {scopingType}");
             }
 
-            // Detach
+            // Attach
             if (scopingKey is Guid scopedKey && item is IdentifiedDataReference childObject)
             {
                 try
                 {
                     var transaction = new Bundle(dataManager.MdmTxMasterLink(scopedKey, childObject.Key.Value, new IdentifiedData[0], true));
-
                     var retVal = this.m_batchService.Insert(transaction, TransactionMode.Commit, AuthenticationContext.Current.Principal);
+                    retVal.Item.OfType<ITargetedAssociation>()
+                        .Where(o => o.AssociationTypeKey == MdmConstants.MasterRecordRelationship)
+                        .All(o => this.FireLinkageEvents(dataManager, o));
                     return retVal;
                 }
                 catch (Exception e)
@@ -126,6 +123,23 @@ namespace SanteDB.Persistence.MDM.Rest
         }
 
         /// <summary>
+        /// Fire linkage events
+        /// </summary>
+        private bool FireLinkageEvents(MdmDataManager dataManager, ITargetedAssociation link)
+        {
+            switch ((link as IdentifiedData).BatchOperation)
+            {
+                case BatchOperationType.Insert:
+                    dataManager.FireManagedLinkEstablished(link);
+                    break;
+                case BatchOperationType.Delete:
+                    dataManager.FireManagedLinkRemoved(link);
+                    break;
+            }
+            return true;
+        }
+
+        /// <summary>
         /// Gets the specified sub object
         /// </summary>
         public object Get(Type scopingType, object scopingKey, object key)
@@ -136,7 +150,7 @@ namespace SanteDB.Persistence.MDM.Rest
         /// <summary>
         /// Query the candidate links
         /// </summary>
-        public IEnumerable<object> Query(Type scopingType, object scopingKey, NameValueCollection filter, int offset, int count, out int totalCount)
+        public IQueryResultSet Query(Type scopingType, object scopingKey, NameValueCollection filter)
         {
             var dataManager = MdmDataManagerFactory.GetDataManager(scopingType);
             if (dataManager == null)
@@ -153,30 +167,35 @@ namespace SanteDB.Persistence.MDM.Rest
                         // Translate the filter
                         // TODO: Filtering and sorting for the associated locals call
                         var associatedLocals = dataManager.GetAssociatedLocals(scopedKey);
-                        totalCount = associatedLocals.Count();
-                        return associatedLocals.Skip(offset).Take(count).ToArray().Select(o =>
+                        return new NestedQueryResultSet(associatedLocals, o =>
                         {
-                            var tag = o.LoadProperty(p => p.SourceEntity) as ITaggable;
-                            if (o.ClassificationKey == MdmConstants.AutomagicClassification)
+                            if (o is ITargetedAssociation ta)
                             {
-                                tag.AddTag(MdmConstants.MdmClassificationTag, "Auto");
-                            }
-                            else if (o.ClassificationKey == MdmConstants.SystemClassification)
-                            {
-                                tag.AddTag(MdmConstants.MdmClassificationTag, "System");
+                                var tag = ta.LoadProperty(p => p.SourceEntity) as ITaggable;
+                                if (ta.ClassificationKey == MdmConstants.AutomagicClassification)
+                                {
+                                    tag.AddTag(MdmConstants.MdmClassificationTag, "Auto");
+                                }
+                                else if (ta.ClassificationKey == MdmConstants.SystemClassification)
+                                {
+                                    tag.AddTag(MdmConstants.MdmClassificationTag, "System");
+                                }
+                                else
+                                {
+                                    tag.AddTag(MdmConstants.MdmClassificationTag, "Verified");
+                                }
+
+                                return ta.SourceEntity;
                             }
                             else
                             {
-                                tag.AddTag(MdmConstants.MdmClassificationTag, "Verified");
+                                return null;
                             }
-
-                            return o.SourceEntity;
                         });
                     }
                     else
                     {
-                        totalCount = 1; // there will only be one
-                        return new object[] { dataManager.GetMasterRelationshipFor(scopedKey).LoadProperty(o => o.TargetEntity) };
+                        return new MemoryQueryResultSet(new object[] { dataManager.GetMasterRelationshipFor(scopedKey).LoadProperty(o => o.TargetEntity) });
                     }
                 }
                 catch (Exception e)
@@ -210,6 +229,9 @@ namespace SanteDB.Persistence.MDM.Rest
                     var transaction = new Bundle(dataManager.MdmTxMasterUnlink(scopedKey, childKey, new IdentifiedData[0]));
 
                     var retVal = this.m_batchService.Insert(transaction, TransactionMode.Commit, AuthenticationContext.Current.Principal);
+                    retVal.Item.OfType<ITargetedAssociation>()
+                        .Where(o => o.AssociationTypeKey == MdmConstants.MasterRecordRelationship)
+                        .All(o => this.FireLinkageEvents(dataManager, o));
                     return retVal;
                 }
                 catch (Exception e)

@@ -16,11 +16,9 @@
  * the License.
  * 
  * User: fyfej
- * Date: 2021-10-29
+ * Date: 2022-5-30
  */
-using System.Reflection;
 using SanteDB.Core.BusinessRules;
-using SanteDB.Core.Event;
 using SanteDB.Core.Exceptions;
 using SanteDB.Core.Model;
 using SanteDB.Core.Model.Attributes;
@@ -29,6 +27,7 @@ using SanteDB.Core.Model.Constants;
 using SanteDB.Core.Model.DataTypes;
 using SanteDB.Core.Model.Entities;
 using SanteDB.Core.Model.Interfaces;
+using SanteDB.Core.Model.Query;
 using SanteDB.Core.Security;
 using SanteDB.Core.Security.Services;
 using SanteDB.Core.Services;
@@ -36,12 +35,10 @@ using SanteDB.Persistence.MDM.Exceptions;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Data;
 using System.Diagnostics;
 using System.Linq;
 using System.Linq.Expressions;
-using System.Security;
-using System.Text;
+using System.Reflection;
 using System.Threading;
 
 namespace SanteDB.Persistence.MDM.Services.Resources
@@ -53,7 +50,120 @@ namespace SanteDB.Persistence.MDM.Services.Resources
     public class MdmEntityMerger<TEntity> : MdmResourceMerger<TEntity>, IReportProgressChanged, IDisposable
         where TEntity : Entity, new()
     {
+        private class BackgroundMatchContext: IDisposable
+        {
 
+            private readonly ConcurrentStack<TEntity> m_entityStack = new ConcurrentStack<TEntity>();
+            private readonly ManualResetEventSlim m_processEvent = new ManualResetEventSlim(false);
+            private readonly ManualResetEventSlim m_loadEvent = new ManualResetEventSlim(true);
+            private readonly int m_maxWorkers;
+            private Exception m_haltException;
+            private int m_loadedRecords = 0;
+            private int m_availableWorkers;
+            private int m_recordsProcessed = 0;
+            private bool m_isRunning = true;
+
+            /// <summary>
+            /// True if the background processors should be executing
+            /// </summary>
+            public bool IsRunning => this.m_isRunning;
+
+            /// <summary>
+            /// Records processed
+            /// </summary>
+            public int RecordsProcessed => this.m_recordsProcessed;
+
+            /// <summary>
+            /// Create new background matching context
+            /// </summary>
+            public BackgroundMatchContext(int maxWorkers)
+            {
+                this.m_maxWorkers = this.m_availableWorkers = maxWorkers;
+            }
+
+            /// <summary>
+            /// Halt processing 
+            /// </summary>
+            public void Halt(Exception e)
+            {
+                this.m_haltException = e;
+            }
+
+            /// <summary>
+            /// Queue a loaded record
+            /// </summary>
+            public void QueueLoadedRecord(TEntity record)
+            {
+                // Main thread
+                if(this.m_haltException != null)
+                {
+                    throw this.m_haltException;
+                }
+
+                if (this.m_loadEvent.Wait(1000))
+                {  // ensure that we are allowed to add or wait for avialable worker
+                    this.m_entityStack.Push(record);
+                    if (this.m_loadedRecords++ % 16 == 0)
+                    {
+                        this.m_processEvent.Set(); // Signal the processing threads that they may process
+                    }
+                }
+            }
+
+            /// <summary>
+            /// De-queue a loaded record
+            /// </summary>
+            public int DeQueueLoadedRecords(TEntity[] records)
+            {
+                if (this.m_processEvent.Wait(1000))
+                {
+                    var retVal = this.m_entityStack.TryPopRange(records);
+                    if (retVal > 0)
+                    {
+                        if (Interlocked.Decrement(ref this.m_availableWorkers) == 0)
+                        {
+                            this.m_loadEvent.Reset();
+                        }
+                    }
+
+                    return retVal;
+                }
+                else
+                {
+                    return 0;
+                }
+            }
+
+            /// <summary>
+            /// Release a worker
+            /// </summary>
+            public void ReleaseWorker(int recordsProcessed)
+            {
+                if(Interlocked.Increment(ref this.m_availableWorkers) > 0)
+                {
+                    this.m_loadEvent.Set(); // Allow loading of records
+                    this.m_processEvent.Reset();
+                }
+                Interlocked.Add(ref this.m_recordsProcessed, recordsProcessed);
+
+            }
+
+            /// <summary>
+            /// Dispose of this context
+            /// </summary>
+            public void Dispose()
+            {
+                this.m_isRunning = false;
+                while(this.m_availableWorkers != this.m_maxWorkers || // still someone processing
+                        !this.m_entityStack.IsEmpty && this.m_haltException == null)
+                {
+                    this.m_processEvent.Set();
+                    Thread.Sleep(1000);
+                }
+                this.m_loadEvent.Dispose();
+                this.m_processEvent.Dispose();
+            }
+        }
 
         // Data manager
         private MdmDataManager<TEntity> m_dataManager;
@@ -62,10 +172,12 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         private IDataPersistenceService<Bundle> m_batchPersistence;
 
         // Entity persistence service
-        private IStoredQueryDataPersistenceService<TEntity> m_entityPersistence;
+        private IDataPersistenceService<TEntity> m_entityPersistence;
 
         // Relationship persistence
-        private IFastQueryDataPersistenceService<EntityRelationship> m_relationshipPersistence;
+        private IDataPersistenceServiceEx<EntityRelationship> m_relationshipPersistence;
+
+        // Relationship persistence
         private readonly IThreadPoolService m_threadPool;
 
         // Pep service
@@ -82,13 +194,13 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// <summary>
         /// Creates a new entity merger service
         /// </summary>
-        public MdmEntityMerger(IDataPersistenceService<Bundle> batchService, IThreadPoolService threadPool, IPolicyEnforcementService policyEnforcement, IStoredQueryDataPersistenceService<TEntity> persistenceService, IFastQueryDataPersistenceService<EntityRelationship> relationshipPersistence)
+        public MdmEntityMerger(IDataPersistenceService<Bundle> batchService, IThreadPoolService threadPool, IPolicyEnforcementService policyEnforcement, IDataPersistenceService<TEntity> persistenceService, IDataPersistenceServiceEx<EntityRelationship> relationshipService)
         {
             this.m_dataManager = MdmDataManagerFactory.GetDataManager<TEntity>();
             this.m_batchPersistence = batchService;
             this.m_pepService = policyEnforcement;
             this.m_entityPersistence = persistenceService;
-            this.m_relationshipPersistence = relationshipPersistence;
+            this.m_relationshipPersistence = relationshipService;
             this.m_threadPool = threadPool;
             if (this.m_relationshipPersistence is IReportProgressChanged irpc)
             {
@@ -99,58 +211,60 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// <summary>
         /// Get the ignore list
         /// </summary>
-        public override IEnumerable<Guid> GetIgnoredKeys(Guid masterKey) => this.GetIgnored(masterKey).Select(o => o.Key.Value);
+        public override IEnumerable<Guid> GetIgnoredKeys(Guid masterKey) => this.m_dataManager.GetIgnoredMasters(masterKey).Select(o => o.Key.Value);
 
         /// <summary>
         /// Gets ignored records
         /// </summary>
-        public override IEnumerable<IdentifiedData> GetIgnored(Guid masterKey)
+        public override IQueryResultSet<IdentifiedData> GetIgnored(Guid masterKey)
         {
             this.m_pepService.Demand(MdmPermissionPolicyIdentifiers.ReadMdmLocals);
 
             if (this.m_dataManager.IsMaster(masterKey))
             {
-                return this.m_dataManager.GetIgnoredCandidateLocals(masterKey)
-                    .Select(o => o.LoadProperty(p => p.SourceEntity) as IdentifiedData);
+                return new TransformQueryResultSet<ITargetedAssociation, IdentifiedData>(this.m_dataManager.GetIgnoredCandidateLocals(masterKey), o => ((EntityRelationship)o).LoadProperty(p => p.SourceEntity));
             }
             else
             {
-                return this.m_dataManager.GetIgnoredMasters(masterKey)
-                    .Select(o => o.LoadProperty(p => p.TargetEntity) as IdentifiedData);
+                return new TransformQueryResultSet<ITargetedAssociation, IdentifiedData>(this.m_dataManager.GetIgnoredMasters(masterKey),
+                    o => ((EntityRelationship)o).LoadProperty(p => p.TargetEntity));
             }
         }
 
         /// <summary>
         /// Get candidate associations
         /// </summary>
-        public override IEnumerable<Guid> GetMergeCandidateKeys(Guid masterKey) => this.GetMergeCandidates(masterKey).Select(o => o.Key.Value);
+        public override IEnumerable<Guid> GetMergeCandidateKeys(Guid masterKey) => this.m_dataManager.GetCandidateLocals(masterKey).Select(o => o.Key.Value);
 
         /// <summary>
         /// Get merge candidates
         /// </summary>
-        public override IEnumerable<IdentifiedData> GetMergeCandidates(Guid masterKey)
+        public override IQueryResultSet<IdentifiedData> GetMergeCandidates(Guid masterKey)
         {
             this.m_pepService.Demand(MdmPermissionPolicyIdentifiers.ReadMdmLocals);
 
             if (this.m_dataManager.IsMaster(masterKey))
             {
-                return this.m_dataManager.GetCandidateLocals(masterKey)
-                    .OfType<EntityRelationship>()
-                    .Select(o =>
+                return new TransformQueryResultSet<ITargetedAssociation, IdentifiedData>(this.m_dataManager.GetCandidateLocals(masterKey),
+                    o =>
                     {
                         var retVal = o.LoadProperty(p => p.SourceEntity) as Entity;
-                        retVal.AddTag("$match.score", $"{o.Strength:0#%}");
+                        if (o is EntityRelationship e)
+                        {
+                            retVal.AddTag("$match.score", $"{e.Strength:0#%}");
+                        }
                         return retVal;
                     });
             }
             else
             {
-                return this.m_dataManager.GetEstablishedCandidateMasters(masterKey)
-                    .OfType<EntityRelationship>()
-                    .Select(o =>
+                return new TransformQueryResultSet<ITargetedAssociation, IdentifiedData>(this.m_dataManager.GetEstablishedCandidateMasters(masterKey), o =>
                     {
                         var retVal = o.LoadProperty(p => p.TargetEntity) as Entity;
-                        retVal.AddTag("$match.score", $"{o.Strength:#0%}");
+                        if (o is EntityRelationship e)
+                        {
+                            retVal.AddTag("$match.score", $"{e.Strength:#0%}");
+                        }
                         return retVal;
                     });
             }
@@ -187,7 +301,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 if (this.FireMerging(survivorKey, linkedDuplicates))
                 {
                     this.m_tracer.TraceWarning("Pre-Event Handler for merge indicated cancel on {0}", survivorKey);
-                    return new RecordMergeResult(RecordMergeStatus.Cancelled, null, null);
+                    return new RecordMergeResult(RecordMergeStatus.Aborted, null, null);
                 }
 
                 // We want to get the target
@@ -203,7 +317,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     }
                     catch (PolicyViolationException e) when (e.PolicyId == MdmPermissionPolicyIdentifiers.WriteMdmMaster)
                     {
-                        survivor = this.m_dataManager.GetLocalFor(survivorKey, AuthenticationContext.Current.Principal);
+                        survivor = (TEntity)this.m_dataManager.GetLocalFor(survivorKey, AuthenticationContext.Current.Principal);
                         if (survivor == null)
                         {
                             throw new DetectedIssueException(Core.BusinessRules.DetectedIssuePriorityType.Error, MdmConstants.INVALID_MERGE_ISSUE, $"Principal has no authority to merge into {survivorKey}", DetectedIssueKeys.SecurityIssue, e);
@@ -230,7 +344,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                         }
                         catch (PolicyViolationException e) when (e.PolicyId == MdmPermissionPolicyIdentifiers.MergeMdmMaster)
                         {
-                            victim = this.m_dataManager.GetLocalFor(itm, AuthenticationContext.Current.Principal);
+                            victim = (TEntity)this.m_dataManager.GetLocalFor(itm, AuthenticationContext.Current.Principal);
                             if (victim == null)
                             {
                                 throw new DetectedIssueException(Core.BusinessRules.DetectedIssuePriorityType.Error, MdmConstants.INVALID_MERGE_ISSUE, $"Principal has no authority to merge {itm}", DetectedIssueKeys.SecurityIssue, e);
@@ -251,6 +365,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     {
                         this.m_tracer.TraceInfo("MASTER({0})>MASTER({0}) MERGE", victim.Key, survivor.Key);
                         transactionBundle.AddRange(this.m_dataManager.MdmTxMergeMasters(survivorKey, itm, transactionBundle.Item));
+                        recordMergeStatus |= RecordMergeStatus.DestructiveMerge;
                     }
                     else if (isSurvivorMaster && !isVictimMaster) // LOCAL>MASTER = LINK
                     {
@@ -261,9 +376,18 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                         }
                         this.m_tracer.TraceInfo("LOCAL({0})>MASTER({0}) MERGE", victim.Key, survivor.Key);
                         transactionBundle.AddRange(this.m_dataManager.MdmTxMasterLink(survivorKey, victim.Key.Value, transactionBundle.Item, true));
+                        recordMergeStatus |= RecordMergeStatus.LinkInsteadOfMerge;
+
                     }
                     else if (!isSurvivorMaster && !isVictimMaster) // LOCAL>LOCAL = MERGE
                     {
+
+                        if (!this.m_dataManager.IsOwner(victim.Key.Value, AuthenticationContext.Current.Principal) ||
+                            !this.m_dataManager.IsOwner(survivor.Key.Value, AuthenticationContext.Current.Principal)
+                            )
+                        {
+                            this.m_pepService.Demand(MdmPermissionPolicyIdentifiers.UnrestrictedMdm); // MUST BE ABLE TO MANIPULATE OTHER LOCALS
+                        }
                         // First, target replaces victim
                         transactionBundle.Add(new EntityRelationship(EntityRelationshipTypeKeys.Replaces, survivor.Key, victim.Key, null)
                         {
@@ -286,7 +410,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
 
                         // Copy identifiers over
                         transactionBundle.AddRange(
-                            victim.LoadCollection(o => o.Identifiers).Where(i => !survivor.LoadCollection(o => o.Identifiers).Any(e => e.SemanticEquals(i))).Select(o => new EntityIdentifier(o.Authority, o.Value)
+                            victim.LoadCollection(o => o.Identifiers).Where(i => !survivor.LoadCollection(o => o.Identifiers).Any(e => e.SemanticEquals(i))).Select(o => new EntityIdentifier(o.IdentityDomain, o.Value)
                             {
                                 SourceEntityKey = survivor.Key,
                                 IssueDate = o.IssueDate,
@@ -302,8 +426,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                         }
 
                         // Recheck the master to ensure that it isn't dangling out here
-                        var otherLocals = this.m_relationshipPersistence.Count(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship && o.TargetEntityKey == itm && o.SourceEntityKey != victim.Key, AuthenticationContext.SystemPrincipal);
-                        if (otherLocals == 0)
+                        var otherLocals = this.m_relationshipPersistence.Query(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship && o.TargetEntityKey == itm && o.SourceEntityKey != victim.Key, AuthenticationContext.SystemPrincipal).Any();
+                        if (!otherLocals)
                         {
                             transactionBundle.Add(new Entity()
                             {
@@ -311,6 +435,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                                 Key = itm
                             });
                         }
+                        recordMergeStatus |= RecordMergeStatus.DestructiveMerge;
+
                     }
                     else
                     {
@@ -320,8 +446,31 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     return victim.Key.Value;
                 }).ToArray();
 
-                this.m_batchPersistence.Insert(transactionBundle, TransactionMode.Commit, AuthenticationContext.Current.Principal);
-                this.FireMerged(survivor.Key.Value, replaced);
+                var inserted = this.m_batchPersistence.Insert(transactionBundle, TransactionMode.Commit, AuthenticationContext.Current.Principal);
+
+                // Trigger appropriate events
+                if (recordMergeStatus.HasFlag(RecordMergeStatus.DestructiveMerge))
+                {
+                    this.FireMerged(survivor.Key.Value, replaced);
+                }
+                else if (recordMergeStatus.HasFlag(RecordMergeStatus.LinkInsteadOfMerge))
+                {
+                    inserted.Item.ForEach(o =>
+                    {
+                        if (o is ITargetedAssociation ita && ita.AssociationTypeKey == MdmConstants.MasterRecordRelationship)
+                        {
+                            switch (o.BatchOperation)
+                            {
+                                case BatchOperationType.Insert:
+                                    m_dataManager.FireManagedLinkEstablished(ita);
+                                    break;
+                                case BatchOperationType.Delete:
+                                    m_dataManager.FireManagedLinkRemoved(ita);
+                                    break;
+                            }
+                        }
+                    });
+                }
                 return new RecordMergeResult(recordMergeStatus, new Guid[] { survivor.Key.Value }, replaced);
             }
             catch (Exception ex)
@@ -362,9 +511,9 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// <summary>
         /// Get merge candidates
         /// </summary>
-        public override IEnumerable<ITargetedAssociation> GetGlobalMergeCandidates(int offset, int count, out int totalCount)
+        public override IQueryResultSet<ITargetedAssociation> GetGlobalMergeCandidates()
         {
-            return this.m_dataManager.GetAllMdmCandidateLocals(offset, count, out totalCount);
+            return this.m_dataManager.GetAllMdmCandidateLocals();
         }
 
         /// <summary>
@@ -377,178 +526,48 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 this.m_pepService.Demand(MdmPermissionPolicyIdentifiers.UnrestrictedMdm);
 
                 // Fetch all locals
-                // TODO: Update to the new persistence layer
-                Guid queryId = Guid.NewGuid();
-                int offset = 0, totalResults = 1, batchSize = Environment.ProcessorCount * 64;
-
-                var processStack = new ConcurrentStack<TEntity>();
-                var qps = this.m_entityPersistence as IFastQueryDataPersistenceService<TEntity>;
-                var fetchQueue = new ConcurrentQueue<TEntity>();
-                var writeQueue = new ConcurrentQueue<Bundle>();
-                long completeProcess = 0;
-                Exception haltException = null;
-
-                using (var fetchEvent = new ManualResetEventSlim(false))
-                using (var writeEvent = new ManualResetEventSlim(false))
+                int maxWorkers = Environment.ProcessorCount / 3;
+                if(maxWorkers == 0)
                 {
+                    maxWorkers = 1;
+                }
 
-                    bool completeProcessing = false;
+                using(var matchContext = new BackgroundMatchContext(maxWorkers))
+                {
 
                     // Matcher queue
                     this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs(0f, $"Gathering sources..."));
-
-                    // Monitor thread
-                    this.m_threadPool.QueueUserWorkItem(_ =>
+                    
+                    for(var i = 0; i < maxWorkers; i++)
                     {
-                        var sw = new Stopwatch();
-                        sw.Start();
-                        while (!completeProcessing && !this.m_disposed)
-                        {
-                            var dr = Interlocked.Read(ref completeProcess);
+                        this.m_threadPool.QueueUserWorkItem(this.BackgroundMatchProcess, matchContext);
+                    }
 
-                            sw.Stop();
-                            var rps = ( dr / (float)sw.ElapsedTicks) + 0.000001f;
-                            this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)dr / (float)totalResults, $"Matching {completeProcess:#,###,###} of {totalResults:#,###,###} - {rps * TimeSpan.TicksPerSecond:#0}/s - ETA {new TimeSpan((long)((totalResults - completeProcess) / rps)):d\\.hh\\:mm\\:ss} (Out: {writeQueue.Count})"));
-                            sw.Start();
-                            Thread.Sleep(1000);
-                        }
-                    });
-
-                    // Worker Thread
-                    this.m_threadPool.QueueUserWorkItem(_ =>
-                    {
-                        var processList = new TEntity[Environment.ProcessorCount];
-                        int idx = 0, inProcess = 0; // index and in-process requests
-                        while ((!completeProcessing || !fetchQueue.IsEmpty) && !this.m_disposed && haltException == null)
-                        {
-                            try
-                            {
-                                fetchEvent.Wait(1000);
-                                if (inProcess <= Environment.ProcessorCount * 4)
-                                {
-                                    while (fetchQueue.TryDequeue(out var candidate))
-                                    {
-                                        processList[idx++] = candidate;
-                                        if (idx == processList.Length)
-                                        {
-                                            if (Environment.ProcessorCount >= 2) // Is it worth it to dole out work?
-                                            {
-                                                Interlocked.Increment(ref inProcess);
-                                                this.m_threadPool.QueueUserWorkItem(o =>
-                                                {
-                                                    try
-                                                    {
-                                                        if (!this.m_disposed)
-                                                            writeQueue.Enqueue(new Bundle(o.SelectMany(r => this.m_dataManager.MdmTxMatchMasters(r, new IdentifiedData[0]))));
-                                                        Interlocked.Add(ref completeProcess, o.Length);
-                                                        writeEvent.Set();
-                                                    }
-                                                    finally
-                                                    {
-                                                        Interlocked.Decrement(ref inProcess);
-                                                    }
-                                                }, processList.ToArray());
-
-                                                if (inProcess > Environment.ProcessorCount * 4)
-                                                {
-                                                    idx = 0;
-                                                    break;
-                                                }
-                                            }
-                                            else // Nope so just do it here
-                                            {
-                                                writeQueue.Enqueue(new Bundle(processList.SelectMany(r => this.m_dataManager.MdmTxMatchMasters(r, new IdentifiedData[0]))));
-                                                Interlocked.Add(ref completeProcess, idx);
-                                                writeEvent.Set();
-                                            }
-                                            idx = 0;
-                                        }
-                                    }
-                                }
-                                fetchEvent.Reset();
-                            }
-                            catch (ObjectDisposedException)
-                            {
-                                break;
-                            }
-                            catch (Exception e)
-                            {
-                                this.m_tracer.TraceError("Cannot complement the background merging of patients");
-                                haltException = e;
-                                break;
-                            }
-                        }
-
-                        writeQueue.Enqueue(new Bundle(processList.Take(idx).SelectMany(r => this.m_dataManager.MdmTxMatchMasters(r, new IdentifiedData[0]))));
-                        writeEvent.Set();
-                    });
-
-                    // Writer Thread
-                    this.m_threadPool.QueueUserWorkItem(_ =>
-                    {
-                        while ((!completeProcessing || !writeQueue.IsEmpty) && !this.m_disposed && haltException == null)
-                        {
-                            try
-                            {
-                                writeEvent.Wait(100);
-                                while (writeQueue.TryDequeue(out var bundle))
-                                {
-                                    if (bundle.Item.Count > 0)
-                                    {
-                                        this.m_batchPersistence.Insert(bundle, TransactionMode.Commit, AuthenticationContext.SystemPrincipal);
-                                    }
-                                }
-                                writeEvent.Reset();
-                            }
-                            catch (ObjectDisposedException)
-                            {
-                                break;
-                            }
-                            catch (Exception e)
-                            {
-                                haltException = e;
-                                break;
-                            }
-                        }
-
-                        // Finish writing out results
-                        while (writeQueue.TryDequeue(out var bundle))
-                        {
-                            this.m_batchPersistence.Insert(bundle, TransactionMode.Commit, AuthenticationContext.SystemPrincipal);
-                        }
-                    });
-
-                    // Main program loop - 
+                    // Main matching loop - 
                     try
                     {
-                        while (offset < totalResults && haltException == null)
+                        var recordsToProcess = this.m_entityPersistence.Query(o => StatusKeys.ActiveStates.Contains(o.StatusConceptKey.Value) && o.DeterminerConceptKey != MdmConstants.RecordOfTruthDeterminer, AuthenticationContext.SystemPrincipal);
+                        var totalRecords = recordsToProcess.Count();
+                        var rps = 0.0f;
+                        var sw = new Stopwatch();
+                        var nRecordsLoaded = 0;
+                        sw.Start();
+
+                        using (DataPersistenceControlContext.Create(LoadMode.QuickLoad))
                         {
-                            this.m_tracer.TraceVerbose("DetectGlobalMergeCandidiate: Fetching {0} to {1} of {2}", offset, offset + batchSize, totalResults);
-                            foreach (var itm in qps.QueryFast(o => StatusKeys.ActiveStates.Contains(o.StatusConceptKey.Value) && o.DeterminerConceptKey != MdmConstants.RecordOfTruthDeterminer, queryId, offset, batchSize, out totalResults, AuthenticationContext.SystemPrincipal))
+                            foreach (var itm in recordsToProcess)
                             {
-                                fetchQueue.Enqueue(itm);
+                                this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs(nRecordsLoaded++ / (float)totalRecords, $"Matching {matchContext.RecordsProcessed} recs @ {rps:#.#} r/s"));
+                                rps = 1000.0f * (float)matchContext.RecordsProcessed / (float)sw.ElapsedMilliseconds;
+                                matchContext.QueueLoadedRecord(itm);
                             }
-                            fetchEvent.Set();
-                            offset += batchSize;
                         }
 
-                        this.m_tracer.TraceVerbose("DetectGlobalMergeCandidate: Finished reading data - waiting for merge process to complete");
-                        do
-                        {
-                            if (haltException != null)
-                            {
-                                throw haltException;
-                            }
-                            Thread.Sleep(1000);
-                            writeEvent.Set();
-                            fetchEvent.Set();
-                        }
-                        while (!writeQueue.IsEmpty || !fetchQueue.IsEmpty);
+                        sw.Stop();
                     }
-                    finally
+                    catch(Exception e)
                     {
-                        completeProcessing = true; // let threads die
-
+                        matchContext.Halt(e);
                     }
                     this.m_tracer.TraceVerbose("DetectGlobalMergeCandidate: Completed matching");
                 }
@@ -556,6 +575,37 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             catch (Exception e)
             {
                 throw new Exception("Error running detect of global merge candidates", e);
+            }
+        }
+
+        /// <summary>
+        /// Process background matches
+        /// </summary>
+        private void BackgroundMatchProcess(BackgroundMatchContext matchContext)
+        {
+            try
+            {
+                while(matchContext.IsRunning)
+                {
+                    var records = new TEntity[16];
+                    var nRecords = 0;
+                    while((nRecords = matchContext.DeQueueLoadedRecords(records)) > 0)
+                    {
+                        try
+                        {
+                            var matches = records.Take(nRecords).SelectMany(o => this.m_dataManager.MdmTxMatchMasters(o, new IdentifiedData[0]));
+                            this.m_batchPersistence.Insert(new Bundle(matches), TransactionMode.Commit, AuthenticationContext.SystemPrincipal);
+                        }
+                        finally
+                        {
+                            matchContext.ReleaseWorker(nRecords);
+                        }
+                    }
+                }
+            }
+            catch(Exception e)
+            {
+                matchContext.Halt(e);
             }
         }
 
@@ -572,70 +622,11 @@ namespace SanteDB.Persistence.MDM.Services.Resources
 
                 // TODO: When the persistence refactor is done - change this to use the bulk method
                 var classKeys = typeof(TEntity).GetCustomAttributes<ClassConceptKeyAttribute>(false).Select(o => Guid.Parse(o.ClassConcept));
-                Expression<Func<EntityRelationship, bool>> purgeExpression = o => classKeys.Contains(o.SourceEntity.ClassConceptKey.Value) && o.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship && o.ClassificationKey == MdmConstants.AutomagicClassification && o.ObsoleteVersionSequenceId == null;
-                int offset = 0, totalResults = 1, batchSize = 500;
-                var uuid = Guid.NewGuid();
-                // Delete thread
-                using (var fetchEvent = new ManualResetEventSlim(false))
+
+                using (DataPersistenceControlContext.Create(DeleteMode.PermanentDelete).WithName("Clearing Candidates"))
                 {
-                    ConcurrentQueue<EntityRelationship> fetchQueue = new ConcurrentQueue<EntityRelationship>();
-                    bool completeProcessing = false;
-                    this.m_threadPool.QueueUserWorkItem(_ =>
-                    {
-                        int idx = 0, complete = 0;
-                        var processList = new EntityRelationship[25];
-                        while (!completeProcessing && !this.m_disposed)
-                        {
-                            fetchEvent.Wait(1000);
-                            while (fetchQueue.TryDequeue(out var erd))
-                            {
-                                processList[idx++] = erd;
-                                if (idx == processList.Length)
-                                {
-                                    try
-                                    {
-                                        this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)complete / (float)totalResults, $"Clearing Candidates ({complete} of {totalResults})"));
-                                        var batch = new Bundle(processList.Select(o => { o.BatchOperation = BatchOperationType.Delete; return o; }));
-                                        this.m_batchPersistence.Update(batch, TransactionMode.Commit, AuthenticationContext.SystemPrincipal);
-                                        complete += processList.Length;
-                                    }
-                                    catch (Exception e)
-                                    {
-                                        this.m_tracer.TraceWarning("Error updating candidate clear - {0}", e.Message);
-                                    }
-                                    idx = 0;
-
-                                }
-                            }
-                            fetchEvent.Reset();
-                        }
-                    });
-
-                    while (offset < totalResults)
-                    {
-                        foreach (var er in this.m_relationshipPersistence.QueryFast(purgeExpression, uuid, offset, batchSize, out totalResults, AuthenticationContext.SystemPrincipal))
-                        {
-                            fetchQueue.Enqueue(er);
-                        }
-                        fetchEvent.Set();
-                        offset += batchSize;
-                    }
-
-                    completeProcessing = true; // requeest termination
-                    while (!fetchQueue.IsEmpty)
-                    {
-                        Thread.Sleep(1000);
-                    }
-
-                    // Now purge them
-                    if (this.m_relationshipPersistence is IBulkDataPersistenceService ibps)
-                    {
-                        purgeExpression = o => (o.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship || o.RelationshipTypeKey == MdmConstants.IgnoreCandidateRelationship || o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship) && o.ObsoleteVersionSequenceId != null;
-                        ibps.Purge(TransactionMode.Commit, AuthenticationContext.SystemPrincipal, purgeExpression);
-                    }
-
+                    this.m_relationshipPersistence.DeleteAll(o => classKeys.Contains(o.SourceEntity.ClassConceptKey.Value) && o.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship && o.ClassificationKey == MdmConstants.AutomagicClassification, TransactionMode.Commit, AuthenticationContext.Current.Principal);
                 }
-
             }
             catch (Exception e)
             {
@@ -657,24 +648,10 @@ namespace SanteDB.Persistence.MDM.Services.Resources
 
                 // TODO: When the persistence refactor is done - change this to use the bulk method
                 var classKeys = typeof(TEntity).GetCustomAttributes<ClassConceptKeyAttribute>(false).Select(o => Guid.Parse(o.ClassConcept));
-                Expression<Func<EntityRelationship, bool>> purgeExpression = o => classKeys.Contains(o.SourceEntity.ClassConceptKey.Value) && o.RelationshipTypeKey == MdmConstants.IgnoreCandidateRelationship && o.ObsoleteVersionSequenceId == null;
-                if (this.m_relationshipPersistence is IBulkDataPersistenceService ibds)
+                using (DataPersistenceControlContext.Create(DeleteMode.PermanentDelete).WithName("Clearing Ignore Flags"))
                 {
-                    ibds.Purge(TransactionMode.Commit, AuthenticationContext.SystemPrincipal, purgeExpression);
-                }
-                else
-                {
-                    Guid queryId = Guid.NewGuid();
-                    int offset = 0, totalResults = 1, batchSize = 500;
-                    while (offset < totalResults)
-                    {
-                        this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)offset / (float)totalResults, "Clearing ignore flags"));
+                    this.m_relationshipPersistence.DeleteAll(o => classKeys.Contains(o.SourceEntity.ClassConceptKey.Value) && o.RelationshipTypeKey == MdmConstants.IgnoreCandidateRelationship && o.ObsoleteVersionSequenceId == null, TransactionMode.Commit, AuthenticationContext.Current.Principal);
 
-                        var results = this.m_relationshipPersistence.Query(purgeExpression, queryId, offset, batchSize, out totalResults, AuthenticationContext.SystemPrincipal); ;
-                        var batch = new Bundle(results.Select(o => { o.BatchOperation = BatchOperationType.Delete; return o; }));
-                        this.m_batchPersistence.Update(batch, TransactionMode.Commit, AuthenticationContext.SystemPrincipal);
-                        offset += batchSize;
-                    }
                 }
             }
             catch (Exception e)
@@ -701,7 +678,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         {
             this.m_pepService.Demand(MdmPermissionPolicyIdentifiers.UnrestrictedMdm);
 
-            throw new NotImplementedException("This function is not yet impleented");
+            throw new NotImplementedException("This function is not yet implemented");
         }
 
         /// <summary>
@@ -727,15 +704,9 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 }
 
                 // TODO: When the persistence refactor is done - change this to use the bulk method
-                Guid queryId = Guid.NewGuid();
-                int offset = 0, totalResults = 1, batchSize = 100;
-                while (offset < totalResults)
+                using (DataPersistenceControlContext.Create(DeleteMode.PermanentDelete))
                 {
-                    var results = this.m_relationshipPersistence.Query(expr, queryId, offset, batchSize, out totalResults, AuthenticationContext.SystemPrincipal); ;
-                    var batch = new Bundle(results.Select(o => { o.BatchOperation = BatchOperationType.Delete; return o; }));
-                    this.m_batchPersistence.Update(batch, TransactionMode.Commit, AuthenticationContext.SystemPrincipal);
-                    offset += batchSize;
-                    this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)offset / (float)totalResults, "Clearing candidate links"));
+                    this.m_relationshipPersistence.DeleteAll(expr, TransactionMode.Commit, AuthenticationContext.Current.Principal);
                 }
             }
             catch (Exception e)
@@ -766,16 +737,9 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     expr = o => o.SourceEntityKey == masterKey && o.RelationshipTypeKey == MdmConstants.IgnoreCandidateRelationship && o.ObsoleteVersionSequenceId == null;
                 }
 
-                // TODO: When the persistence refactor is done - change this to use the bulk method
-                Guid queryId = Guid.NewGuid();
-                int offset = 0, totalResults = 1, batchSize = 100;
-                while (offset < totalResults)
+                using (DataPersistenceControlContext.Create(DeleteMode.PermanentDelete))
                 {
-                    var results = this.m_relationshipPersistence.Query(expr, queryId, offset, batchSize, out totalResults, AuthenticationContext.SystemPrincipal); ;
-                    var batch = new Bundle(results.Select(o => { o.BatchOperation = BatchOperationType.Delete; return o; }));
-                    this.m_batchPersistence.Update(batch, TransactionMode.Commit, AuthenticationContext.SystemPrincipal);
-                    offset += batchSize;
-                    this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs((float)offset / (float)totalResults, "Clearing ignore links"));
+                    this.m_relationshipPersistence.DeleteAll(expr, TransactionMode.Commit, AuthenticationContext.Current.Principal);
                 }
             }
             catch (Exception e)

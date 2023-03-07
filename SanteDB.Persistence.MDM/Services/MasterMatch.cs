@@ -16,7 +16,7 @@
  * the License.
  * 
  * User: fyfej
- * Date: 2021-10-29
+ * Date: 2022-5-30
  */
 using SanteDB.Core.Matching;
 using System;
@@ -38,7 +38,7 @@ namespace SanteDB.Persistence.MDM.Services
         /// Gets the match result
         /// </summary>
         public IRecordMatchResult MatchResult { get; set; }
-        
+
         /// <summary>
         /// Creates a new master match
         /// </summary>

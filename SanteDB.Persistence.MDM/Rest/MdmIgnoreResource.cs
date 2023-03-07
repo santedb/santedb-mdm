@@ -16,38 +16,30 @@
  * the License.
  * 
  * User: fyfej
- * Date: 2021-10-29
+ * Date: 2022-5-30
  */
 using SanteDB.Core;
 using SanteDB.Core.Configuration;
 using SanteDB.Core.Diagnostics;
 using SanteDB.Core.Interop;
-using SanteDB.Core.Model;
-using SanteDB.Core.Model.Acts;
 using SanteDB.Core.Model.Collection;
-using SanteDB.Core.Model.Entities;
-using SanteDB.Core.Model.Interfaces;
 using SanteDB.Core.Model.Query;
-using SanteDB.Core.Security;
 using SanteDB.Core.Services;
-using SanteDB.Persistence.MDM.Exceptions;
-using SanteDB.Persistence.MDM.Services.Resources;
 using SanteDB.Rest.Common;
 using System;
-using System.Collections.Generic;
+using System.Collections.Specialized;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
-using System.Text;
 
 namespace SanteDB.Persistence.MDM.Rest
 {
     /// <summary>
     /// Exposees the $mdm-candidate API onto the REST layer
     /// </summary>
-    [ExcludeFromCodeCoverage]
+    [ExcludeFromCodeCoverage] // REST operations require a REST client to test
     public class MdmIgnoreResource : IApiChildResourceHandler
     {
-        private Tracer m_tracer = Tracer.GetTracer(typeof(MdmIgnoreResource));
+        private readonly Tracer m_tracer = Tracer.GetTracer(typeof(MdmIgnoreResource));
 
         // Configuration
         private ResourceManagementConfigurationSection m_configuration;
@@ -105,7 +97,7 @@ namespace SanteDB.Persistence.MDM.Rest
         /// <summary>
         /// Query the candidate links
         /// </summary>
-        public IEnumerable<object> Query(Type scopingType, object scopingKey, NameValueCollection filter, int offset, int count, out int totalCount)
+        public IQueryResultSet Query(Type scopingType, object scopingKey, NameValueCollection filter)
         {
             var merger = ApplicationServiceContext.Current.GetService(typeof(IRecordMergingService<>).MakeGenericType(scopingType)) as IRecordMergingService;
             if (merger == null)
@@ -113,18 +105,17 @@ namespace SanteDB.Persistence.MDM.Rest
                 throw new InvalidOperationException("No merging service configuration");
             }
 
-            IEnumerable<IdentifiedData> result = null;
+            IQueryResultSet result = null;
             if (scopingKey is Guid scopeKey) // class call
             {
-                result = merger.GetIgnored(scopeKey);
+                result = new MemoryQueryResultSet(merger.GetIgnored(scopeKey));
             }
             else
             {
                 throw new NotSupportedException();
             }
 
-            totalCount = result.Count();
-            return result.Skip(offset).Take(count);
+            return result;
         }
 
         /// <summary>

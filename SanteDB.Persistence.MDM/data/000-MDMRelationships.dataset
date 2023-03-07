@@ -87,38 +87,71 @@
 
   
   <sql>
+    <exec invariant="sqlite">
+      <![CDATA[
+      -- FOR MASTER RELATIONSHIP TYPE
+INSERT INTO rel_vrfy_systbl (rel_typ_cd_id, src_cls_cd_id, trg_cls_cd_id, err_desc) 
+	SELECT 
+		x'520A7397307ECD4D94CDFD532D111578', CD_ID, x'52843249307ECD4D94CDFD532D111578', 'MDM MASTER POINTER'
+	FROM CD_SET_MEM_ASSOC_TBL WHERE SET_ID = x'67A56D4E9400234F855511DA499593AF';
+
+-- FOR ORIGINAL MASTER RELATIONSHIP TYPE
+INSERT INTO rel_vrfy_systbl (rel_typ_cd_id, src_cls_cd_id, trg_cls_cd_id, err_desc) 
+	SELECT 
+		x'817283A2307ECD4D94CDFD532D111578', CD_ID, x'52843249307ECD4D94CDFD532D111578', 'MDM MASTER POINTER'
+	FROM CD_SET_MEM_ASSOC_TBL WHERE SET_ID = x'67A56D4E9400234F855511DA499593AF';
+
+-- FOR PROBABLE RELATIONSHIP TYPE
+INSERT INTO rel_vrfy_systbl (rel_typ_cd_id, src_cls_cd_id, trg_cls_cd_id, err_desc) 
+	SELECT 
+		x'15B1CF560782894FB52ED20DBAD8F8CC', CD_ID, x'52843249307ECD4D94CDFD532D111578', 'CANDIDATE LOCAL MATCH'
+	FROM CD_SET_MEM_ASSOC_TBL WHERE SET_ID = x'67A56D4E9400234F855511DA499593AF';
+
+-- IGNORE PROBABLE RELATIONSHIP TYPE
+INSERT INTO rel_vrfy_systbl (rel_typ_cd_id, src_cls_cd_id, trg_cls_cd_id, err_desc) 
+	SELECT 
+		x'15B1CFDE0782894FB52ED20DBAD8F8CC', CD_ID, x'52843249307ECD4D94CDFD532D111578', 'CANDIDATE LOCAL MATCH'
+	FROM CD_SET_MEM_ASSOC_TBL WHERE SET_ID = x'67A56D4E9400234F855511DA499593AF';
+
+-- FOR RECORD OF TRUTH
+INSERT INTO rel_vrfy_systbl (rel_typ_cd_id, src_cls_cd_id, trg_cls_cd_id, err_desc) 
+	SELECT 
+		x'4889771CB62C9646BC044A6ECA140C20', x'52843249307ECD4D94CDFD532D111578', CD_ID, 'RECORD OF TRUTH'
+	FROM CD_SET_MEM_ASSOC_TBL WHERE SET_ID = x'67A56D4E9400234F855511DA499593AF';
+      ]]>
+    </exec>
     <exec invariant="npgsql">
       <![CDATA[
 -- FOR MASTER RELATIONSHIP TYPE
-INSERT INTO ent_rel_vrfy_cdtbl (rel_typ_cd_id, src_cls_cd_id, trg_cls_cd_id, err_desc) 
+INSERT INTO rel_vrfy_systbl (rel_typ_cd_id, src_cls_cd_id, trg_cls_cd_id, err_desc) 
 	SELECT 
 		'97730a52-7e30-4dcd-94cd-fd532d111578', CD_ID, '49328452-7e30-4dcd-94cd-fd532d111578', 'MDM MASTER POINTER'
 	FROM CD_SET_MEM_ASSOC_TBL WHERE SET_ID = '4e6da567-0094-4f23-8555-11da499593af'
   ON CONFLICT DO NOTHING;
 
 -- FOR ORIGINAL MASTER RELATIONSHIP TYPE
-INSERT INTO ent_rel_vrfy_cdtbl (rel_typ_cd_id, src_cls_cd_id, trg_cls_cd_id, err_desc) 
+INSERT INTO rel_vrfy_systbl (rel_typ_cd_id, src_cls_cd_id, trg_cls_cd_id, err_desc) 
 	SELECT 
 		'a2837281-7e30-4dcd-94cd-fd532d111578', CD_ID, '49328452-7e30-4dcd-94cd-fd532d111578', 'MDM MASTER POINTER'
 	FROM CD_SET_MEM_ASSOC_TBL WHERE SET_ID = '4e6da567-0094-4f23-8555-11da499593af'
   ON CONFLICT DO NOTHING;
 
 -- FOR PROBABLE RELATIONSHIP TYPE
-INSERT INTO ent_rel_vrfy_cdtbl (rel_typ_cd_id, src_cls_cd_id, trg_cls_cd_id, err_desc) 
+INSERT INTO rel_vrfy_systbl (rel_typ_cd_id, src_cls_cd_id, trg_cls_cd_id, err_desc) 
 	SELECT 
 		'56cfb115-8207-4f89-b52e-d20dbad8f8cc', CD_ID, '49328452-7e30-4dcd-94cd-fd532d111578', 'CANDIDATE LOCAL MATCH'
 	FROM CD_SET_MEM_ASSOC_TBL WHERE SET_ID = '4e6da567-0094-4f23-8555-11da499593af'
   ON CONFLICT DO NOTHING;
 
 -- IGNORE PROBABLE RELATIONSHIP TYPE
-INSERT INTO ent_rel_vrfy_cdtbl (rel_typ_cd_id, src_cls_cd_id, trg_cls_cd_id, err_desc) 
+INSERT INTO rel_vrfy_systbl (rel_typ_cd_id, src_cls_cd_id, trg_cls_cd_id, err_desc) 
 	SELECT 
 		'decfb115-8207-4f89-b52e-d20dbad8f8cc', CD_ID, '49328452-7e30-4dcd-94cd-fd532d111578', 'CANDIDATE LOCAL MATCH'
 	FROM CD_SET_MEM_ASSOC_TBL WHERE SET_ID = '4e6da567-0094-4f23-8555-11da499593af'
   ON CONFLICT DO NOTHING;
 
 -- FOR RECORD OF TRUTH
-INSERT INTO ent_rel_vrfy_cdtbl (rel_typ_cd_id, src_cls_cd_id, trg_cls_cd_id, err_desc) 
+INSERT INTO rel_vrfy_systbl (rel_typ_cd_id, src_cls_cd_id, trg_cls_cd_id, err_desc) 
 	SELECT 
 		'1C778948-2CB6-4696-BC04-4A6ECA140C20', '49328452-7e30-4dcd-94cd-fd532d111578', CD_ID, 'RECORD OF TRUTH'
 	FROM CD_SET_MEM_ASSOC_TBL WHERE SET_ID = '4e6da567-0094-4f23-8555-11da499593af'
@@ -129,7 +162,7 @@ INSERT INTO ent_rel_vrfy_cdtbl (rel_typ_cd_id, src_cls_cd_id, trg_cls_cd_id, err
     <exec invariant="FirebirdSQL">
       <![CDATA[
 -- FOR MASTER RELATIONSHIP TYPE
-INSERT INTO ent_rel_vrfy_cdtbl (rel_typ_cd_id, src_cls_cd_id, trg_cls_cd_id, err_desc) 
+INSERT INTO rel_vrfy_systbl (rel_typ_cd_id, src_cls_cd_id, trg_cls_cd_id, err_desc) 
 	SELECT 
 		char_to_uuid('97730a52-7e30-4dcd-94cd-fd532d111578'), CD_ID, char_to_uuid('49328452-7e30-4dcd-94cd-fd532d111578'), 'MDM MASTER POINTER'
 	FROM CD_SET_MEM_ASSOC_TBL WHERE SET_ID = char_to_uuid('4e6da567-0094-4f23-8555-11da499593af');
@@ -137,7 +170,7 @@ INSERT INTO ent_rel_vrfy_cdtbl (rel_typ_cd_id, src_cls_cd_id, trg_cls_cd_id, err
 </exec>
 <exec invariant="FirebirdSQL">
   <![CDATA[
-INSERT INTO ent_rel_vrfy_cdtbl (rel_typ_cd_id, src_cls_cd_id, trg_cls_cd_id, err_desc) 
+INSERT INTO rel_vrfy_systbl (rel_typ_cd_id, src_cls_cd_id, trg_cls_cd_id, err_desc) 
 	SELECT 
 		char_to_uuid('a2837281-7e30-4dcd-94cd-fd532d111578'), CD_ID, char_to_uuid('49328452-7e30-4dcd-94cd-fd532d111578'), 'MDM ORIGINAL MASTER POINTER'
 	FROM CD_SET_MEM_ASSOC_TBL WHERE SET_ID = char_to_uuid('4e6da567-0094-4f23-8555-11da499593af');
@@ -145,7 +178,7 @@ INSERT INTO ent_rel_vrfy_cdtbl (rel_typ_cd_id, src_cls_cd_id, trg_cls_cd_id, err
 </exec>
 <exec invariant="FirebirdSQL">
   <![CDATA[
-INSERT INTO ent_rel_vrfy_cdtbl (rel_typ_cd_id, src_cls_cd_id, trg_cls_cd_id, err_desc) 
+INSERT INTO rel_vrfy_systbl (rel_typ_cd_id, src_cls_cd_id, trg_cls_cd_id, err_desc) 
 	SELECT 
 		char_to_uuid('56cfb115-8207-4f89-b52e-d20dbad8f8cc'), CD_ID, char_to_uuid('49328452-7e30-4dcd-94cd-fd532d111578'), 'CANDIDATE LOCAL MATCH'
 	FROM CD_SET_MEM_ASSOC_TBL WHERE SET_ID = char_to_uuid('4e6da567-0094-4f23-8555-11da499593af');
@@ -153,7 +186,7 @@ INSERT INTO ent_rel_vrfy_cdtbl (rel_typ_cd_id, src_cls_cd_id, trg_cls_cd_id, err
 </exec>
 <exec invariant="FirebirdSQL">
   <![CDATA[
-INSERT INTO ent_rel_vrfy_cdtbl (rel_typ_cd_id, src_cls_cd_id, trg_cls_cd_id, err_desc) 
+INSERT INTO rel_vrfy_systbl (rel_typ_cd_id, src_cls_cd_id, trg_cls_cd_id, err_desc) 
 	SELECT 
 		char_to_uuid('decfb115-8207-4f89-b52e-d20dbad8f8cc'), CD_ID, char_to_uuid('49328452-7e30-4dcd-94cd-fd532d111578'), 'CANDIDATE LOCAL MATCH'
 	FROM CD_SET_MEM_ASSOC_TBL WHERE SET_ID = '4e6da567-0094-4f23-8555-11da499593af';
@@ -161,7 +194,7 @@ INSERT INTO ent_rel_vrfy_cdtbl (rel_typ_cd_id, src_cls_cd_id, trg_cls_cd_id, err
 </exec>
 <exec invariant="FirebirdSQL">
   <![CDATA[
-INSERT INTO ent_rel_vrfy_cdtbl (rel_typ_cd_id, src_cls_cd_id, trg_cls_cd_id, err_desc) 
+INSERT INTO rel_vrfy_systbl (rel_typ_cd_id, src_cls_cd_id, trg_cls_cd_id, err_desc) 
 	SELECT 
 		char_to_uuid('1C778948-2CB6-4696-BC04-4A6ECA140C20'), char_to_uuid('49328452-7e30-4dcd-94cd-fd532d111578'), CD_ID, 'RECORD OF TRUTH'
 	FROM CD_SET_MEM_ASSOC_TBL WHERE SET_ID = char_to_uuid('4e6da567-0094-4f23-8555-11da499593af');

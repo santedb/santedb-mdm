@@ -1,25 +1,38 @@
-﻿using SanteDB.Core.Security.Services;
+﻿/*
+ * Copyright (C) 2021 - 2022, SanteSuite Inc. and the SanteSuite Contributors (See NOTICE.md for full copyright notices)
+ * Copyright (C) 2019 - 2021, Fyfe Software Inc. and the SanteSuite Contributors
+ * Portions Copyright (C) 2015-2018 Mohawk College of Applied Arts and Technology
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you
+ * may not use this file except in compliance with the License. You may
+ * obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations under
+ * the License.
+ *
+ * User: fyfej
+ * Date: 2022-5-30
+ */
+using NUnit.Framework;
+using SanteDB.Caching.Memory.Configuration;
 using SanteDB.Core;
-using SanteDB.Core.Model;
-using SanteDB.Core.Model.Collection;
 using SanteDB.Core.Model.Constants;
 using SanteDB.Core.Model.DataTypes;
 using SanteDB.Core.Model.Entities;
 using SanteDB.Core.Model.Roles;
-using SanteDB.Core.Model.Security;
 using SanteDB.Core.Security;
 using SanteDB.Core.Services;
+using SanteDB.Core.TestFramework;
 using SanteDB.Persistence.MDM.Services;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
-using SanteDB.Caching.Memory.Configuration;
-using SanteDB.Core.TestFramework;
-using SanteDB.Core.Security.Claims;
-using SanteDB.Core.Services.Impl;
-using NUnit.Framework;
 
 namespace SanteDB.Persistence.MDM.Test
 {
@@ -31,7 +44,7 @@ namespace SanteDB.Persistence.MDM.Test
     public class MdmAssociationTest : DataTest
     {
         // Test authority
-        private readonly AssigningAuthority m_testAuthority = new AssigningAuthority("TEST-MDM", "TEST-MDM", "1.2.3.4.9999");
+        private readonly IdentityDomain m_testAuthority = new IdentityDomain("TEST-MDM", "TEST-MDM", "1.2.3.4.9999") { Key = Guid.NewGuid() };
 
         private IRepositoryService<Patient> m_patientRepository;
         private IRepositoryService<Person> m_personRepository;
@@ -328,7 +341,7 @@ namespace SanteDB.Persistence.MDM.Test
         }
 
         /// <summary>
-        /// When updating a record with one there should not be a new master created
+        /// When updating a record with one local there should not be a new master created on the update of the record
         /// </summary>
         [Test(Description = "Case 4: Update Maintains Master Link")]
         public void TestMdmUpdateShouldNotCreateNewMaster()
@@ -364,10 +377,10 @@ namespace SanteDB.Persistence.MDM.Test
                 Assert.AreEqual(patientUnderTest.DateOfBirth, queriedMaster.DateOfBirth);
 
                 // Update the local and save
+                savedLocal = this.m_patientRepository.Get(savedLocal.Key.Value);
                 savedLocal.DateOfBirth = DateTime.Parse("1984-04-11");
-                savedLocal.Tags.Clear();
                 savedLocal = this.m_patientRepository.Save(savedLocal);
-                Assert.AreEqual(queriedMaster.Key, savedLocal.LoadProperty(o=>o.Relationships).FirstOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship)?.TargetEntityKey);
+                Assert.AreEqual(queriedMaster.Key, savedLocal.LoadProperty(o => o.Relationships).FirstOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship)?.TargetEntityKey);
                 var afterUpdateMaster = this.m_patientRepository.Find(o => o.Identifiers.Any(i => i.Value == "MDM-04")).FirstOrDefault();
                 Assert.AreEqual(afterUpdateMaster.Key, queriedMaster.Key);
                 Assert.AreNotEqual(queriedMaster.DateOfBirth, afterUpdateMaster.DateOfBirth);
@@ -455,8 +468,8 @@ namespace SanteDB.Persistence.MDM.Test
                 Assert.IsTrue(queriedMasterB.Relationships.Any(o => o.SourceEntityKey == savedLocalB.Key && o.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship && o.TargetEntityKey == queriedMasterA.Key));
 
                 // Let's update localB
+                savedLocalB = this.m_patientRepository.Get(savedLocalB.Key.Value);
                 savedLocalB.MultipleBirthOrder = savedLocalA.MultipleBirthOrder;
-                savedLocalB.Tags.Clear();
                 var afterUpdateSavedLocalB = this.m_patientRepository.Save(savedLocalB);
                 // Now the relationships should be updated so MASTER_A is returned
                 var queriedMasterAfterUpdate = this.m_patientRepository.Find(o => o.Identifiers.Any(i => i.Value == "MDM-05B")).SingleOrDefault();
@@ -536,9 +549,9 @@ namespace SanteDB.Persistence.MDM.Test
 
                 // Now we want to update local B so that it no longer matches
                 // the MDM layer should detach
+                savedLocalB = this.m_patientRepository.Get(savedLocalB.Key.Value);
                 savedLocalB.MultipleBirthOrder = 1;
                 savedLocalB.DateOfBirth = DateTime.Parse("1983-06-15");
-                savedLocalB.Tags.Clear();
                 savedLocalB = this.m_patientRepository.Save(savedLocalB);
 
                 // Now we want to re-query the master
@@ -644,11 +657,11 @@ namespace SanteDB.Persistence.MDM.Test
                 queriedMasterB = this.m_patientRepository.Get(queriedMasterB.Key.Value);
 
                 // A and B point to A
-                Assert.IsTrue(savedLocalA.Relationships.Any(r => r.RelationshipTypeKey == MdmConstants.MasterRecordRelationship && r.TargetEntityKey == queriedMasterA.Key));
-                Assert.IsTrue(savedLocalB.Relationships.Any(r => r.RelationshipTypeKey == MdmConstants.MasterRecordRelationship && r.TargetEntityKey == queriedMasterA.Key && r.ClassificationKey == MdmConstants.VerifiedClassification));
-                Assert.IsFalse(savedLocalB.Relationships.Any(r => r.RelationshipTypeKey == MdmConstants.MasterRecordRelationship && r.TargetEntityKey == rawMasterB.Key));
-                Assert.IsTrue(queriedMasterA.Relationships.Any(r => r.RelationshipTypeKey == EntityRelationshipTypeKeys.Replaces && r.TargetEntityKey == rawMasterB.Key));
-                //Assert.AreEqual(StatusKeys.Inactive, queriedMasterB.StatusConceptKey); // No longer under MDM (OBSOLETE)
+                Assert.IsTrue(savedLocalA.LoadProperty(o => o.Relationships).Any(r => r.RelationshipTypeKey == MdmConstants.MasterRecordRelationship && r.TargetEntityKey == queriedMasterA.Key));
+                Assert.IsTrue(savedLocalB.LoadProperty(o => o.Relationships).Any(r => r.RelationshipTypeKey == MdmConstants.MasterRecordRelationship && r.TargetEntityKey == queriedMasterA.Key && r.ClassificationKey == MdmConstants.VerifiedClassification));
+                Assert.IsFalse(savedLocalB.LoadProperty(o => o.Relationships).Any(r => r.RelationshipTypeKey == MdmConstants.MasterRecordRelationship && r.TargetEntityKey == rawMasterB.Key));
+                Assert.IsTrue(queriedMasterA.LoadProperty(o => o.Relationships).Any(r => r.RelationshipTypeKey == EntityRelationshipTypeKeys.Replaces && r.TargetEntityKey == rawMasterB.Key));
+                Assert.IsNotNull(queriedMasterB.ObsoletionTime); // No longer under MDM (OBSOLETE)
                 Assert.AreEqual(StatusKeys.Inactive, rawMasterB.StatusConceptKey);
             }
         }
@@ -748,7 +761,7 @@ namespace SanteDB.Persistence.MDM.Test
                 Assert.AreEqual(MdmConstants.VerifiedClassification, queriedAfterMerge.Relationships.First(o => o.SourceEntityKey == savedLocalB.Key && o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship && o.TargetEntityKey == queriedMasterA.Key).ClassificationKey);
 
                 // Now update saved local B wildly
-                savedLocalB.Tags.Clear();
+                savedLocalB = this.m_patientRepository.Get(savedLocalB.Key.Value);
                 savedLocalB.Names.Clear();
                 savedLocalB.Names.Add(new EntityName(NameUseKeys.Alphabetic, "SMITH", "SOMTHING"));
                 savedLocalB.DateOfBirth = DateTime.Now;

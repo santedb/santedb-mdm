@@ -16,7 +16,7 @@
  * the License.
  * 
  * User: fyfej
- * Date: 2021-10-29
+ * Date: 2022-5-30
  */
 using SanteDB.Core.Model.Interfaces;
 using System.Collections.Generic;
@@ -32,18 +32,18 @@ namespace SanteDB.Persistence.MDM.Model
         /// <summary>
         /// Constructs the master record from local records
         /// </summary>
-        IIdentifiedEntity Synthesize(IPrincipal principal);
+        IAnnotatedResource Synthesize(IPrincipal principal);
 
         /// <summary>
         /// Gets the local records
         /// </summary>
-        IEnumerable<IIdentifiedEntity> LocalRecords { get; }
+        IEnumerable<IAnnotatedResource> LocalRecords { get; }
     }
 
     /// <summary>
     /// Marks a class as an MDM master record
     /// </summary>
-    public interface IMdmMaster<T> : IMdmMaster, IVersionedEntity, IIdentifiedEntity, ITaggable, ISecurable
+    public interface IMdmMaster<T> : IMdmMaster, IVersionedData, IAnnotatedResource, ITaggable
     {
         /// <summary>
         /// Constructs the master record from local records

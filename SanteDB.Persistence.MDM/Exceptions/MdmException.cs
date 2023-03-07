@@ -16,20 +16,18 @@
  * the License.
  * 
  * User: fyfej
- * Date: 2021-10-29
+ * Date: 2022-5-30
  */
 using SanteDB.Core.Model;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using System.Diagnostics.CodeAnalysis;
 
 namespace SanteDB.Persistence.MDM.Exceptions
 {
     /// <summary>
     /// Represents an underlying exception in the MDM layer
     /// </summary>
+    [ExcludeFromCodeCoverage]
     public class MdmException : InvalidOperationException
     {
 
@@ -41,7 +39,7 @@ namespace SanteDB.Persistence.MDM.Exceptions
         /// <summary>
         /// Creates a new MDM exception object
         /// </summary>
-        public MdmException(IdentifiedData record, String message) : this (record, message, null)
+        public MdmException(IdentifiedData record, String message) : this(record, message, null)
         {
         }
 

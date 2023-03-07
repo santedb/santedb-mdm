@@ -16,16 +16,13 @@
  * the License.
  * 
  * User: fyfej
- * Date: 2021-10-29
+ * Date: 2022-5-30
  */
-using SanteDB.Core.Configuration;
 using SanteDB.Core.Model;
 using SanteDB.Core.Model.Entities;
+using SanteDB.Core.Model.Interfaces;
 using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 
 namespace SanteDB.Persistence.MDM.Services.Resources
 {
@@ -41,10 +38,13 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// Create the specified data manager
         /// </summary>
         public static MdmDataManager<TModel> GetDataManager<TModel>()
-            where TModel : IdentifiedData
+            where TModel : IdentifiedData, IHasTypeConcept, IHasClassConcept, IHasRelationships
         {
             if (m_createdInstances.TryGetValue(typeof(TModel), out object instance))
+            {
                 return (MdmDataManager<TModel>)instance;
+            }
+
             return null;
         }
 
@@ -52,10 +52,13 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// Create the specified data manager
         /// </summary>
         public static MdmDataManager<TModel> GetDataManager<TModel>(Type forType)
-            where TModel : IdentifiedData
+            where TModel : IdentifiedData, IHasTypeConcept, IHasClassConcept, IHasRelationships
         {
             if (m_createdInstances.TryGetValue(forType, out object instance))
+            {
                 return (MdmDataManager<TModel>)instance;
+            }
+
             return null;
         }
 
@@ -65,8 +68,25 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         public static MdmDataManager GetDataManager(Type forType)
         {
             if (m_createdInstances.TryGetValue(forType, out object instance))
+            {
                 return (MdmDataManager)instance;
+            }
+
             return null;
+        }
+
+        /// <summary>
+        /// Try to get the datamanager for <paramref name="forType"/>
+        /// </summary>
+        public static bool TryGetDataManager(Type forType, out MdmDataManager manager)
+        {
+            if (m_createdInstances.TryGetValue(forType, out var managerO))
+            {
+                manager = (MdmDataManager)managerO;
+                return true;
+            }
+            manager = null;
+            return false;
         }
 
         /// <summary>

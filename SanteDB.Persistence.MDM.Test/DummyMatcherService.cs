@@ -1,10 +1,31 @@
-﻿using NUnit.Framework;
+﻿/*
+ * Copyright (C) 2021 - 2022, SanteSuite Inc. and the SanteSuite Contributors (See NOTICE.md for full copyright notices)
+ * Copyright (C) 2019 - 2021, Fyfe Software Inc. and the SanteSuite Contributors
+ * Portions Copyright (C) 2015-2018 Mohawk College of Applied Arts and Technology
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you
+ * may not use this file except in compliance with the License. You may
+ * obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations under
+ * the License.
+ *
+ * User: fyfej
+ * Date: 2022-5-30
+ */
+using NUnit.Framework;
 using SanteDB.Core;
+using SanteDB.Core.Matching;
 using SanteDB.Core.Model;
+using SanteDB.Core.Model.Query;
 using SanteDB.Core.Model.Roles;
 using SanteDB.Core.Security;
 using SanteDB.Core.Services;
-using SanteDB.Core.Matching;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
@@ -38,14 +59,14 @@ namespace SanteDB.Persistence.MDM.Test
         /// <summary>
         /// Perform blocking
         /// </summary>
-        public IEnumerable<T> Block<T>(T input, string configurationName, IEnumerable<Guid> ignoreList, IRecordMatchingDiagnosticSession collector = null) where T : IdentifiedData
+        public IQueryResultSet<T> Block<T>(T input, string configurationName, IEnumerable<Guid> ignoreList, IRecordMatchingDiagnosticSession collector = null) where T : IdentifiedData
         {
             if (input.GetType() == typeof(Patient))
             {
                 Patient p = (Patient)((Object)input);
-                return ApplicationServiceContext.Current.GetService<IDataPersistenceService<Patient>>().Query(o => o.DateOfBirth == p.DateOfBirth && o.Key != p.Key, AuthenticationContext.Current.Principal).OfType<T>();
+                return ApplicationServiceContext.Current.GetService<IDataPersistenceService<Patient>>().Query(o => o.DateOfBirth == p.DateOfBirth && o.Key != p.Key, AuthenticationContext.Current.Principal).TransformResultSet<Patient, T>();
             }
-            return new List<T>();
+            return new MemoryQueryResultSet<T>(new List<T>());
         }
 
         /// <summary>
@@ -62,7 +83,7 @@ namespace SanteDB.Persistence.MDM.Test
         public IEnumerable<IRecordMatchResult<T>> Match<T>(T input, string configurationName, IEnumerable<Guid> ignoreList, IRecordMatchingDiagnosticSession collector = null) where T : IdentifiedData
         {
             Assert.AreEqual("default", configurationName);
-            return this.Classify(input, this.Block(input, configurationName, ignoreList), configurationName);
+            return this.Classify(input, this.Block(input, configurationName, ignoreList, collector), configurationName, collector);
         }
 
         /// <summary>
@@ -91,7 +112,15 @@ namespace SanteDB.Persistence.MDM.Test
                 Patient p = (Patient)((Object)input);
                 return new DummyMatchResult<T>(input, input);
             }
-            else return null;
+            else
+            {
+                return null;
+            }
+        }
+
+        public IRecordMatchingDiagnosticSession CreateDiagnosticSession()
+        {
+            throw new NotImplementedException();
         }
 
         public IRecordMatchingConfiguration GetConfiguration(string configurationId)
@@ -105,11 +134,6 @@ namespace SanteDB.Persistence.MDM.Test
         }
 
         public IRecordMatchingConfiguration DeleteConfiguration(string configurationId)
-        {
-            throw new NotImplementedException();
-        }
-
-        public IRecordMatchingDiagnosticSession CreateDiagnosticSession()
         {
             throw new NotImplementedException();
         }
@@ -236,7 +260,7 @@ namespace SanteDB.Persistence.MDM.Test
 
         public IEnumerable<IRecordMatchVector> Vectors => throw new NotImplementedException();
 
-        public IRecordMatchingConfiguration Configuration => throw new NotImplementedException();
+        public IRecordMatchingConfiguration Configuration => new DummyMatchConfiguration();
 
         /// <summary>
         /// Create a dummy match
@@ -252,12 +276,18 @@ namespace SanteDB.Persistence.MDM.Test
                 var pRecord = (Patient)(object)record;
                 // Classify
                 if (pInput.MultipleBirthOrder.HasValue && pInput.MultipleBirthOrder != pRecord.MultipleBirthOrder)
+                {
                     this.Classification = RecordMatchClassification.Probable;
+                }
                 else
+                {
                     this.Classification = RecordMatchClassification.Match;
+                }
             }
             else
+            {
                 this.Classification = RecordMatchClassification.Match;
+            }
         }
     }
 }

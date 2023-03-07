@@ -16,25 +16,18 @@
  * the License.
  * 
  * User: fyfej
- * Date: 2021-10-29
+ * Date: 2022-5-30
  */
 using SanteDB.Core;
 using SanteDB.Core.Configuration;
-using SanteDB.Core.Model;
-using SanteDB.Core.Model.Acts;
-using SanteDB.Core.Model.Constants;
 using SanteDB.Core.Model.Entities;
 using SanteDB.Core.Model.Query;
 using SanteDB.Core.Security;
 using SanteDB.Core.Services;
-using SanteDB.Persistence.MDM.Model;
 using SanteDB.Persistence.MDM.Services.Resources;
 using System;
-using System.Collections.Generic;
+using System.Collections.Specialized;
 using System.Linq;
-using System.Linq.Expressions;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace SanteDB.Persistence.MDM.Services
 {
@@ -44,6 +37,7 @@ namespace SanteDB.Persistence.MDM.Services
     /// <remarks>Only use this freetext search service if your freetext search service implementation interacts directly with the
     /// SanteDB database, not if you're using something like Lucene or Redshift as those are index based and the fetch should
     /// be done via the IRepositoryService</remarks>
+    [PreferredService(typeof(IFreetextSearchService))]
     public class MdmFreetextSearchService : IFreetextSearchService
     {
         /// <summary>
@@ -57,11 +51,9 @@ namespace SanteDB.Persistence.MDM.Services
         /// <summary>
         /// Search for the specified entity
         /// </summary>
-        public IEnumerable<TEntity> Search<TEntity>(string[] term, Guid queryId, int offset, int? count, out int totalResults, ModelSort<TEntity>[] orderBy) where TEntity : IdentifiedData, new()
+        public IQueryResultSet<TEntity> SearchEntity<TEntity>(string[] term) where TEntity : Entity, new()
         {
-            
-            var searchTerm = String.Join(" and ", term);
-            
+
             // Perform the queries on the terms
             if (this.m_configuration.ResourceTypes.Any(rt => rt.Type == typeof(TEntity))) // Under MDM control
             {
@@ -69,31 +61,29 @@ namespace SanteDB.Persistence.MDM.Services
                 // HACK: Change this method to detect the type
                 var idps = ApplicationServiceContext.Current.GetService<IDataPersistenceService<Entity>>();
                 if (idps == null)
+                {
                     throw new InvalidOperationException("Cannot find a query repository service");
+                }
 
-                var expression = QueryExpressionParser.BuildLinqExpression<Entity>(new NameValueCollection() {
-                    { "classConcept", MdmConstants.MasterRecordClassification.ToString() },
-                    { "relationship[97730a52-7e30-4dcd-94cd-fd532d111578].source.id", $":(freetext|{searchTerm})" }
-                });
-                var results = idps.Query(expression, offset, count, out totalResults, principal);
-                var mdmDataManager = MdmDataManagerFactory.GetDataManager<TEntity>();
-                if (Environment.ProcessorCount > 4)
-                {
-                    return results.AsParallel().AsOrdered().Select(o => mdmDataManager.CreateMasterContainerForMasterEntity(o).Synthesize(principal)).OfType<TEntity>().ToList();
-                }
-                else
-                {
-                    return results.Select(o => mdmDataManager.CreateMasterContainerForMasterEntity(o).Synthesize(principal)).OfType<TEntity>().ToList();
-                }
+                var search = new NameValueCollection();
+                search.Add("classConcept", MdmConstants.MasterRecordClassification.ToString());
+                search.Add("relationship[97730a52-7e30-4dcd-94cd-fd532d111578].source.id", $":(freetext|{String.Join(" ", term)})");
+
+                var expression = QueryExpressionParser.BuildLinqExpression<Entity>(search);
+                var results = idps.Query(expression, principal);
+                return new MdmEntityResultSet<TEntity>(results, principal);
             }
             else
             {
                 // Does the provider support freetext search clauses?
                 var idps = ApplicationServiceContext.Current.GetService<IDataPersistenceService<TEntity>>();
                 if (idps == null)
+                {
                     throw new InvalidOperationException("Cannot find a query repository service");
+                }
 
-                return idps.Query(o => o.FreetextSearch(searchTerm), offset, count, out totalResults, AuthenticationContext.Current.Principal, orderBy);
+                var searchTerm = String.Join(" ", term);
+                return idps.Query(o => o.FreetextSearch(searchTerm), AuthenticationContext.Current.Principal);
             }
         }
     }

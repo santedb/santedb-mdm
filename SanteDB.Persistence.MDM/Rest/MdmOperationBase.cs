@@ -16,7 +16,7 @@
  * the License.
  * 
  * User: fyfej
- * Date: 2021-10-29
+ * Date: 2022-5-30
  */
 using SanteDB.Core.Configuration;
 using SanteDB.Core.Diagnostics;
@@ -34,11 +34,11 @@ namespace SanteDB.Persistence.MDM.Rest
     /// <summary>
     /// MDM Operation Base
     /// </summary>
-    [ExcludeFromCodeCoverage]
+    [ExcludeFromCodeCoverage] // REST operations require a REST client to test
     public abstract class MdmOperationBase : IApiChildOperation
     {
         // Operation base
-        protected Tracer m_tracer = Tracer.GetTracer(typeof(MdmOperationBase));
+        protected readonly Tracer m_tracer = Tracer.GetTracer(typeof(MdmOperationBase));
 
         // Configuration
         protected ResourceManagementConfigurationSection m_configuration;
