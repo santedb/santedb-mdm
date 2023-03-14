@@ -374,8 +374,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             }
 
             var masterKey = $"mdm.master.{localKey}";
-
-            if(this.m_adhocCache?.TryGet<EntityRelationship>(masterKey, out var retVal) == true)
+	    EntityRelationship retVal = null; // So older compilers can compile this file
+            if(this.m_adhocCache?.TryGet<EntityRelationship>(masterKey, out retVal) == true)
             {
                 return retVal;
             }
@@ -400,7 +400,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         private EntityRelationship GetMasterRelationshipFor(TModel local, IEnumerable<IdentifiedData> context)
         {
             var masterKey = $"mdm.master.{local.Key}";
-            if (this.m_adhocCache?.TryGet<EntityRelationship>(masterKey, out var retVal) == true)
+            EntityRelationship retVal = null;
+            if (this.m_adhocCache?.TryGet<EntityRelationship>(masterKey, out retVal) == true)
             {
                 return retVal;
             }
