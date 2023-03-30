@@ -392,6 +392,14 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         }
 
         /// <summary>
+        /// Intersect the other result set - note this can only be of same type of set
+        /// </summary>
+        public IQueryResultSet<TModel> Except(Expression<Func<TModel, bool>> filter)
+        {
+            return new MdmEntityResultSet<TModel>(this.m_wrappedResultSet.Except(new ExpressionParameterRewriter<TModel, Entity, bool>(filter).Convert()), this.m_principal);
+        }
+
+        /// <summary>
         /// Union the other result set - note this can only be of the same type of set
         /// </summary>
         public IQueryResultSet Union(IQueryResultSet other)
