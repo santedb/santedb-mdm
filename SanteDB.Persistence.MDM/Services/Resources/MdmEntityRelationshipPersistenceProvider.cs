@@ -52,6 +52,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         public string ServiceName => "MDM Relationship Reroute Provider";
 
 
+#pragma warning disable CS0067
         /// <inheritdoc/>
         public event EventHandler<DataPersistedEventArgs<EntityRelationshipMaster>> Inserted;
         /// <inheritdoc/>
@@ -72,6 +73,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         public event EventHandler<DataRetrievingEventArgs<EntityRelationshipMaster>> Retrieving;
         /// <inheritdoc/>
         public event EventHandler<DataRetrievedEventArgs<EntityRelationshipMaster>> Retrieved;
+#pragma warning restore
 
         private Expression<Func<EntityRelationship, bool>> ConvertExpression(Expression<Func<EntityRelationshipMaster, bool>> query) => new ExpressionParameterRewriter<EntityRelationshipMaster, EntityRelationship, bool>(query).Convert();
 
