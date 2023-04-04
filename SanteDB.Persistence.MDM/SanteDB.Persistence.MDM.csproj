@@ -60,10 +60,10 @@
     <None Include="..\SanteDB.licenseheader">
       <Link>SanteDB.licenseheader</Link>
     </None>
-    <None Include="Data\000-MDMClasses.dataset">
+    <None Include="data\000-MDMClasses.dataset">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="Data\000-MDMRelationships.dataset">
+    <None Include="data\000-MDMRelationships.dataset">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <SubType>Designer</SubType>
     </None>
