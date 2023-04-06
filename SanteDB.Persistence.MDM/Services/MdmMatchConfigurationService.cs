@@ -141,7 +141,7 @@ namespace SanteDB.Persistence.MDM.Services
         /// <summary>
         /// Gets the configuration
         /// </summary>
-        public IEnumerable<IRecordMatchingConfiguration> Configurations => this.m_matchingConfigurationService?.Configurations.Union(this.r_matchConfiguration);
+        public IEnumerable<IRecordMatchingConfiguration> Configurations => this.m_matchingConfigurationService?.Configurations.Union(this.r_matchConfiguration) ?? this.r_matchConfiguration;
 
         /// <summary>
         /// Gets the service name

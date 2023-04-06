@@ -107,7 +107,14 @@ namespace SanteDB.Persistence.MDM.Services
         /// <summary>
         /// Create injected service
         /// </summary>
-        public MdmDataManagementService(IServiceManager serviceManager, IConfigurationManager configuration, IDataCachingService cachingService = null, IRecordMatchingConfigurationService matchConfigurationService = null, IRecordMatchingService matchingService = null, ISubscriptionExecutor subscriptionExecutor = null, SimDataManagementService simDataManagementService = null, IJobManagerService jobManagerService = null)
+        public MdmDataManagementService(IServiceManager serviceManager, 
+            IConfigurationManager configuration, 
+            IDataCachingService cachingService = null, 
+            IRecordMatchingConfigurationService matchConfigurationService = null, 
+            IRecordMatchingService matchingService = null, 
+            ISubscriptionExecutor subscriptionExecutor = null, 
+            SimDataManagementService simDataManagementService = null, 
+            IJobManagerService jobManagerService = null)
         {
             this.m_configuration = configuration.GetSection<ResourceManagementConfigurationSection>();
             this.m_matchingService = matchingService;
