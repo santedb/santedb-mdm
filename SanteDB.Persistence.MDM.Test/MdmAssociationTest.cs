@@ -478,12 +478,15 @@ namespace SanteDB.Persistence.MDM.Test
                 Assert.IsTrue(queriedMasterAfterUpdate.Relationships.Any(o => o.SourceEntityKey == savedLocalB.Key && o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship));
 
                 // Queried MasterAfterUpdate should point to queriedMasterB as replaces
-                Assert.IsTrue(queriedMasterAfterUpdate.Relationships.Any(o => o.RelationshipTypeKey == EntityRelationshipTypeKeys.Replaces && o.TargetEntityKey == queriedMasterB.Key));
+                // This behavior has been chnaged - Replaces is no longer set
+                Assert.IsTrue(queriedMasterAfterUpdate.Relationships.Any(o => o.RelationshipTypeKey == MdmConstants.OriginalMasterRelationship && o.TargetEntityKey == queriedMasterB.Key));
 
                 // Fetch MASTER B and check status
                 var masterId = queriedMasterB.Key.Value;
                 var masterRaw = this.m_entityRepository.Get(masterId);
-                Assert.AreEqual(StatusKeys.Inactive, masterRaw.StatusConceptKey);
+                // Version 3 behaves differently
+                Assert.IsNotNull(masterRaw.ObsoletionTime);
+                //Assert.AreEqual(StatusKeys.Inactive, masterRaw.StatusConceptKey);
             }
         }
 
@@ -660,9 +663,8 @@ namespace SanteDB.Persistence.MDM.Test
                 Assert.IsTrue(savedLocalA.LoadProperty(o => o.Relationships).Any(r => r.RelationshipTypeKey == MdmConstants.MasterRecordRelationship && r.TargetEntityKey == queriedMasterA.Key));
                 Assert.IsTrue(savedLocalB.LoadProperty(o => o.Relationships).Any(r => r.RelationshipTypeKey == MdmConstants.MasterRecordRelationship && r.TargetEntityKey == queriedMasterA.Key && r.ClassificationKey == MdmConstants.VerifiedClassification));
                 Assert.IsFalse(savedLocalB.LoadProperty(o => o.Relationships).Any(r => r.RelationshipTypeKey == MdmConstants.MasterRecordRelationship && r.TargetEntityKey == rawMasterB.Key));
-                Assert.IsTrue(queriedMasterA.LoadProperty(o => o.Relationships).Any(r => r.RelationshipTypeKey == EntityRelationshipTypeKeys.Replaces && r.TargetEntityKey == rawMasterB.Key));
+                //Assert.IsTrue(queriedMasterA.LoadProperty(o => o.Relationships).Any(r => r.RelationshipTypeKey == EntityRelationshipTypeKeys.Replaces && r.TargetEntityKey == rawMasterB.Key));
                 Assert.IsNotNull(queriedMasterB.ObsoletionTime); // No longer under MDM (OBSOLETE)
-                Assert.AreEqual(StatusKeys.Inactive, rawMasterB.StatusConceptKey);
             }
         }
 
