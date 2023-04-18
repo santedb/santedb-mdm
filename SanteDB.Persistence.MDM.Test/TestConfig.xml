@@ -32,7 +32,7 @@
   </sections>
   <section xsi:type="DataConfigurationSection">
     <connectionStrings>
-      <add name="TEST_CONNECTION" value="Data Source=|DataDirectory|\santedb_test.sqlite;" provider="sqlite" />
+      <add name="TEST_CONNECTION" value="Data Source=|DataDirectory|\santedb_test.sqlite" provider="sqlite" />
     </connectionStrings>
   </section>
   <section xsi:type="OrmConfigurationSection">
