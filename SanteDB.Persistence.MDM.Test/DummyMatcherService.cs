@@ -191,7 +191,7 @@ namespace SanteDB.Persistence.MDM.Test
             /// <summary>
             /// State of the configuration
             /// </summary>
-            public MatchConfigurationStatus State => MatchConfigurationStatus.Active;
+            public MatchConfigurationStatus Status => MatchConfigurationStatus.Active;
 
             /// <summary>
             /// Is readonly

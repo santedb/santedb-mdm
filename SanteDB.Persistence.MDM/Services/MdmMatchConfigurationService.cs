@@ -65,7 +65,7 @@ namespace SanteDB.Persistence.MDM.Services
             /// <summary>
             /// Gets the state
             /// </summary>
-            public MatchConfigurationStatus State => MatchConfigurationStatus.Active;
+            public MatchConfigurationStatus Status => MatchConfigurationStatus.Active;
 
             /// <summary>
             /// Gets the tags

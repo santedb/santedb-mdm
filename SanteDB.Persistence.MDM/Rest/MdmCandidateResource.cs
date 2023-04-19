@@ -133,7 +133,7 @@ namespace SanteDB.Persistence.MDM.Rest
                     }
 
                     var configId = RestOperationContext.Current.IncomingRequest.QueryString["_configuration"];
-                    IEnumerable<IRecordMatchingConfiguration> matchConfigurations = matchConfiguration.Configurations.Where(o => o.AppliesTo.Contains(scopingType) && o.Metadata.State == MatchConfigurationStatus.Active);
+                    IEnumerable<IRecordMatchingConfiguration> matchConfigurations = matchConfiguration.Configurations.Where(o => o.AppliesTo.Contains(scopingType) && o.Metadata.Status == MatchConfigurationStatus.Active);
                     if (!String.IsNullOrEmpty(configId))
                     {
                         matchConfigurations = matchConfiguration.Configurations.Where(o => o.AppliesTo.Contains(scopingType) && o.Id == configId).Union(matchConfigurations);

@@ -745,7 +745,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             // Match configuration
             // TODO: Emit logs
             var matchResultGrouping = this.m_matchingConfigurationService.Configurations
-                .Where(o => o.AppliesTo.Contains(typeof(TModel)) && o.Metadata.State == MatchConfigurationStatus.Active)
+                .Where(o => o.AppliesTo.Contains(typeof(TModel)) && o.Metadata.Status == MatchConfigurationStatus.Active)
                 .SelectMany(s => this.m_matchingService.Match<TModel>(local, s.Id, ignoreList.Select(o=>o.Value)))
                 .Where(o => o.Record.Key != local.Key) // cannot match with itself
                 .Select(o => new MasterMatch(this.IsMaster(o.Record) ? o.Record.Key.Value : this.GetMasterRelationshipFor(o.Record, context).TargetEntityKey.Value, o)) // Must select the master
@@ -844,7 +844,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             if (rematchMaster)
             {
                 var masterDetail = this.MdmGet(existingMasterRel.TargetEntityKey.Value).Synthesize(AuthenticationContext.SystemPrincipal) as TModel;
-                var bestMatch = this.m_matchingConfigurationService.Configurations.Where(o => o.AppliesTo.Contains(typeof(TModel)) && o.Metadata.State == MatchConfigurationStatus.Active).SelectMany(c => this.m_matchingService.Classify(local, new TModel[] { masterDetail }, c.Id)).OrderByDescending(o => o.Classification).FirstOrDefault();
+                var bestMatch = this.m_matchingConfigurationService.Configurations.Where(o => o.AppliesTo.Contains(typeof(TModel)) && o.Metadata.Status == MatchConfigurationStatus.Active).SelectMany(c => this.m_matchingService.Classify(local, new TModel[] { masterDetail }, c.Id)).OrderByDescending(o => o.Classification).FirstOrDefault();
                 switch (bestMatch.Classification)
                 // No longer a match
                 {
@@ -1344,7 +1344,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             var ignoreList = this.m_relationshipService.Query(o => o.TargetEntityKey == master.Key && o.RelationshipTypeKey == MdmConstants.IgnoreCandidateRelationship, AuthenticationContext.SystemPrincipal).Select(o => o.SourceEntityKey.Value);//.Select(o => this.GetMasterRelationshipFor(o.SourceEntityKey.Value, context).TargetEntityKey.Value);
 
             // iterate through configuration
-            foreach (var config in this.m_matchingConfigurationService.Configurations.Where(o => o.AppliesTo.Contains(typeof(TModel)) && o.Metadata.State == MatchConfigurationStatus.Active))
+            foreach (var config in this.m_matchingConfigurationService.Configurations.Where(o => o.AppliesTo.Contains(typeof(TModel)) && o.Metadata.Status == MatchConfigurationStatus.Active))
             {
                 // perform match
                 var results = this.m_matchingService.Match(master, config.Id, ignoreList);
