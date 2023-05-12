@@ -26,7 +26,6 @@ using SanteDB.Core.Model;
 using SanteDB.Core.Model.Acts;
 using SanteDB.Core.Model.Attributes;
 using SanteDB.Core.Model.Collection;
-using SanteDB.Core.Model.Constants;
 using SanteDB.Core.Model.Entities;
 using SanteDB.Core.Model.Interfaces;
 using SanteDB.Core.Model.Query;
@@ -49,7 +48,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
     /// Represents a class that only intercepts events from the repository layer
     /// </summary>
     public class MdmResourceHandler<TModel> : IDisposable, IMdmResourceHandler
-        where TModel : IdentifiedData, IHasTypeConcept, IHasClassConcept, IHasRelationships,  new()
+        where TModel : IdentifiedData, IHasTypeConcept, IHasClassConcept, IHasRelationships, new()
     {
         // Class concept key
         private Guid[] m_classConceptKey;
@@ -366,11 +365,11 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         private void TriggerLinkEvents(IEnumerable<IdentifiedData> item)
         {
-            foreach(var itm in item)
+            foreach (var itm in item)
             {
-                if(itm is ITargetedAssociation ita && ita.AssociationTypeKey == MdmConstants.MasterRecordRelationship)
+                if (itm is ITargetedAssociation ita && ita.AssociationTypeKey == MdmConstants.MasterRecordRelationship)
                 {
-                    switch(itm.BatchOperation)
+                    switch (itm.BatchOperation)
                     {
                         case Core.Model.DataTypes.BatchOperationType.Insert:
                             this.m_dataManager.FireManagedLinkEstablished(ita);

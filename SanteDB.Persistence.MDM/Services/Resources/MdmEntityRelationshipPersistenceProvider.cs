@@ -27,7 +27,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq.Expressions;
 using System.Security.Principal;
-using System.Text;
 
 namespace SanteDB.Persistence.MDM.Services.Resources
 {

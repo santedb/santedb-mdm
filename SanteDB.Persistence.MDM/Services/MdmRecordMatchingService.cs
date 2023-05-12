@@ -135,7 +135,7 @@ namespace SanteDB.Persistence.MDM.Services
 
             collector?.LogStartStage("blocking");
             // Identifiers in which entity has the unique authority
-            var uqIdentifiers = identifiers.LoadProperty(o=>o.Identifiers).OfType<IExternalIdentifier>().Where(o => this.m_uniqueAuthorities.Contains(o.IdentityDomain.Key ?? Guid.Empty) || this.m_uniqueAuthoritiesDomain.Contains(o.IdentityDomain.DomainName));
+            var uqIdentifiers = identifiers.LoadProperty(o => o.Identifiers).OfType<IExternalIdentifier>().Where(o => this.m_uniqueAuthorities.Contains(o.IdentityDomain.Key ?? Guid.Empty) || this.m_uniqueAuthoritiesDomain.Contains(o.IdentityDomain.DomainName));
             if (uqIdentifiers?.Any(i => i.IdentityDomain == null) == true)
             {
                 throw new InvalidOperationException("Some identifiers are missing authorities, cannot perform identity match");

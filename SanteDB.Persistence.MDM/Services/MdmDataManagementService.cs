@@ -23,17 +23,14 @@ using SanteDB.Core.Configuration;
 using SanteDB.Core.Data;
 using SanteDB.Core.Diagnostics;
 using SanteDB.Core.Event;
-using SanteDB.Core.i18n;
 using SanteDB.Core.Jobs;
 using SanteDB.Core.Matching;
 using SanteDB.Core.Model;
-using SanteDB.Core.Model.Acts;
 using SanteDB.Core.Model.Collection;
 using SanteDB.Core.Model.Constants;
 using SanteDB.Core.Model.Entities;
 using SanteDB.Core.Model.Interfaces;
 using SanteDB.Core.Model.Query;
-using SanteDB.Core.Model.Roles;
 using SanteDB.Core.Model.Serialization;
 using SanteDB.Core.Security;
 using SanteDB.Core.Services;
@@ -107,13 +104,13 @@ namespace SanteDB.Persistence.MDM.Services
         /// <summary>
         /// Create injected service
         /// </summary>
-        public MdmDataManagementService(IServiceManager serviceManager, 
-            IConfigurationManager configuration, 
-            IDataCachingService cachingService = null, 
-            IRecordMatchingConfigurationService matchConfigurationService = null, 
-            IRecordMatchingService matchingService = null, 
-            ISubscriptionExecutor subscriptionExecutor = null, 
-            SimDataManagementService simDataManagementService = null, 
+        public MdmDataManagementService(IServiceManager serviceManager,
+            IConfigurationManager configuration,
+            IDataCachingService cachingService = null,
+            IRecordMatchingConfigurationService matchConfigurationService = null,
+            IRecordMatchingService matchingService = null,
+            ISubscriptionExecutor subscriptionExecutor = null,
+            SimDataManagementService simDataManagementService = null,
             IJobManagerService jobManagerService = null)
         {
             this.m_configuration = configuration.GetSection<ResourceManagementConfigurationSection>();

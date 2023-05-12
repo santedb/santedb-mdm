@@ -28,7 +28,7 @@ namespace SanteDB.Persistence.MDM
     public static class MdmConstants
     {
 
-        
+
         public const string MASTER_RECORD_RELATIONSHIP = "97730a52-7e30-4dcd-94cd-fd532d111578";
         public const string CANDIDATE_RECORD_RELATIONSHIP = "56cfb115-8207-4f89-b52e-d20dbad8f8cc";
         public const string IGNORE_CANDIDATE_RELATIONSHIP = "decfb115-8207-4f89-b52e-d20dbad8f8cc";

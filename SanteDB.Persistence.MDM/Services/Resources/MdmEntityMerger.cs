@@ -50,7 +50,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
     public class MdmEntityMerger<TEntity> : MdmResourceMerger<TEntity>, IReportProgressChanged, IDisposable
         where TEntity : Entity, new()
     {
-        private class BackgroundMatchContext: IDisposable
+        private class BackgroundMatchContext : IDisposable
         {
 
             private readonly ConcurrentStack<TEntity> m_entityStack = new ConcurrentStack<TEntity>();
@@ -95,7 +95,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             public void QueueLoadedRecord(TEntity record)
             {
                 // Main thread
-                if(this.m_haltException != null)
+                if (this.m_haltException != null)
                 {
                     throw this.m_haltException;
                 }
@@ -139,7 +139,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             /// </summary>
             public void ReleaseWorker(int recordsProcessed)
             {
-                if(Interlocked.Increment(ref this.m_availableWorkers) > 0)
+                if (Interlocked.Increment(ref this.m_availableWorkers) > 0)
                 {
                     this.m_loadEvent.Set(); // Allow loading of records
                     this.m_processEvent.Reset();
@@ -154,7 +154,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             public void Dispose()
             {
                 this.m_isRunning = false;
-                while(this.m_availableWorkers != this.m_maxWorkers || // still someone processing
+                while (this.m_availableWorkers != this.m_maxWorkers || // still someone processing
                         !this.m_entityStack.IsEmpty && this.m_haltException == null)
                 {
                     this.m_processEvent.Set();
@@ -527,18 +527,18 @@ namespace SanteDB.Persistence.MDM.Services.Resources
 
                 // Fetch all locals
                 int maxWorkers = Environment.ProcessorCount / 3;
-                if(maxWorkers == 0)
+                if (maxWorkers == 0)
                 {
                     maxWorkers = 1;
                 }
 
-                using(var matchContext = new BackgroundMatchContext(maxWorkers))
+                using (var matchContext = new BackgroundMatchContext(maxWorkers))
                 {
 
                     // Matcher queue
                     this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs(0f, $"Gathering sources..."));
-                    
-                    for(var i = 0; i < maxWorkers; i++)
+
+                    for (var i = 0; i < maxWorkers; i++)
                     {
                         this.m_threadPool.QueueUserWorkItem(this.BackgroundMatchProcess, matchContext);
                     }
@@ -565,7 +565,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
 
                         sw.Stop();
                     }
-                    catch(Exception e)
+                    catch (Exception e)
                     {
                         matchContext.Halt(e);
                     }
@@ -585,11 +585,11 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         {
             try
             {
-                while(matchContext.IsRunning)
+                while (matchContext.IsRunning)
                 {
                     var records = new TEntity[16];
                     var nRecords = 0;
-                    while((nRecords = matchContext.DeQueueLoadedRecords(records)) > 0)
+                    while ((nRecords = matchContext.DeQueueLoadedRecords(records)) > 0)
                     {
                         try
                         {
@@ -603,7 +603,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     }
                 }
             }
-            catch(Exception e)
+            catch (Exception e)
             {
                 matchContext.Halt(e);
             }

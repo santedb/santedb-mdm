@@ -83,7 +83,7 @@ namespace SanteDB.Persistence.MDM.Model
             }
 
             // Does the target point at a local which has a master? If so, we want to synthesize the
-            var targetMaster = EntitySource.Current.Provider.Query<EntityRelationship>(r => r.RelationshipTypeKey == MdmConstants.MasterRecordRelationship && r.SourceEntityKey == this.TargetEntityKey).Select(o=>o.SourceEntityKey).FirstOrDefault();
+            var targetMaster = EntitySource.Current.Provider.Query<EntityRelationship>(r => r.RelationshipTypeKey == MdmConstants.MasterRecordRelationship && r.SourceEntityKey == this.TargetEntityKey).Select(o => o.SourceEntityKey).FirstOrDefault();
             if (targetMaster != null)
             {
                 this.TargetEntityKey = targetMaster;

@@ -48,7 +48,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// Determine if the object is a master
         /// </summary>
         public abstract bool IsMaster(Guid dataKey);
-        
+
         /// <summary>
         /// Determine if the object is a local
         /// </summary>
@@ -360,9 +360,9 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         public TModel ResolveOwnedRecord(TModel forSource, IPrincipal ownerPrincipal)
         {
             IdentifiedData master = forSource;
-            if(forSource.ClassConceptKey != MdmConstants.MasterRecordClassification) 
+            if (forSource.ClassConceptKey != MdmConstants.MasterRecordClassification)
             {
-                master = this.GetMasterRelationshipFor(forSource.Key.Value).LoadProperty(o=>o.TargetEntity) as IdentifiedData;
+                master = this.GetMasterRelationshipFor(forSource.Key.Value).LoadProperty(o => o.TargetEntity) as IdentifiedData;
                 if (master == null)
                 {
                     return null;
@@ -404,7 +404,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             foreach (var rel in local.Relationships.Where(o => !MdmConstants.MDM_RELATIONSHIP_TYPES.Contains(o.AssociationTypeKey.GetValueOrDefault())))
             {
                 // TODO: Cross local pointers should not be permitted either - 
-                if(!rel.TargetEntityKey.HasValue) // no target?
+                if (!rel.TargetEntityKey.HasValue) // no target?
                 {
                     continue;
                 }
@@ -418,7 +418,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                         if (localForTarget == null)
                         {
                             localForTarget = manager.CreateLocalFor(master as IdentifiedData);
-                            if(context != null)
+                            if (context != null)
                             {
                                 context.Add(localForTarget);
                                 rel.TargetEntityKey = localForTarget.Key;
@@ -434,12 +434,12 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                         }
                     }
                 }
-                else if(this.IsLocal(rel.TargetEntityKey.Value) && !this.IsOwner(rel.TargetEntityKey.Value, principal))
+                else if (this.IsLocal(rel.TargetEntityKey.Value) && !this.IsOwner(rel.TargetEntityKey.Value, principal))
                 {
                     // This should not happen - basically someone is trying to link directly to a local on another record 
                     // We'll try to get an appropriate local
                     var myLocal = this.GetLocalFor(this.GetMasterRelationshipFor(rel.TargetEntityKey.Value).TargetEntityKey.Value, principal);
-                    if(myLocal == null)
+                    if (myLocal == null)
                     {
                         throw new InvalidOperationException("MDM does not permit local record to directly reference other locals not owned by the creator");
                     }
