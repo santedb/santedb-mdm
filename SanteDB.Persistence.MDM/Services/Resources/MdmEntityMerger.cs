@@ -251,7 +251,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                         var retVal = o.LoadProperty(p => p.SourceEntity) as Entity;
                         if (o is EntityRelationship e)
                         {
-                            retVal.AddTag("$match.score", $"{e.Strength:0#%}");
+                            retVal.AddTag(SystemTagNames.MatchScoreTag, $"{e.Strength:0#%}");
                         }
                         return retVal;
                     });
@@ -263,7 +263,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                         var retVal = o.LoadProperty(p => p.TargetEntity) as Entity;
                         if (o is EntityRelationship e)
                         {
-                            retVal.AddTag("$match.score", $"{e.Strength:#0%}");
+                            retVal.AddTag(SystemTagNames.MatchScoreTag, $"{e.Strength:#0%}");
                         }
                         return retVal;
                     });

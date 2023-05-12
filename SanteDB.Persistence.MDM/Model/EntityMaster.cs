@@ -292,7 +292,7 @@ namespace SanteDB.Persistence.MDM.Model
             master.AddTag(MdmConstants.MdmGeneratedTag, "true"); // This object was generated
             if (locals.Any())
             {
-                master.AddTag(SanteDBModelConstants.AlternateKeysTag, String.Join(",", locals.Select(o => o.Key.ToString())));
+                master.AddTag(SystemTagNames.AlternateKeysTag, String.Join(",", locals.Select(o => o.Key.ToString())));
             }
 
             master.CreationTime = this.ModifiedOn;
