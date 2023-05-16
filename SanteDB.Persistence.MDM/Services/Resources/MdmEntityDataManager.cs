@@ -421,7 +421,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         public override IEnumerable<ISimpleAssociation> ExtractRelationships(TModel store)
         {
-            var retVal = store.Relationships.Where(o => o.SourceEntityKey.HasValue && o.SourceEntityKey != store.Key).ToList();
+            var retVal = store.LoadProperty(o=>o.Relationships)?.Where(o => o.SourceEntityKey.HasValue && o.SourceEntityKey != store.Key).ToList();
             store.Relationships.RemoveAll(o => o.SourceEntityKey.HasValue && o.SourceEntityKey != store.Key);
             return retVal;
         }
