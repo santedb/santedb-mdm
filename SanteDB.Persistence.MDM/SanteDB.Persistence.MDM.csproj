@@ -61,10 +61,10 @@
       <Link>SanteDB.licenseheader</Link>
     </None>
     <None Include="Data\000-MDMClasses.dataset">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
     <None Include="Data\000-MDMRelationships.dataset">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       <SubType>Designer</SubType>
     </None>
     <None Include="Services\BundleResourceListener.cs" />
@@ -114,10 +114,10 @@
   </ItemGroup>
   <ItemGroup>
     <None Update="data\001-MDMPolicies.dataset">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
     <None Update="data\004-MDMRelationshipClasses.dataset">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
   </ItemGroup>
 </Project>
