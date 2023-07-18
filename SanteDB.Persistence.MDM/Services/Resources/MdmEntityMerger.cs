@@ -536,7 +536,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 {
 
                     // Matcher queue
-                    this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs(0f, $"Gathering sources..."));
+                    this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs(nameof(DetectGlobalMergeCandidates), 0f, $"Gathering sources..."));
 
                     for (var i = 0; i < maxWorkers; i++)
                     {
@@ -557,7 +557,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                         {
                             foreach (var itm in recordsToProcess)
                             {
-                                this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs(nRecordsLoaded++ / (float)totalRecords, $"Matching {matchContext.RecordsProcessed} recs @ {rps:#.#} r/s"));
+                                this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs(nameof(DetectGlobalMergeCandidates), nRecordsLoaded++ / (float)totalRecords, $"Matching {matchContext.RecordsProcessed} recs @ {rps:#.#} r/s"));
                                 rps = 1000.0f * (float)matchContext.RecordsProcessed / (float)sw.ElapsedMilliseconds;
                                 matchContext.QueueLoadedRecord(itm);
                             }
