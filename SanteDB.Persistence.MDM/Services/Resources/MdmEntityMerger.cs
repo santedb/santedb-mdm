@@ -189,7 +189,9 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         public event EventHandler<ProgressChangedEventArgs> ProgressChanged;
 
         // Disposed
+#pragma warning disable CS0414 // The field 'MdmEntityMerger<TEntity>.m_disposed' is assigned but its value is never used
         private bool m_disposed = false;
+#pragma warning restore CS0414 // The field 'MdmEntityMerger<TEntity>.m_disposed' is assigned but its value is never used
 
         /// <summary>
         /// Creates a new entity merger service

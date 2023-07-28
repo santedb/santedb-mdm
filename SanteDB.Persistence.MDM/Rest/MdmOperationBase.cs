@@ -37,13 +37,19 @@ namespace SanteDB.Persistence.MDM.Rest
     [ExcludeFromCodeCoverage] // REST operations require a REST client to test
     public abstract class MdmOperationBase : IApiChildOperation
     {
-        // Operation base
+        /// <summary>
+        /// Tracer for diagnostics.
+        /// </summary>
         protected readonly Tracer m_tracer = Tracer.GetTracer(typeof(MdmOperationBase));
 
-        // Configuration
+        /// <summary>
+        /// Configuration for resource management.
+        /// </summary>
         protected ResourceManagementConfigurationSection m_configuration;
 
-        // Batch service
+        /// <summary>
+        /// A persistence service for bundles.
+        /// </summary>
         protected IDataPersistenceService<Bundle> m_batchService;
 
         /// <summary>

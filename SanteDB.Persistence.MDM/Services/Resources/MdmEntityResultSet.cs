@@ -50,6 +50,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// Creates a new mdm query result set
         /// </summary>
         /// <param name="wrappedResultSet">The result set as filtered ready to be converted to <see cref="EntityMaster{T}"/></param>
+        /// <param name="asPrincipal">The principal consuming this result set.</param>
         internal MdmEntityResultSet(IQueryResultSet<Entity> wrappedResultSet, IPrincipal asPrincipal)
         {
             this.m_wrappedResultSet = wrappedResultSet;
