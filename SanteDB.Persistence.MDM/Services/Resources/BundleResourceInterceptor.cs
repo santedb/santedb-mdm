@@ -146,7 +146,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 throw new InvalidOperationException("Cannot determine the principal of this request. MDM requires an authenticated principal");
             }
 
-            this.m_tracer.TraceInfo("Will chain-invoke {0} on {1} items", methodName, bundle.Item.Count);
+            this.m_tracer.TraceVerbose("Will chain-invoke {0} on {1} items", methodName, bundle.Item.Count);
 
             for (int i = 0; i < bundle.Item.Count; i++)
             {
