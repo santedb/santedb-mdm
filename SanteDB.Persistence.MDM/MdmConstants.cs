@@ -28,12 +28,51 @@ namespace SanteDB.Persistence.MDM
     public static class MdmConstants
     {
 
-
+        /// <summary>
+        /// Relationship used to represents a local/master relationship
+        /// </summary>
         public const string MASTER_RECORD_RELATIONSHIP = "97730a52-7e30-4dcd-94cd-fd532d111578";
+        /// <summary>
+        /// Relationship used to represent that a local record has a high probability of being a duplicate with a master record
+        /// </summary>
         public const string CANDIDATE_RECORD_RELATIONSHIP = "56cfb115-8207-4f89-b52e-d20dbad8f8cc";
+        /// <summary>
+        /// Relationship to represent the ignoring of a duplicate
+        /// </summary>
         public const string IGNORE_CANDIDATE_RELATIONSHIP = "decfb115-8207-4f89-b52e-d20dbad8f8cc";
+        /// <summary>
+        /// Represents a record of truth, this is a record which is promoted on the master record such that it is the "true" version of the record
+        /// </summary>
         public const string RECORD_OF_TRUTH_RELATIONSHIP = "1C778948-2CB6-4696-BC04-4A6ECA140C20";
+        /// <summary>
+        /// Identity match UUID
+        /// </summary>
         public const string IDENTITY_MATCH_UUID = "3B819029-E149-4765-AFE4-2989E2791D45";
+        /// <summary>
+        /// Master record classification
+        /// </summary>
+        public const string MASTER_RECORD_CLASSIFICIATION = "49328452-7e30-4dcd-94cd-fd532d111578";
+        /// <summary>
+        /// Determiner codes
+        /// </summary>
+        public const string RECORD_OF_TRUTH_DETERMINER = "6B1D6764-12BE-42DC-A5DC-52FC275C4935";
+        /// <summary>
+        /// Indicates that the source entity is a local, however it isn't a local in that the matcher "found" it,
+        /// rather it is a local which was the result of someone editing the master
+        /// </summary>
+        public const string ORIGINAL_MASTER_RELATIONSHIP = "a2837281-7e30-4dcd-94cd-fd532d111578";
+        /// <summary>
+        /// Automatic linked data
+        /// </summary>
+        public const string AUTOMAGIC_CLASSIFICATION = "4311E243-FCDF-43D0-9905-41FD231B1B51";
+        /// <summary>
+        /// Verified classification
+        /// </summary>
+        public const string VERIFIED_CLASSIFICATION = "3B9365BA-C229-44C4-95AE-6489809A33F0";
+        /// <summary>
+        /// Verified classification
+        /// </summary>
+        public const string SYSTEM_CLASSIFICATION = "253BED89-1C83-4723-AF14-71CD83F4B249";
 
         /// <summary>
         /// Identity match UUID
@@ -65,12 +104,12 @@ namespace SanteDB.Persistence.MDM
         /// <summary>
         /// Master record classification
         /// </summary>
-        public static readonly Guid MasterRecordClassification = Guid.Parse("49328452-7e30-4dcd-94cd-fd532d111578");
+        public static readonly Guid MasterRecordClassification = Guid.Parse(MASTER_RECORD_CLASSIFICIATION);
 
         /// <summary>
         /// Determiner codes
         /// </summary>
-        public static readonly Guid RecordOfTruthDeterminer = Guid.Parse("6B1D6764-12BE-42DC-A5DC-52FC275C4935");
+        public static readonly Guid RecordOfTruthDeterminer = Guid.Parse(RECORD_OF_TRUTH_DETERMINER);
 
         /// <summary>
         /// The name of the trace source to use for the MDM logs
@@ -86,22 +125,22 @@ namespace SanteDB.Persistence.MDM
         /// Indicates that the source entity is a local, however it isn't a local in that the matcher "found" it,
         /// rather it is a local which was the result of someone editing the master
         /// </summary>
-        public static readonly Guid OriginalMasterRelationship = Guid.Parse("a2837281-7e30-4dcd-94cd-fd532d111578");
+        public static readonly Guid OriginalMasterRelationship = Guid.Parse(ORIGINAL_MASTER_RELATIONSHIP);
 
         /// <summary>
         /// Automatic linked data
         /// </summary>
-        public static readonly Guid AutomagicClassification = Guid.Parse("4311E243-FCDF-43D0-9905-41FD231B1B51");
+        public static readonly Guid AutomagicClassification = Guid.Parse(AUTOMAGIC_CLASSIFICATION);
 
         /// <summary>
         /// Verified classification
         /// </summary>
-        public static readonly Guid VerifiedClassification = Guid.Parse("3B9365BA-C229-44C4-95AE-6489809A33F0");
+        public static readonly Guid VerifiedClassification = Guid.Parse(VERIFIED_CLASSIFICATION);
 
         /// <summary>
         /// Verified classification
         /// </summary>
-        public static readonly Guid SystemClassification = Guid.Parse("253BED89-1C83-4723-AF14-71CD83F4B249");
+        public static readonly Guid SystemClassification = Guid.Parse(SYSTEM_CLASSIFICATION);
 
         /// <summary>
         /// MDM Classification tag

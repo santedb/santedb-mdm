@@ -65,7 +65,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         public abstract IdentifiedData GetLocalFor(Guid masterKey, IPrincipal principal);
 
         /// <summary>
-        /// Create a local for <paramref name="masterRecord"/> owned by <paramref name="principal"/>
+        /// Create a local for <paramref name="masterRecord"/>.
         /// </summary>
         public abstract IdentifiedData CreateLocalFor(IdentifiedData masterRecord);
 
@@ -228,7 +228,9 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         protected IDataPersistenceService m_underlyingTypePersistence;
 
-        // Ad-hoc cache
+        /// <summary>
+        /// Ad-hoc cache
+        /// </summary>
         protected readonly IAdhocCacheService m_adhocCache;
 
         /// <summary>
