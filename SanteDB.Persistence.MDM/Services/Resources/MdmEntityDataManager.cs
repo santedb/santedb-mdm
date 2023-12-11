@@ -421,7 +421,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         public override IEnumerable<ISimpleAssociation> ExtractRelationships(TModel store)
         {
-            var retVal = store.LoadProperty(o=>o.Relationships)?.Where(o => o.SourceEntityKey.HasValue && o.SourceEntityKey != store.Key).ToList();
+            var retVal = store.LoadProperty(o => o.Relationships)?.Where(o => o.SourceEntityKey.HasValue && o.SourceEntityKey != store.Key).ToList();
             store.Relationships.RemoveAll(o => o.SourceEntityKey.HasValue && o.SourceEntityKey != store.Key);
             return retVal;
         }
@@ -1084,44 +1084,40 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 context = new IdentifiedData[0]; // revent nre
             }
 
-            if (this.IsMaster(fromKey))
+            if (!this.IsMaster(fromKey) && this.IsMaster(toKey))
             {
-                var existingRelationship = this.GetMasterRelationshipFor(toKey, null);
-                if (existingRelationship == null || existingRelationship.TargetEntityKey != fromKey)
-                {
-                    throw new InvalidOperationException($"Cannot unlink {toKey} from {fromKey} as MDM relationship in place is between {existingRelationship.SourceEntityKey} and {existingRelationship.TargetEntityKey}");
-                }
-
-                // First, add an ignore instruction
-                existingRelationship.BatchOperation = BatchOperationType.Delete;
-
-                this.m_adhocCache?.Remove($"mdm.master.{toKey}");
-
-                yield return existingRelationship;
-
-                // Next we we add an ignore
-                var ignoreRelationship = new EntityRelationship(MdmConstants.IgnoreCandidateRelationship, existingRelationship.HolderKey, existingRelationship.TargetEntityKey, MdmConstants.VerifiedClassification);
-                yield return ignoreRelationship;
-
-                var local = (TModel)existingRelationship.LoadProperty(o => o.SourceEntity);
-                // Remove the relationship from the local copy
-                local.LoadCollection(o => o.Relationships);
-                local.Relationships.RemoveAll(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship);
-
-                var localIgnores = this.GetAssociatedLocals(fromKey).Select(o => new EntityRelationship(MdmConstants.IgnoreCandidateRelationship, existingRelationship.HolderKey, o.SourceEntityKey, MdmConstants.SystemClassification));
-
-                // Next, establsh a new MDM master
-                foreach (var itm in this.MdmTxMatchMasters(local, new IdentifiedData[] { existingRelationship, ignoreRelationship }.Union(localIgnores)))
-                {
-                    yield return itm;
-                }
+                var tkey = fromKey;
+                fromKey = toKey;
+                toKey = tkey;
             }
-            else if (this.IsMaster(toKey))
+            var existingRelationship = this.GetMasterRelationshipFor(toKey, null);
+            if (existingRelationship == null || existingRelationship.TargetEntityKey != fromKey)
             {
-                foreach (var itm in this.MdmTxMasterUnlink(toKey, fromKey, context))
-                {
-                    yield return itm;
-                }
+                throw new InvalidOperationException($"Cannot unlink {toKey} from {fromKey} as MDM relationship in place is between {existingRelationship.SourceEntityKey} and {existingRelationship.TargetEntityKey}");
+            }
+
+            // First, add an ignore instruction
+            existingRelationship.BatchOperation = BatchOperationType.Delete;
+
+            this.m_adhocCache?.Remove($"mdm.master.{toKey}");
+
+            yield return existingRelationship;
+
+            // Next we we add an ignore
+            var ignoreRelationship = new EntityRelationship(MdmConstants.IgnoreCandidateRelationship, existingRelationship.HolderKey, existingRelationship.TargetEntityKey, MdmConstants.VerifiedClassification);
+            yield return ignoreRelationship;
+
+            var local = (TModel)existingRelationship.LoadProperty(o => o.SourceEntity);
+            // Remove the relationship from the local copy
+            local.LoadCollection(o => o.Relationships);
+            local.Relationships.RemoveAll(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship);
+
+            var localIgnores = this.GetAssociatedLocals(fromKey).Select(o => new EntityRelationship(MdmConstants.IgnoreCandidateRelationship, existingRelationship.HolderKey, o.SourceEntityKey, MdmConstants.SystemClassification));
+
+            // Next, establsh a new MDM master
+            foreach (var itm in this.MdmTxMatchMasters(local, new IdentifiedData[] { existingRelationship, ignoreRelationship }.Union(localIgnores)))
+            {
+                yield return itm;
             }
         }
 
@@ -1130,57 +1126,55 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         public override IEnumerable<IdentifiedData> MdmTxIgnoreCandidateMatch(Guid hostKey, Guid ignoreKey, IEnumerable<IdentifiedData> context)
         {
-            if (this.IsMaster(hostKey))
+            if (!this.IsMaster(hostKey) && this.IsMaster(ignoreKey))
             {
-                // Remove the candidate link
-                var candidateLink = this.GetCandidateLocals(hostKey)
-                    .FirstOrDefault(o => o.SourceEntityKey == ignoreKey) as EntityRelationship;
-                if (candidateLink != null)
-                {
-                    this.m_traceSource.TraceUntestedWarning();
-                    candidateLink.BatchOperation = BatchOperationType.Delete;
-                    yield return candidateLink;
-                }
-                yield return new EntityRelationship()
-                {
-                    BatchOperation = BatchOperationType.InsertOrUpdate,
-                    SourceEntityKey = ignoreKey,
-                    TargetEntityKey = hostKey,
-                    ClassificationKey = MdmConstants.VerifiedClassification,
-                    RelationshipTypeKey = MdmConstants.IgnoreCandidateRelationship
-                };
+                var tkey = hostKey;
+                hostKey = ignoreKey;
+                ignoreKey = tkey;
+            }
 
-                // Add reverse ignores on the master
-                // This covers A(LOC)--[IGNORE]-->B(MAS) however if that is true then
-                // B(LOC)--[IGNORE]-->A(MAS)
-                var existingIgnoreMaster = this.GetMasterRelationshipFor(ignoreKey, context);
-                var otherHostLocals = this.GetAssociatedLocals(hostKey);
-                // Get all candidate locals for the ignore master
-                foreach (var reverseCandidate in this.GetCandidateLocals(existingIgnoreMaster.TargetEntityKey.Value).OfType<EntityRelationship>())
-                {
-                    // Were any of those reverse candidates in the host locals?
-                    if (otherHostLocals.Any(l => l.SourceEntityKey == reverseCandidate.SourceEntityKey))
-                    {
-                        reverseCandidate.BatchOperation = BatchOperationType.Delete;
-                        yield return reverseCandidate; // delete the old candidate reverse relationship
-                        yield return new EntityRelationship()
-                        {
-                            BatchOperation = BatchOperationType.InsertOrUpdate,
-                            SourceEntityKey = reverseCandidate.SourceEntityKey,
-                            TargetEntityKey = reverseCandidate.TargetEntityKey,
-                            ClassificationKey = MdmConstants.VerifiedClassification,
-                            RelationshipTypeKey = MdmConstants.IgnoreCandidateRelationship
-                        };
-                    }
-                }
-            }
-            else if (this.IsMaster(ignoreKey))
+            // Remove the candidate link
+            var candidateLink = this.GetCandidateLocals(hostKey)
+                .FirstOrDefault(o => o.SourceEntityKey == ignoreKey) as EntityRelationship;
+            if (candidateLink != null)
             {
-                foreach (var itm in this.MdmTxIgnoreCandidateMatch(ignoreKey, hostKey, context))
+                this.m_traceSource.TraceUntestedWarning();
+                candidateLink.BatchOperation = BatchOperationType.Delete;
+                yield return candidateLink;
+            }
+            yield return new EntityRelationship()
+            {
+                BatchOperation = BatchOperationType.InsertOrUpdate,
+                SourceEntityKey = ignoreKey,
+                TargetEntityKey = hostKey,
+                ClassificationKey = MdmConstants.VerifiedClassification,
+                RelationshipTypeKey = MdmConstants.IgnoreCandidateRelationship
+            };
+
+            // Add reverse ignores on the master
+            // This covers A(LOC)--[IGNORE]-->B(MAS) however if that is true then
+            // B(LOC)--[IGNORE]-->A(MAS)
+            var existingIgnoreMaster = this.GetMasterRelationshipFor(ignoreKey, context);
+            var otherHostLocals = this.GetAssociatedLocals(hostKey);
+            // Get all candidate locals for the ignore master
+            foreach (var reverseCandidate in this.GetCandidateLocals(existingIgnoreMaster.TargetEntityKey.Value).OfType<EntityRelationship>())
+            {
+                // Were any of those reverse candidates in the host locals?
+                if (otherHostLocals.Any(l => l.SourceEntityKey == reverseCandidate.SourceEntityKey))
                 {
-                    yield return itm;
+                    reverseCandidate.BatchOperation = BatchOperationType.Delete;
+                    yield return reverseCandidate; // delete the old candidate reverse relationship
+                    yield return new EntityRelationship()
+                    {
+                        BatchOperation = BatchOperationType.InsertOrUpdate,
+                        SourceEntityKey = reverseCandidate.SourceEntityKey,
+                        TargetEntityKey = reverseCandidate.TargetEntityKey,
+                        ClassificationKey = MdmConstants.VerifiedClassification,
+                        RelationshipTypeKey = MdmConstants.IgnoreCandidateRelationship
+                    };
                 }
             }
+
         }
 
         /// <summary>
