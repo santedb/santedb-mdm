@@ -76,27 +76,7 @@
     <None Include="Services\BundleResourceListener.cs" />
   </ItemGroup>
   <Choose>
-    <When Condition="$(SolutionName.Contains('-ext'))">
-      <ItemGroup>
-        <ProjectReference Include="..\..\santedb-api\SanteDB.Core.Api\SanteDB.Core.Api.csproj">
-          <Project>{3A45F695-47A2-464C-ACE6-BDABBFA39FBC}</Project>
-          <Name>SanteDB.Core.Api</Name>
-        </ProjectReference>
-        <ProjectReference Include="..\..\santedb-model\SanteDB.Core.Model\SanteDB.Core.Model.csproj">
-          <Project>{F1A82A4F-4A57-47D7-AE76-444C8A4FF54A}</Project>
-          <Name>SanteDB.Core.Model</Name>
-        </ProjectReference>
-        <ProjectReference Include="..\..\santedb-docker\SanteDB.Docker.Core\SanteDB.Docker.Core.csproj">
-          <Project>{284CE885-78E0-48EA-A2E4-6957AD66EAB5}</Project>
-          <Name>SanteDB.Docker.Core</Name>
-        </ProjectReference>
-        <ProjectReference Include="..\..\restsrvr\RestSrvr\RestSrvr.csproj" />
-        <ProjectReference Include="..\..\santedb-restsvc\SanteDB.Rest.Common\SanteDB.Rest.Common.csproj" />
-        <ProjectReference Include="..\..\santedb-fhir\SanteDB.Messaging.FHIR\SanteDB.Messaging.FHIR.csproj" />
-        <ProjectReference Include="..\..\santedb-i18n\SanteDB.Core.i18n\SanteDB.Core.i18n.csproj" />
-      </ItemGroup>
-    </When>
-    <Otherwise>
+    <When Condition="$(SolutionName.Contains('-nuget'))">
       <ItemGroup>
         <PackageReference Include="SanteDB.Core.i18n" Version="$(VersionNumber)" />
         <PackageReference Include="SanteDB.Core.Api" Version="$(VersionNumber)" />
@@ -104,6 +84,17 @@
         <PackageReference Include="SanteDB.Docker.Core" Version="$(VersionNumber)" />
         <PackageReference Include="SanteDB.Rest.Common" Version="$(VersionNumber)" />
         <PackageReference Include="SanteDB.Messaging.FHIR" Version="$(VersionNumber)" />
+      </ItemGroup>
+    </When>
+    <Otherwise>
+      <ItemGroup>
+        <ProjectReference Include="..\..\santedb-api\SanteDB.Core.Api\SanteDB.Core.Api.csproj" />
+        <ProjectReference Include="..\..\santedb-model\SanteDB.Core.Model\SanteDB.Core.Model.csproj" />
+        <ProjectReference Include="..\..\santedb-docker\SanteDB.Docker.Core\SanteDB.Docker.Core.csproj" />
+        <ProjectReference Include="..\..\restsrvr\RestSrvr\RestSrvr.csproj" />
+        <ProjectReference Include="..\..\santedb-restsvc\SanteDB.Rest.Common\SanteDB.Rest.Common.csproj" />
+        <ProjectReference Include="..\..\santedb-fhir\SanteDB.Messaging.FHIR\SanteDB.Messaging.FHIR.csproj" />
+        <ProjectReference Include="..\..\santedb-i18n\SanteDB.Core.i18n\SanteDB.Core.i18n.csproj" />
       </ItemGroup>
     </Otherwise>
   </Choose>
