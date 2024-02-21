@@ -149,6 +149,9 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         public abstract IQueryResultSet<ITargetedAssociation> GetGlobalMergeCandidates();
 
+        /// <inheritdoc/>
+        public abstract void DetectMergeCandidates(Guid masterKey);
+
         /// <summary>
         /// Detect global merge candidates
         /// </summary>

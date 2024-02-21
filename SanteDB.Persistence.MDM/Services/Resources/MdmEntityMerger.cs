@@ -21,6 +21,7 @@
 using SanteDB.Core.BusinessRules;
 using SanteDB.Core.Exceptions;
 using SanteDB.Core.Model;
+using SanteDB.Core.Model.Acts;
 using SanteDB.Core.Model.Attributes;
 using SanteDB.Core.Model.Collection;
 using SanteDB.Core.Model.Constants;
@@ -149,7 +150,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             }
 
             /// <summary>
-            /// Dispose of this context
+            /// Dispose of this context - waits until all the records are complete
             /// </summary>
             public void Dispose()
             {
@@ -757,6 +758,50 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         public void Dispose()
         {
             this.m_disposed = true;
+        }
+
+        /// <inheritdoc/>
+        public override void DetectMergeCandidates(Guid masterKey)
+        {
+            // Load the current master from @scopingKey
+            if (!this.m_dataManager.IsMaster(masterKey))
+            {
+                throw new KeyNotFoundException($"{masterKey} is not an MDM Master");
+            }
+
+            // Now - we want to prepare a transaction
+            Bundle retVal = new Bundle();
+
+            foreach (var itm in this.m_dataManager.GetCandidateLocals(masterKey).ToList().Where(o => o.ClassificationKey == MdmConstants.AutomagicClassification))
+            {
+                if (itm is EntityRelationship er)
+                {
+                    er.BatchOperation = Core.Model.DataTypes.BatchOperationType.Delete;
+                    retVal.Add(er);
+                }
+                else if (itm is ActRelationship ar)
+                {
+                    ar.BatchOperation = Core.Model.DataTypes.BatchOperationType.Delete;
+                    retVal.Add(ar);
+                }
+            }
+
+            retVal.AddRange(this.m_dataManager.MdmTxDetectCandidates(this.m_dataManager.MdmGet(masterKey).Synthesize(AuthenticationContext.Current.Principal) as Entity, retVal.Item));
+
+            // Now we want to save?
+            try
+            {
+                if (retVal.Item.Any())
+                {
+                    retVal = this.m_batchPersistence.Insert(retVal, TransactionMode.Commit, AuthenticationContext.Current.Principal);
+                }
+            }
+            catch (Exception e)
+            {
+                this.m_tracer.TraceError("Error persisting re-match: {0}", e.Message);
+                throw new MdmException("Error persisting re-match operation", e);
+            }
+        
         }
     }
 }

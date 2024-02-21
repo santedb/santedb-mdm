@@ -21,6 +21,8 @@
 using SanteDB.Core;
 using SanteDB.Core.Configuration;
 using SanteDB.Core.Data;
+using SanteDB.Core.Data.Management;
+using SanteDB.Core.Data.Management.Jobs;
 using SanteDB.Core.Diagnostics;
 using SanteDB.Core.Event;
 using SanteDB.Core.Jobs;
@@ -194,7 +196,7 @@ namespace SanteDB.Persistence.MDM.Services
                 this.m_serviceManager.AddServiceProvider(MdmDataManagerFactory.CreateMerger(itm.Type));
 
                 // Add job
-                var jobType = typeof(MdmMatchJob<>).MakeGenericType(itm.Type);
+                var jobType = typeof(MatchJob<>).MakeGenericType(itm.Type);
                 var job = this.m_serviceManager.CreateInjected(jobType) as IJob;
                 this.m_jobManager?.AddJob(job, JobStartType.Never);
             }
