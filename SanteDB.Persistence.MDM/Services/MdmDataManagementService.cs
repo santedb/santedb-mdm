@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright (C) 2021 - 2023, SanteSuite Inc. and the SanteSuite Contributors (See NOTICE.md for full copyright notices)
+ * Copyright (C) 2021 - 2024, SanteSuite Inc. and the SanteSuite Contributors (See NOTICE.md for full copyright notices)
  * Copyright (C) 2019 - 2021, Fyfe Software Inc. and the SanteSuite Contributors
  * Portions Copyright (C) 2015-2018 Mohawk College of Applied Arts and Technology
  * 
@@ -16,11 +16,13 @@
  * the License.
  * 
  * User: fyfej
- * Date: 2023-5-19
+ * Date: 2023-6-21
  */
 using SanteDB.Core;
 using SanteDB.Core.Configuration;
 using SanteDB.Core.Data;
+using SanteDB.Core.Data.Management;
+using SanteDB.Core.Data.Management.Jobs;
 using SanteDB.Core.Diagnostics;
 using SanteDB.Core.Event;
 using SanteDB.Core.Jobs;
@@ -34,7 +36,6 @@ using SanteDB.Core.Model.Query;
 using SanteDB.Core.Model.Serialization;
 using SanteDB.Core.Security;
 using SanteDB.Core.Services;
-using SanteDB.Persistence.MDM.Jobs;
 using SanteDB.Persistence.MDM.Model;
 using SanteDB.Persistence.MDM.Services.Resources;
 using System;
@@ -194,7 +195,7 @@ namespace SanteDB.Persistence.MDM.Services
                 this.m_serviceManager.AddServiceProvider(MdmDataManagerFactory.CreateMerger(itm.Type));
 
                 // Add job
-                var jobType = typeof(MdmMatchJob<>).MakeGenericType(itm.Type);
+                var jobType = typeof(MatchJob<>).MakeGenericType(itm.Type);
                 var job = this.m_serviceManager.CreateInjected(jobType) as IJob;
                 this.m_jobManager?.AddJob(job, JobStartType.Never);
             }
