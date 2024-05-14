@@ -218,7 +218,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 {
                     if (i.SourceEntity == null)
                     {
-                        var candidate = bundle.Item.Find(o => o.Key == i.SourceEntityKey) as Entity;
+                        var candidate = bundle.Item.OfType<Entity>().FirstOrDefault(o => o.Key == i.SourceEntityKey) as Entity;
                         if (candidate != null)
                         {
                             i.SourceEntity = candidate;
