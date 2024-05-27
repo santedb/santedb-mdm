@@ -560,8 +560,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 // Rewrite the focal object to the proper objects actually being actioned
                 if (originalKey != store.Key.Value)
                 {
-                    var replaceKeys = bundle.FocalObjects.Where(f => f == originalKey).ToArray();
-                    if (replaceKeys.Any())
+                    var replaceKeys = bundle.FocalObjects?.Where(f => f == originalKey).ToArray();
+                    if (replaceKeys?.Any() == true)
                     {
                         bundle.FocalObjects.Add(store.Key.Value);
                         bundle.FocalObjects.RemoveAll(f => f == originalKey);
