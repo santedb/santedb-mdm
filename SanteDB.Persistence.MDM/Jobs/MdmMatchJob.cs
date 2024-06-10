@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright (C) 2021 - 2023, SanteSuite Inc. and the SanteSuite Contributors (See NOTICE.md for full copyright notices)
+ * Copyright (C) 2021 - 2024, SanteSuite Inc. and the SanteSuite Contributors (See NOTICE.md for full copyright notices)
  * Copyright (C) 2019 - 2021, Fyfe Software Inc. and the SanteSuite Contributors
  * Portions Copyright (C) 2015-2018 Mohawk College of Applied Arts and Technology
  * 
@@ -16,18 +16,14 @@
  * the License.
  * 
  * User: fyfej
- * Date: 2023-5-19
+ * Date: 2023-6-21
  */
-using SanteDB.Core.Diagnostics;
+using SanteDB.Core.Data.Management.Jobs;
 using SanteDB.Core.Jobs;
 using SanteDB.Core.Model;
-using SanteDB.Core.Security;
 using SanteDB.Core.Services;
 using System;
-using System.Collections.Generic;
 using System.ComponentModel;
-using System.Security.Cryptography;
-using System.Text;
 
 namespace SanteDB.Persistence.MDM.Jobs
 {
@@ -36,109 +32,12 @@ namespace SanteDB.Persistence.MDM.Jobs
     /// </summary>
     /// <typeparam name="T">The type of object to match on</typeparam>
     [DisplayName("MDM Batch Matching Job")]
-    public class MdmMatchJob<T> : IJob
+    [Obsolete("Use SanteDB.Core.Data.Management.Jobs.MatchJob", true)]
+    public class MdmMatchJob<T> : MatchJob<T>
         where T : IdentifiedData, new()
     {
-        // Guid
-        private readonly Guid m_id;
-
-        // Merge service
-        private IRecordMergingService<T> m_mergeService;
-        private readonly IJobStateManagerService m_stateManager;
-
-        // Tracer
-        private readonly Tracer m_tracer = Tracer.GetTracer(typeof(MdmMatchJob<T>));
-
-        /// <summary>
-        /// Create a match job
-        /// </summary>
-        public MdmMatchJob(IRecordMergingService<T> recordMergingService, IJobManagerService jobManager, IJobStateManagerService stateManagerService)
+        public MdmMatchJob(IRecordMergingService<T> recordMergingService, IJobManagerService jobManager, IJobStateManagerService stateManagerService) : base(recordMergingService, jobManager, stateManagerService)
         {
-            this.m_id = new Guid(MD5.Create().ComputeHash(Encoding.ASCII.GetBytes(typeof(T).Name)));
-
-            this.m_mergeService = recordMergingService;
-            this.m_stateManager = stateManagerService;
-
-            // Progress change handler
-            if (this.m_mergeService is IReportProgressChanged rpt)
-            {
-                rpt.ProgressChanged += (o, p) =>
-                {
-                    this.m_stateManager.SetProgress(this, p.State.ToString(), p.Progress);
-                };
-            }
-        }
-
-        /// <summary>
-        /// Get the identifier
-        /// </summary>
-        public Guid Id => this.m_id;
-
-        /// <summary>
-        /// Name of the matching job
-        /// </summary>
-        public string Name => $"Background Matching Job for {typeof(T).Name}";
-
-
-        /// <inheritdoc/>
-        public string Description => $"Starts a background process which re-processes detected duplicate SOURCE records for {typeof(T).Name}";
-
-        /// <summary>
-        /// Can cancel the job?
-        /// </summary>
-        public bool CanCancel => false;
-
-        /// <summary>
-        /// Gets the parameters for the job
-        /// </summary>
-        public IDictionary<string, Type> Parameters => new Dictionary<String, Type>()
-        {
-            { "clearExistingMdmData", typeof(bool) }
-        };
-
-        /// <summary>
-        /// Cancel the job
-        /// </summary>
-        public void Cancel()
-        {
-            throw new NotSupportedException();
-        }
-
-        /// <summary>
-        /// Run the specified job
-        /// </summary>
-        public void Run(object sender, EventArgs e, object[] parameters)
-        {
-            try
-            {
-                using (AuthenticationContext.EnterSystemContext())
-                {
-                    this.m_stateManager.SetState(this, JobStateType.Running);
-                    var clear = parameters.Length > 0 ? (bool?)parameters[0] : false;
-                    this.m_tracer.TraceInfo("Starting batch run of MDM Matching ");
-
-                    if (clear.GetValueOrDefault())
-                    {
-                        this.m_tracer.TraceVerbose("Batch instruction indicates clear of all links");
-                        this.m_mergeService.ClearGlobalIgnoreFlags();
-                        this.m_mergeService.ClearGlobalMergeCanadidates();
-                    }
-                    else
-                    {
-                        this.m_mergeService.ClearGlobalMergeCanadidates();
-                    }
-
-                    this.m_mergeService.DetectGlobalMergeCandidates();
-
-                    this.m_stateManager.SetState(this, JobStateType.Completed);
-                }
-            }
-            catch (Exception ex)
-            {
-                this.m_stateManager.SetState(this, JobStateType.Aborted);
-                this.m_stateManager.SetProgress(this, ex.Message, 0.0f);
-                this.m_tracer.TraceError("Could not run MDM Matching Job: {0}", ex);
-            }
         }
     }
 }
