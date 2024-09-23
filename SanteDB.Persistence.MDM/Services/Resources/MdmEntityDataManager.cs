@@ -451,6 +451,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     {
                         entityRelationship.TargetEntityKey = toEntityKey;
                     }
+
+                    entityRelationship.SourceEntity = entityRelationship.TargetEntity = null;
                 }
             }
         }
