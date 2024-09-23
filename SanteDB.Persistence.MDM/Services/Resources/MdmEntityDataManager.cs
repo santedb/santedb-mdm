@@ -452,7 +452,16 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                         entityRelationship.TargetEntityKey = toEntityKey;
                     }
 
-                    entityRelationship.SourceEntity = entityRelationship.TargetEntity = null;
+                    if (entityRelationship.SourceEntityKey.HasValue)
+                    {
+                        entityRelationship.SourceEntity = null;
+                        entityRelationship.ClearLoaded(o => o.SourceEntity);
+                    }
+                    if (entityRelationship.TargetEntityKey.HasValue)
+                    {
+                        entityRelationship.TargetEntity = null;
+                        entityRelationship.ClearLoaded(o => o.TargetEntity);
+                    }
                 }
             }
         }
