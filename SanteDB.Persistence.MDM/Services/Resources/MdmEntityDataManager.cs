@@ -451,6 +451,17 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     {
                         entityRelationship.TargetEntityKey = toEntityKey;
                     }
+
+                    if (entityRelationship.SourceEntityKey.HasValue)
+                    {
+                        entityRelationship.SourceEntity = null;
+                        entityRelationship.ClearLoaded(o => o.SourceEntity);
+                    }
+                    if (entityRelationship.TargetEntityKey.HasValue)
+                    {
+                        entityRelationship.TargetEntity = null;
+                        entityRelationship.ClearLoaded(o => o.TargetEntity);
+                    }
                 }
             }
         }
@@ -524,12 +535,14 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             if (principal is IClaimsPrincipal claimsPrincipal)
             {
                 var applicationPrincipal = claimsPrincipal.Identities.OfType<IApplicationIdentity>().SingleOrDefault();
-                return provenanceApp.Name == applicationPrincipal.Name;
+
+                if (null != applicationPrincipal)
+                {
+                    return provenanceApp.Name == applicationPrincipal.Name;
+                }
             }
-            else
-            {
-                return provenanceApp.Name == principal.Identity.Name;
-            }
+
+            return provenanceApp.Name == principal.Identity.Name;
         }
 
         /// <summary>
