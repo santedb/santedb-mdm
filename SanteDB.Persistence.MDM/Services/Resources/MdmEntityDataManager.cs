@@ -628,6 +628,13 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 retVal.AddFirst(data);
             }
 
+            // Remove all relationships from the data and persist at end of bundle
+            foreach (var itm in data.Relationships)
+            {
+                itm.SourceEntityKey = itm.SourceEntityKey ?? data.Key;
+                retVal.AddLast(itm);
+            }
+            data.Relationships.Clear();
             return retVal;
         }
 
@@ -666,6 +673,15 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             {
                 yield return rv;
             }
+
+            // Remove all relationships from the data and persist at end of bundle
+            foreach (var itm in data.Relationships)
+            {
+                itm.SourceEntityKey = itm.SourceEntityKey ?? data.Key;
+                yield return itm;
+            }
+            data.Relationships.Clear();
+
         }
 
         /// <summary>
