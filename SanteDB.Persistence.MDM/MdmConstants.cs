@@ -73,6 +73,11 @@ namespace SanteDB.Persistence.MDM
         public const string SYSTEM_CLASSIFICATION = "253BED89-1C83-4723-AF14-71CD83F4B249";
 
         /// <summary>
+        /// Control acts which represent a MDM action
+        /// </summary>
+        public const string MDM_CONTROL_ACT_TYPE = "D34081D8-740A-48E2-9E4B-E418CFE174FF";
+
+        /// <summary>
         /// Identity match UUID
         /// </summary>
         public static readonly Guid IdentityMatchUuid = Guid.Parse(IDENTITY_MATCH_UUID);
@@ -139,6 +144,11 @@ namespace SanteDB.Persistence.MDM
         /// Verified classification
         /// </summary>
         public static readonly Guid SystemClassification = Guid.Parse(SYSTEM_CLASSIFICATION);
+
+        /// <summary>
+        /// MDM Control act key
+        /// </summary>
+        public static readonly Guid MdmControlActType = Guid.Parse(MDM_CONTROL_ACT_TYPE);
 
         /// <summary>
         /// MDM Classification tag
