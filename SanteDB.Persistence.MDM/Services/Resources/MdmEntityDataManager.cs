@@ -311,6 +311,17 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 local.Relationships.Add(rel as EntityRelationship);
             }
             rotRelationship.SourceEntityKey = master.Key;
+
+            // Attribute back to the owner act
+            local.CreationActKey = Guid.NewGuid();
+            local.CreationAct = new ControlAct()
+            {
+                Key = local.CreationActKey,
+                TypeConceptKey = MdmConstants.MdmControlActType,
+                ActTime = DateTimeOffset.Now,
+                StatusConceptKey = StatusKeys.Completed,
+                MoodConceptKey = ActMoodKeys.Eventoccurrence
+            };
             return local;
         }
 
@@ -635,6 +646,18 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 retVal.AddLast(itm);
             }
             data.Relationships.Clear();
+
+            // Attribute back to the owner act
+            data.CreationActKey = Guid.NewGuid();
+            retVal.AddLast(new ControlAct()
+            {
+                Key = data.CreationActKey,
+                TypeConceptKey = MdmConstants.MdmControlActType,
+                ActTime = DateTimeOffset.Now,
+                StatusConceptKey = StatusKeys.Completed,
+                MoodConceptKey = ActMoodKeys.Eventoccurrence
+            });
+
             return retVal;
         }
 
