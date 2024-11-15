@@ -156,6 +156,11 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         public abstract void DetectGlobalMergeCandidates();
 
         /// <summary>
+        /// Cancel the detection of global merge candidates
+        /// </summary>
+        public abstract void CancelDetectGlobalMergeCandidates();
+
+        /// <summary>
         /// Clear global merge candidates
         /// </summary>
         public abstract void ClearGlobalMergeCanadidates();

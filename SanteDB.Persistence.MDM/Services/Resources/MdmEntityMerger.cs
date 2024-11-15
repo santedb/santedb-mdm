@@ -190,6 +190,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         // Disposed
 #pragma warning disable CS0414 // The field 'MdmEntityMerger<TEntity>.m_disposed' is assigned but its value is never used
         private bool m_disposed = false;
+        private bool m_matchingCancelationRequested;
 #pragma warning restore CS0414 // The field 'MdmEntityMerger<TEntity>.m_disposed' is assigned but its value is never used
 
         /// <summary>
@@ -544,7 +545,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                         this.m_threadPool.QueueUserWorkItem(this.BackgroundMatchProcess, matchContext);
                     }
 
-                    // Main matching loop - 
+                    // Main matching loop -
+                    this.m_matchingCancelationRequested = false;
                     try
                     {
                         var recordsToProcess = this.m_entityPersistence.Query(o => StatusKeys.ActiveStates.Contains(o.StatusConceptKey.Value) && o.DeterminerConceptKey != MdmConstants.RecordOfTruthDeterminer, AuthenticationContext.SystemPrincipal);
@@ -561,6 +563,11 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                                 this.ProgressChanged?.Invoke(this, new ProgressChangedEventArgs(nameof(DetectGlobalMergeCandidates), nRecordsLoaded++ / (float)totalRecords, $"Matching {matchContext.RecordsProcessed} recs @ {rps:#.#} r/s"));
                                 rps = 1000.0f * (float)matchContext.RecordsProcessed / (float)sw.ElapsedMilliseconds;
                                 matchContext.QueueLoadedRecord(itm);
+                                if (this.m_matchingCancelationRequested)
+                                {
+                                    break;
+                                }
+
                             }
                         }
 
@@ -569,6 +576,10 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     catch (Exception e)
                     {
                         matchContext.Halt(e);
+                    }
+                    finally
+                    {
+                        this.m_matchingCancelationRequested = false;
                     }
                     this.m_tracer.TraceVerbose("DetectGlobalMergeCandidate: Completed matching");
                 }
@@ -800,6 +811,12 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 throw new MdmException("Error persisting re-match operation", e);
             }
 
+        }
+
+        /// <inheritdoc/>
+        public override void CancelDetectGlobalMergeCandidates()
+        {
+            this.m_matchingCancelationRequested = true;
         }
     }
 }

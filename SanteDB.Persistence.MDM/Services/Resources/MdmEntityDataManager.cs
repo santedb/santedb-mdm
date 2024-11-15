@@ -143,11 +143,11 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             // Identity
             if (identity is IDeviceIdentity deviceIdentity)
             {
-                return this.m_persistenceService.Query(o => o.Relationships.Where(g => g.RelationshipTypeKey == MdmConstants.MasterRecordRelationship).Any(g => g.TargetEntityKey == masterKey) && o.CreatedBy.Device.Name == deviceIdentity.Name, AuthenticationContext.SystemPrincipal).FirstOrDefault();
+                return this.m_persistenceService.Query(o => o.Relationships.Where(g => g.RelationshipTypeKey == MdmConstants.MasterRecordRelationship).Any(g => g.TargetEntityKey == masterKey) && o.CreationAct.CreatedBy.Device.Name == deviceIdentity.Name, AuthenticationContext.SystemPrincipal).FirstOrDefault();
             }
             else if (identity is IApplicationIdentity applicationIdentity)
             {
-                return this.m_persistenceService.Query(o => o.Relationships.Where(g => g.RelationshipTypeKey == MdmConstants.MasterRecordRelationship).Any(g => g.TargetEntityKey == masterKey) && o.CreatedBy.Application.Name == applicationIdentity.Name, AuthenticationContext.SystemPrincipal).FirstOrDefault();
+                return this.m_persistenceService.Query(o => o.Relationships.Where(g => g.RelationshipTypeKey == MdmConstants.MasterRecordRelationship).Any(g => g.TargetEntityKey == masterKey) && o.CreationAct.CreatedBy.Application.Name == applicationIdentity.Name, AuthenticationContext.SystemPrincipal).FirstOrDefault();
             }
             else
             {
@@ -311,6 +311,17 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 local.Relationships.Add(rel as EntityRelationship);
             }
             rotRelationship.SourceEntityKey = master.Key;
+
+            // Attribute back to the owner act
+            local.CreationActKey = Guid.NewGuid();
+            local.CreationAct = new ControlAct()
+            {
+                Key = local.CreationActKey,
+                TypeConceptKey = MdmConstants.MdmControlActType,
+                ActTime = DateTimeOffset.Now,
+                StatusConceptKey = StatusKeys.Completed,
+                MoodConceptKey = ActMoodKeys.Eventoccurrence
+            };
             return local;
         }
 
@@ -628,6 +639,25 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 retVal.AddFirst(data);
             }
 
+            // Remove all relationships from the data and persist at end of bundle
+            foreach (var itm in data.Relationships)
+            {
+                itm.SourceEntityKey = itm.SourceEntityKey ?? data.Key;
+                retVal.AddLast(itm);
+            }
+            data.Relationships.Clear();
+
+            // Attribute back to the owner act
+            data.CreationActKey = Guid.NewGuid();
+            retVal.AddLast(new ControlAct()
+            {
+                Key = data.CreationActKey,
+                TypeConceptKey = MdmConstants.MdmControlActType,
+                ActTime = DateTimeOffset.Now,
+                StatusConceptKey = StatusKeys.Completed,
+                MoodConceptKey = ActMoodKeys.Eventoccurrence
+            });
+
             return retVal;
         }
 
@@ -666,6 +696,30 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             {
                 yield return rv;
             }
+
+            // Remove all relationships from the data and persist at end of bundle
+            foreach (var itm in data.Relationships)
+            {
+                itm.SourceEntityKey = itm.SourceEntityKey ?? data.Key;
+                yield return itm;
+            }
+
+            data.Relationships.Clear();
+
+            // Attribute back to the owner act
+            if (!data.CreationActKey.HasValue && data.CreationAct == null)
+            {
+                data.CreationActKey = Guid.NewGuid();
+                yield return new ControlAct()
+                {
+                    Key = data.CreationActKey,
+                    TypeConceptKey = MdmConstants.MdmControlActType,
+                    ActTime = DateTimeOffset.Now,
+                    StatusConceptKey = StatusKeys.Completed,
+                    MoodConceptKey = ActMoodKeys.Eventoccurrence
+                };
+            }
+
         }
 
         /// <summary>

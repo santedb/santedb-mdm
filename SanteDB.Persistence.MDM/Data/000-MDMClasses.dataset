@@ -1,5 +1,17 @@
 ﻿<?xml version="1.0" encoding="utf-8" ?>
-<dataset xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://santedb.org/data" id="MDM Classes">
+<dataset xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://santedb.org/data" id="MDM Classes - v3.0">
+  <update insertIfNotExists="true">
+    <Concept xmlns="http://santedb.org/model">
+      <id>D34081D8-740A-48E2-9E4B-E418CFE174FF</id>
+      <mnemonic>MDM-RegistrationCact</mnemonic>
+      <statusConcept>c8064cbd-fa06-4530-b430-1a52f1530c27</statusConcept>
+      <conceptClass>17FD5254-8C25-4ABB-B246-083FBE9AFA15</conceptClass>
+      <name>
+        <language>en</language>
+        <value>Local Record Attribution Act</value>
+      </name>
+    </Concept>
+  </update>
   <update insertIfNotExists="true">
     <Concept xmlns="http://santedb.org/model">
       <id>49328452-7e30-4dcd-94cd-fd532d111578</id>

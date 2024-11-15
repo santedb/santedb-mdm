@@ -1,5 +1,25 @@
 ﻿<?xml version="1.0" encoding="utf-8" ?>
 <dataset xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://santedb.org/data" id="MDM Policies">
+	<obsolete>
+		<SecurityPolicy xmlns="http://santedb.org/model">
+			<id>9c3e14bb-8744-11ef-8076-67e230d07ad4</id>
+		</SecurityPolicy>
+	</obsolete>
+	<obsolete>
+		<SecurityPolicy xmlns="http://santedb.org/model">
+			<id>9c3e14bc-8744-11ef-8076-67e230d07ad4</id>
+		</SecurityPolicy>
+	</obsolete>
+	<obsolete>
+		<SecurityPolicy xmlns="http://santedb.org/model">
+			<id>9c3e14bd-8744-11ef-8076-67e230d07ad4</id>
+		</SecurityPolicy>
+	</obsolete>
+	<obsolete>
+		<SecurityPolicy xmlns="http://santedb.org/model">
+			<id>9c3e14be-8744-11ef-8076-67e230d07ad4</id>
+		</SecurityPolicy>
+	</obsolete>
   <update insertIfNotExists="true">
     <SecurityPolicy xmlns="http://santedb.org/model">
       <id>361f50c8-616c-11ea-8a2f-00155d640b09</id>

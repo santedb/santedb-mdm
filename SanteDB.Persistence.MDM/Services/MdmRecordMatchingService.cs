@@ -159,7 +159,7 @@ namespace SanteDB.Persistence.MDM.Services
                     var nvc = new NameValueCollection();
                     foreach (var itm in uqIdentifiers)
                     {
-                        nvc.Add($"identifier[{itm.IdentityDomain.Key}].value", itm.Value);
+                        nvc.Add($"identifier[{itm.IdentityDomain.Key?.ToString() ?? itm.IdentityDomain.DomainName}].value", itm.Value);
                     }
 
                     var filterExpression = QueryExpressionParser.BuildLinqExpression<T>(nvc);
