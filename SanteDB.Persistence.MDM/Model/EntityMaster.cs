@@ -18,6 +18,7 @@
  */
 using Newtonsoft.Json;
 using SanteDB.Core;
+using SanteDB.Core.Applets.Model;
 using SanteDB.Core.Diagnostics.Performance;
 using SanteDB.Core.i18n;
 using SanteDB.Core.Model;
@@ -258,6 +259,8 @@ namespace SanteDB.Persistence.MDM.Model
             {
                 master.SemanticCopy((T)(object)this.m_recordOfTruth);
                 master.SemanticCopyNullFields(locals);
+                // Add identifiers
+                master.LoadProperty(o => o.Identifiers).AddRange(locals.SelectMany(l => l.LoadProperty(o => o.Identifiers)).Where(i => !master.Identifiers.Any(mi => mi.Value == i.Value && mi.IdentifierTypeKey == i.IdentifierTypeKey)).ToArray());
                 master.AddTag(MdmConstants.MdmRotIndicatorTag, "true");
             }
 
