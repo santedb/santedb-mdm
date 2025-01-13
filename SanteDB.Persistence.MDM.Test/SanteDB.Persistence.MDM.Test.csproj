@@ -79,7 +79,7 @@
     <PackageReference Include="NUnit">
       <Version>3.13.3</Version>
     </PackageReference>
-    <PackageReference Include="RabbitMQ.Client" Version="6.8.1" />
+    <PackageReference Include="RabbitMQ.Client" Version="7.0.0" />
   </ItemGroup>
   <!-- Test Framework via Nuget does this automagically -->
   <Import Condition="$(SolutionName.Contains('-ext'))" Project="$(SolutionDir)\santedb-data\SanteDB.Core.TestFramework.FirebirdSQL\SanteDB.Core.TestFramework.FirebirdSQL.targets" />
