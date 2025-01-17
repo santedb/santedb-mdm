@@ -288,6 +288,7 @@ namespace SanteDB.Persistence.MDM.Model
 
             master.Policies = this.LocalRecords.SelectMany(o => (o as Entity).Policies).Distinct().ToList();
             master.RemoveAllTags(o => o.TagKey == MdmConstants.MdmTypeTag);
+            //TODO: Make "M" a constant to avoid confusion.
             master.AddTag(MdmConstants.MdmTypeTag, "M"); // This is a master
             master.AddTag(MdmConstants.MdmResourceTag, typeof(T).Name); // The original resource of the master
             master.AddTag(MdmConstants.MdmGeneratedTag, "true"); // This object was generated
