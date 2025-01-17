@@ -195,6 +195,15 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         public abstract IdentifiedData ResolveManagedRecord(IdentifiedData forSource);
         /// <inheritdoc/>
         public abstract IdentifiedData ResolveOwnedRecord(IdentifiedData forTarget, IPrincipal ownerPrincipal);
+
+        /// <inheritdoc/>
+        public abstract IdentifiedData ResolveGoldenRecord(IdentifiedData forTarget);
+
+        /// <summary>
+        /// Get all managed reference links that are established
+        /// </summary>
+        public IEnumerable<ITargetedAssociation> FilterManagedReferenceLinks(IEnumerable<ITargetedAssociation> forRelationships) => forRelationships.Where(o => o.AssociationTypeKey == MdmConstants.MasterRecordRelationship);
+
     }
 
     /// <summary>
@@ -332,11 +341,6 @@ namespace SanteDB.Persistence.MDM.Services.Resources
 
 
         /// <summary>
-        /// Get all managed reference links that are established
-        /// </summary>
-        public IEnumerable<ITargetedAssociation> FilterManagedReferenceLinks(IEnumerable<ITargetedAssociation> forRelationships) => forRelationships.Where(o => o.AssociationTypeKey == MdmConstants.MasterRecordRelationship);
-
-        /// <summary>
         /// Add a managed reference link
         /// </summary>
         public ITargetedAssociation AddManagedReferenceLink(TModel sourceObject, TModel targetObject)
@@ -372,6 +376,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         }
 
         /// <inheritdoc/>
+        /// <remarks>This will create a proper master from an <see cref="Entity"/> which represents it, or it will fetch teh master</remarks>
         public TModel ResolveManagedRecord(TModel forSource)
         {
             if (forSource.ClassConceptKey == MdmConstants.MasterRecordClassification)
@@ -459,5 +464,22 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// <inheritdoc/>
         public override IdentifiedData ResolveOwnedRecord(IdentifiedData forTarget, IPrincipal ownerPrincipal) => this.ResolveOwnedRecord((TModel)forTarget, ownerPrincipal);
 
+        /// <inheritdoc/>
+        public override IdentifiedData ResolveGoldenRecord(IdentifiedData forTarget)
+        {
+            var master = this.GetMasterFor((TModel)forTarget) as IHasTypeConcept;
+            if (m_entityTypeMap.TryGetValue(master.TypeConceptKey.Value, out var mapType) && typeof(TModel) == mapType) // We are the correct handler for this
+            {
+                return this.CreateMasterContainerForMasterEntity((IdentifiedData)master).Synthesize(AuthenticationContext.Current.Principal) as TModel;
+            }
+            else if (MdmDataManagerFactory.TryGetDataManager(mapType, out var manager))// we are not
+            {
+                return manager.CreateMasterContainerForMasterEntity((IdentifiedData)master).Synthesize(AuthenticationContext.Current.Principal) as TModel;
+            }
+            else
+            {
+                return (IdentifiedData)forTarget;
+            }
+        }
     }
 }

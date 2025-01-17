@@ -1512,5 +1512,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 throw new InvalidOperationException("MDM only works on Device and Application identities");
             }
         }
+
+        
     }
 }
