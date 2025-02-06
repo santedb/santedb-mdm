@@ -330,6 +330,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         public override bool IsRecordOfTruth(TModel entity)
         {
+            //TODO: Make "T" a constant in MDMConstants.
             if (entity.GetTag(MdmConstants.MdmTypeTag) == "T")
             {
                 return true;
