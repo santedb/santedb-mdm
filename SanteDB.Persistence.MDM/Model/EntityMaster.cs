@@ -235,6 +235,12 @@ namespace SanteDB.Persistence.MDM.Model
             // Is there a relationship which is the record of truth
             var pep = ApplicationServiceContext.Current.GetService<IPrivacyEnforcementService>();
             var locals = this.LocalRecords.Select(o => pep != null ? pep.Apply(o, principal) : o).OfType<T>().ToArray();
+            master.Policies = this.LocalRecords.SelectMany(o => (o as Entity).Policies).Distinct().ToList();
+            if(locals.Length != this.LocalRecords.Count())
+            {
+                master.AddTag(SystemTagNames.PrivacyMaskingTag, "true");
+                master.AddTag(SystemTagNames.PrivacyProtectionMethodTag, "MDM-LCL-PROTECT");
+            }
 
             if (locals.Length == 0) // Not a single local can be viewed
             {
@@ -286,7 +292,6 @@ namespace SanteDB.Persistence.MDM.Model
             }
             master.Relationships = relationships;
 
-            master.Policies = this.LocalRecords.SelectMany(o => (o as Entity).Policies).Distinct().ToList();
             master.RemoveAllTags(o => o.TagKey == MdmConstants.MdmTypeTag);
             //TODO: Make "M" a constant to avoid confusion.
             master.AddTag(MdmConstants.MdmTypeTag, "M"); // This is a master
