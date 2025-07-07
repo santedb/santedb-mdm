@@ -349,7 +349,7 @@ namespace SanteDB.Persistence.MDM.Model
         /// <summary>
         /// Get the version tag
         /// </summary>
-        public override string Tag => this.m_recordOfTruth?.Tag ?? this.m_localRecords?.OrderByDescending(o => o.ModifiedOn).OfType<BaseEntityData>().FirstOrDefault().Tag ?? base.Tag;
+        public override string Tag => this.m_recordOfTruth?.Tag ?? this.m_localRecords?.OrderByDescending(o => o.ModifiedOn).OfType<BaseEntityData>().FirstOrDefault()?.Tag ?? base.Tag;
 
         /// <summary>
         /// Get the local records of this master
