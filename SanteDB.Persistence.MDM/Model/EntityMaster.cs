@@ -102,13 +102,13 @@ namespace SanteDB.Persistence.MDM.Model
         /// <summary>
         /// Gets the original relationship
         /// </summary>
-        [SerializationMetadata, XmlElement("originalHolder"), JsonProperty("originalHolder")]
+        [XmlElement("originalHolder"), JsonProperty("originalHolder")]
         public Guid? OriginalHolderKey { get; set; }
 
         /// <summary>
         /// Gets the original relationship
         /// </summary>
-        [SerializationMetadata, XmlElement("originalTarget"), JsonProperty("originalTarget")]
+        [XmlElement("originalTarget"), JsonProperty("originalTarget")]
         public Guid? OriginalTargetKey { get; set; }
 
         /// <summary>
@@ -381,5 +381,7 @@ namespace SanteDB.Persistence.MDM.Model
         /// </summary>
         [XmlIgnore, JsonIgnore]
         IEnumerable<IAnnotatedResource> IMdmMaster.LocalRecords => this.LocalRecords.OfType<IAnnotatedResource>();
+
+
     }
 }
