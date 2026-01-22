@@ -166,6 +166,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             }
         }
 
+        private readonly int m_maxWorkers;
+
         // Data manager
         private MdmDataManager<TEntity> m_dataManager;
 
@@ -198,8 +200,9 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// <summary>
         /// Creates a new entity merger service
         /// </summary>
-        public MdmEntityMerger(IDataPersistenceService<Bundle> batchService, IThreadPoolService threadPool, IPolicyEnforcementService policyEnforcement, IDataPersistenceService<TEntity> persistenceService, IDataPersistenceServiceEx<EntityRelationship> relationshipService)
+        public MdmEntityMerger(IDataPersistenceService<Bundle> batchService, IConfigurationManager configurationManager, IThreadPoolService threadPool, IPolicyEnforcementService policyEnforcement, IDataPersistenceService<TEntity> persistenceService, IDataPersistenceServiceEx<EntityRelationship> relationshipService)
         {
+            this.m_maxWorkers = Int32.TryParse(configurationManager.GetAppSetting("mdm.matchWorkers"), out var maxWork) ? maxWork : Environment.ProcessorCount / 3;
             this.m_dataManager = MdmDataManagerFactory.GetDataManager<TEntity>();
             this.m_batchPersistence = batchService;
             this.m_pepService = policyEnforcement;
@@ -530,7 +533,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 this.m_pepService.Demand(MdmPermissionPolicyIdentifiers.UnrestrictedMdm);
 
                 // Fetch all locals
-                int maxWorkers = Environment.ProcessorCount / 3;
+                int maxWorkers = this.m_maxWorkers;
                 if (maxWorkers == 0)
                 {
                     maxWorkers = 1;
