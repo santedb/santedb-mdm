@@ -212,7 +212,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
     /// Represents a data manager which actually interacts with the underlying repository
     /// </summary>
     public abstract class MdmDataManager<TModel> : MdmDataManager, IDataManagedLinkProvider<TModel>
-        where TModel : IdentifiedData, IHasTypeConcept, IHasClassConcept, IHasRelationships
+        where TModel : IdentifiedData, IHasTypeConcept, IHasClassConcept, IHasRelationships, ITaggable
     {
 
         // Entity type maps 
@@ -365,8 +365,14 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         public TModel ResolveOwnedRecord(TModel forSource, IPrincipal ownerPrincipal)
         {
+            if(forSource == null)
+            {
+                throw new ArgumentNullException(nameof(forSource));
+            }
+
             IdentifiedData master = forSource;
-            if (forSource.ClassConceptKey != MdmConstants.MasterRecordClassification)
+            if (forSource.ClassConceptKey != MdmConstants.MasterRecordClassification && 
+                forSource.Tags?.Any(t=>t.TagKey == MdmConstants.MdmTypeTag && t.Value == "M") != true)
             {
                 master = this.GetMasterRelationshipFor(forSource.Key.Value).LoadProperty(o => o.TargetEntity) as IdentifiedData;
                 if (master == null)

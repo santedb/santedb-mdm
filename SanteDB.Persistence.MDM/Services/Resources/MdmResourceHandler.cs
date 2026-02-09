@@ -48,7 +48,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
     /// Represents a class that only intercepts events from the repository layer
     /// </summary>
     public class MdmResourceHandler<TModel> : IDisposable, IMdmResourceHandler
-        where TModel : IdentifiedData, IHasTypeConcept, IHasClassConcept, IHasRelationships, new()
+        where TModel : IdentifiedData, IHasTypeConcept, IHasClassConcept, IHasRelationships, ITaggable, new()
     {
         // Class concept key
         private Guid[] m_classConceptKey;
