@@ -476,7 +476,11 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         public override IdentifiedData ResolveGoldenRecord(IdentifiedData forTarget)
         {
             var master = this.GetMasterFor((TModel)forTarget) as IHasTypeConcept;
-            if (m_entityTypeMap.TryGetValue(master.TypeConceptKey.Value, out var mapType) && typeof(TModel) == mapType) // We are the correct handler for this
+            if(master is TModel tm) // This is already the generated master
+            {
+                return master as TModel;
+            }
+            else if (m_entityTypeMap.TryGetValue(master.TypeConceptKey.Value, out var mapType) && typeof(TModel) == mapType) // We are the correct handler for this
             {
                 return this.CreateMasterContainerForMasterEntity((IdentifiedData)master).Synthesize(AuthenticationContext.Current.Principal) as TModel;
             }
