@@ -187,10 +187,11 @@ namespace SanteDB.Persistence.MDM.Services
             foreach (var itm in this.m_configuration.ResourceTypes)
             {
                 this.m_traceSource.TraceInfo("Adding MDM listener for {0}...", itm.Type.Name);
-                MdmDataManagerFactory.RegisterDataManager(itm.Type);
+                var manager = MdmDataManagerFactory.RegisterDataManager(itm.Type);
                 var idt = typeof(MdmResourceHandler<>).MakeGenericType(itm.Type);
                 var ids = this.m_serviceManager.CreateInjected(idt) as IDisposable;
                 this.m_listeners.Add(ids);
+                this.m_serviceManager.AddServiceProvider(manager);
                 this.m_serviceManager.AddServiceProvider(ids);
                 this.m_serviceManager.AddServiceProvider(MdmDataManagerFactory.CreateMerger(itm.Type));
 
