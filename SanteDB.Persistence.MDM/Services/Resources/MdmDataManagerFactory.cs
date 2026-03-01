@@ -18,6 +18,8 @@
  * User: fyfej
  * Date: 2023-6-21
  */
+using SanteDB.Core;
+using SanteDB.Core.Data;
 using SanteDB.Core.Model;
 using SanteDB.Core.Model.Entities;
 using SanteDB.Core.Model.Interfaces;
@@ -92,11 +94,13 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// <summary>
         /// Register data manager
         /// </summary>
-        internal static void RegisterDataManager(Type resourceType)
+        internal static MdmDataManager RegisterDataManager(Type resourceType)
         {
             if (typeof(Entity).IsAssignableFrom(resourceType))
             {
-                m_createdInstances.TryAdd(resourceType, Activator.CreateInstance(typeof(MdmEntityDataManager<>).MakeGenericType(resourceType)));
+                var manager = typeof(MdmEntityDataManager<>).MakeGenericType(resourceType).CreateInjected();
+                m_createdInstances.TryAdd(resourceType, manager);
+                return manager as MdmDataManager;
             }
             else
             {
