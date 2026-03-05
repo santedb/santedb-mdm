@@ -215,22 +215,6 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         where TModel : IdentifiedData, IHasTypeConcept, IHasClassConcept, IHasRelationships, ITaggable
     {
 
-        // Entity type maps 
-        private static readonly Dictionary<Guid, Type> m_entityTypeMap = new Dictionary<Guid, Type>() {
-            { EntityClassKeys.Patient, typeof(Patient) },
-            { EntityClassKeys.Provider, typeof(Provider) },
-            { EntityClassKeys.Organization, typeof(Organization) },
-            { EntityClassKeys.Place, typeof(Place) },
-            { EntityClassKeys.CityOrTown, typeof(Place) },
-            { EntityClassKeys.Country, typeof(Place) },
-            { EntityClassKeys.CountyOrParish, typeof(Place) },
-            { EntityClassKeys.StateOrProvince, typeof(Place) },
-            { EntityClassKeys.PrecinctOrBorough, typeof(Place) },
-            { EntityClassKeys.ServiceDeliveryLocation, typeof(Place) },
-            { EntityClassKeys.Person, typeof(Person) },
-            { EntityClassKeys.ManufacturedMaterial, typeof(ManufacturedMaterial) },
-            { EntityClassKeys.Material, typeof(Material) }
-        };
 
         /// <summary>
         /// Persistence service
@@ -365,14 +349,14 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// </summary>
         public TModel ResolveOwnedRecord(TModel forSource, IPrincipal ownerPrincipal)
         {
-            if(forSource == null)
+            if (forSource == null)
             {
                 throw new ArgumentNullException(nameof(forSource));
             }
 
             IdentifiedData master = forSource;
-            if (forSource.ClassConceptKey != MdmConstants.MasterRecordClassification && 
-                forSource.Tags?.Any(t=>t.TagKey == MdmConstants.MdmTypeTag && t.Value == "M") != true)
+            if (forSource.ClassConceptKey != MdmConstants.MasterRecordClassification &&
+                forSource.Tags?.Any(t => t.TagKey == MdmConstants.MdmTypeTag && t.Value == "M") != true)
             {
                 master = this.GetMasterRelationshipFor(forSource.Key.Value).LoadProperty(o => o.TargetEntity) as IdentifiedData;
                 if (master == null)
@@ -389,7 +373,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         {
             if (forSource.ClassConceptKey == MdmConstants.MasterRecordClassification)
             {
-                if (m_entityTypeMap.TryGetValue(forSource.TypeConceptKey.Value, out var mapType) && typeof(TModel) == mapType) // We are the correct handler for this
+                if (forSource.TryResolveTypeConceptToType(out var mapType) && typeof(TModel) == mapType) // We are the correct handler for this
                 {
                     return this.CreateMasterContainerForMasterEntity(forSource).Synthesize(AuthenticationContext.Current.Principal) as TModel;
                 }
@@ -426,7 +410,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 else if (this.IsMaster(rel.TargetEntityKey.Value))
                 {
                     var master = this.m_underlyingTypePersistence.Get(rel.TargetEntityKey.Value) as IHasTypeConcept;
-                    if (m_entityTypeMap.TryGetValue(master.TypeConceptKey.Value, out var managedType) &&
+                    if (master.TryResolveTypeConceptToType(out var managedType) &&
                         MdmDataManagerFactory.TryGetDataManager(managedType, out var manager))
                     {
                         var localForTarget = manager.GetLocalFor(rel.TargetEntityKey.Value, principal);
@@ -475,23 +459,23 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// <inheritdoc/>
         public override IdentifiedData ResolveGoldenRecord(IdentifiedData forTarget)
         {
-            var master = this.GetMasterFor((TModel)forTarget) as IHasTypeConcept;
-            if(master is TModel tm) // This is already the generated master
+            if (forTarget is TModel tm) // This is already the generated master
             {
-                return master as TModel;
+                return this.GetMasterFor(tm);
             }
-            else if (m_entityTypeMap.TryGetValue(master.TypeConceptKey.Value, out var mapType) && typeof(TModel) == mapType) // We are the correct handler for this
+            else if (forTarget is IHasTypeConcept iht)
             {
-                return this.CreateMasterContainerForMasterEntity((IdentifiedData)master).Synthesize(AuthenticationContext.Current.Principal) as TModel;
+                _ = iht.TryResolveTypeConceptToType(out var mapType);
+                if (typeof(TModel) == mapType) // We are the correct handler for this
+                {
+                    return this.CreateMasterContainerForMasterEntity(forTarget).Synthesize(AuthenticationContext.Current.Principal) as TModel;
+                }
+                else if (MdmDataManagerFactory.TryGetDataManager(mapType, out var manager))// we are not
+                {
+                    return manager.CreateMasterContainerForMasterEntity(forTarget).Synthesize(AuthenticationContext.Current.Principal) as TModel;
+                }
             }
-            else if (MdmDataManagerFactory.TryGetDataManager(mapType, out var manager))// we are not
-            {
-                return manager.CreateMasterContainerForMasterEntity((IdentifiedData)master).Synthesize(AuthenticationContext.Current.Principal) as TModel;
-            }
-            else
-            {
-                return (IdentifiedData)forTarget;
-            }
+            return (IdentifiedData)forTarget;
         }
     }
 }

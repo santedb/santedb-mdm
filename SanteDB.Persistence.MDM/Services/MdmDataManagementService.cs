@@ -70,25 +70,25 @@ namespace SanteDB.Persistence.MDM.Services
         public string ServiceName => "MDM Data Management";
 
         // Matching service
-        private IRecordMatchingService m_matchingService;
+        private readonly IRecordMatchingService m_matchingService;
 
         // Service manager
-        private IServiceManager m_serviceManager;
+        private readonly IServiceManager m_serviceManager;
 
         // Sub executor
-        private ISubscriptionExecutor m_subscriptionExecutor;
+        private readonly ISubscriptionExecutor m_subscriptionExecutor;
 
         // Job manager
-        private IJobManagerService m_jobManager;
+        private readonly IJobManagerService m_jobManager;
 
         // Entity relationship service
-        private IDataPersistenceServiceEx<EntityRelationship> m_entityRelationshipService;
+        private readonly IDataPersistenceServiceEx<EntityRelationship> m_entityRelationshipService;
 
         // Entity service
-        private IDataPersistenceService<Entity> m_entityService;
+        private readonly IDataPersistenceService<Entity> m_entityService;
 
         // Match configuration service
-        private IRecordMatchingConfigurationService m_matchConfigurationService;
+        private readonly IRecordMatchingConfigurationService m_matchConfigurationService;
 
         // Data caching
         private readonly IDataCachingService m_dataCachingService;
@@ -97,16 +97,23 @@ namespace SanteDB.Persistence.MDM.Services
         private readonly Tracer m_traceSource = new Tracer(MdmConstants.TraceSourceName);
 
         // Configuration
-        private ResourceManagementConfigurationSection m_configuration;
+        private readonly ResourceManagementConfigurationSection m_configuration;
 
         // Listeners
-        private List<IDisposable> m_listeners = new List<IDisposable>();
+        private readonly List<IDisposable> m_listeners = new List<IDisposable>();
+
+        /// <summary>
+        /// Generic link provider
+        /// </summary>
+        private readonly GenericLinkProvider m_genericLinkProvider = new GenericLinkProvider();
 
         /// <summary>
         /// Create injected service
         /// </summary>
         public MdmDataManagementService(IServiceManager serviceManager,
             IConfigurationManager configuration,
+            IDataPersistenceServiceEx<EntityRelationship> relationshipPersistence,
+            IDataPersistenceService<Entity> entityService,
             IDataCachingService cachingService = null,
             IRecordMatchingConfigurationService matchConfigurationService = null,
             IRecordMatchingService matchingService = null,
@@ -125,6 +132,13 @@ namespace SanteDB.Persistence.MDM.Services
             {
                 throw new InvalidOperationException("Cannot run MDM and SIM in same mode");
             }
+
+
+            // Add an entity relationship and act relationship watcher to the persistence layer for after update
+            // this will ensure that appropriate cleanup is performed on successful processing of data
+            this.m_entityRelationshipService = relationshipPersistence;
+            this.m_entityService = entityService;
+
             this.Initialize();
         }
 
@@ -200,11 +214,6 @@ namespace SanteDB.Persistence.MDM.Services
                 var job = this.m_serviceManager.CreateInjected(jobType) as IJob;
                 this.m_jobManager?.AddJob(job, JobStartType.Never);
             }
-
-            // Add an entity relationship and act relationship watcher to the persistence layer for after update
-            // this will ensure that appropriate cleanup is performed on successful processing of data
-            this.m_entityRelationshipService = ApplicationServiceContext.Current.GetService<IDataPersistenceServiceEx<EntityRelationship>>();
-            this.m_entityService = ApplicationServiceContext.Current.GetService<IDataPersistenceService<Entity>>();
 
             ApplicationServiceContext.Current.GetService<IDataPersistenceService<Bundle>>().Inserted += RecheckBundleTrigger;
             ApplicationServiceContext.Current.GetService<IDataPersistenceService<Bundle>>().Updated += RecheckBundleTrigger;
@@ -375,6 +384,6 @@ namespace SanteDB.Persistence.MDM.Services
         public IDataManagedLinkProvider<T> GetLinkProvider<T>() where T : IdentifiedData => MdmDataManagerFactory.GetDataManager(typeof(T)) as IDataManagedLinkProvider<T>;
 
         /// <inheritdoc/>
-        public IDataManagedLinkProvider GetLinkProvider(Type forType) => MdmDataManagerFactory.GetDataManager(forType);
+        public IDataManagedLinkProvider GetLinkProvider(Type forType) => (IDataManagedLinkProvider)MdmDataManagerFactory.GetDataManager(forType) ?? this.m_genericLinkProvider;
     }
 }
