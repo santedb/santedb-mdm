@@ -8,6 +8,7 @@ using SanteDB.Core.Model.Interfaces;
 using SanteDB.Persistence.MDM.Services.Resources;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Security.Principal;
 using System.Text;
 
@@ -26,9 +27,7 @@ namespace SanteDB.Persistence.MDM.Services
         public event EventHandler<DataManagementLinkEventArgs> ManagedLinkRemoved;
 
         /// <inheritdoc/>
-        IEnumerable<ITargetedAssociation> IDataManagedLinkProvider.FilterManagedReferenceLinks(IEnumerable<ITargetedAssociation> forRelationships) {
-            throw new NotSupportedException();        
-        }
+        IEnumerable<ITargetedAssociation> IDataManagedLinkProvider.FilterManagedReferenceLinks(IEnumerable<ITargetedAssociation> forRelationships) => forRelationships.Where(o => o.AssociationTypeKey == MdmConstants.MasterRecordRelationship);
 
         /// <summary>
         /// Get the specific link provider for the provided source
