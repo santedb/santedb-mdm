@@ -461,7 +461,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         {
             if (forTarget is TModel tm) // This is already the generated master
             {
-                return this.GetMasterFor(tm);
+                return this.CreateMasterContainerForMasterEntity(this.GetMasterFor(tm)).Synthesize(AuthenticationContext.Current.Principal) as TModel;
             }
             else if (forTarget is IHasTypeConcept iht)
             {
