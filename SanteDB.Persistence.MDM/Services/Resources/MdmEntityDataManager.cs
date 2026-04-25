@@ -174,6 +174,9 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 retVal.ClassConceptKey = originalClass;
                 retVal.DeterminerConceptKey = originalDeterminer;
                 retVal.Key = Guid.NewGuid();
+                retVal.CreationActKey = null;
+                retVal.CreatedByKey = null;
+                retVal.CreationTime = DateTimeOffset.Now;
                 retVal.VersionKey = Guid.NewGuid();
                 retVal.LoadProperty(o => o.Relationships).RemoveAll(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship || o.RelationshipTypeKey == MdmConstants.MasterRecordOfTruthRelationship);
                 retVal.Relationships.Add(new EntityRelationship(MdmConstants.MasterRecordRelationship, masterRecord.Key)
@@ -202,6 +205,9 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             retVal.SemanticCopyNullFields(masterRecord); // HACK: First pass sometimes misses data
             retVal.ClassConceptKey = originalClass;
             retVal.DeterminerConceptKey = originalDeterminer;
+            retVal.CreatedByKey = null;
+            retVal.CreationActKey = null;
+            retVal.CreationTime = DateTimeOffset.Now;
             retVal.Key = Guid.NewGuid();
             retVal.VersionKey = Guid.NewGuid();
             retVal.LoadProperty(o => o.Relationships).RemoveAll(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship || o.RelationshipTypeKey == MdmConstants.MasterRecordOfTruthRelationship);
@@ -313,7 +319,10 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 local.Relationships.Add(rel as EntityRelationship);
             }
             rotRelationship.SourceEntityKey = master.Key;
-
+            local.CreationActKey = null;
+            local.CreationAct = null;
+            local.CreatedByKey = null;
+            local.CreationTime = DateTimeOffset.Now;
             //// Attribute back to the owner act
             //local.CreationActKey = Guid.NewGuid();
             //local.CreationAct = new ControlAct()
@@ -421,7 +430,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             }
             else
             {
-                retVal = local.LoadCollection(o => o.Relationships).FirstOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship)
+                retVal = local.LoadCollection(o => o.Relationships).FirstOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship && o.SourceEntityKey == local.Key)
                     ?? this.GetMasterRelationshipFor(local.Key, context);
                 this.m_adhocCache?.Add(masterKey, retVal);
                 return retVal;
@@ -756,7 +765,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
 
             var existingMasterRel = this.GetMasterRelationshipFor(local, context);
             if (existingMasterRel != null)
-            {
+            {   
                 if (existingMasterRel.BatchOperation == BatchOperationType.Delete)
                 {
                     existingMasterRel = null; // it is being removed
