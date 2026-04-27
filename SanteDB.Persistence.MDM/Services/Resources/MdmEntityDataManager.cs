@@ -368,7 +368,14 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         {
             if (this.IsMaster(local))
             {
-                return local;
+                if (local.ClassConceptKey == MdmConstants.MasterRecordClassification)
+                {
+                    return local;
+                }
+                else
+                {
+                    return this.m_entityPersistenceService.Get(local.Key.Value, null, AuthenticationContext.SystemPrincipal);
+                }
             }
             else
             {
