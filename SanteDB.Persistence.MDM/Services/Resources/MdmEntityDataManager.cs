@@ -52,6 +52,14 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         where TModel : Entity, new()
     {
 
+        private static readonly Guid[] MDM_RELATIONSHIP_TYPES = new Guid[]
+        {
+            MdmConstants.MasterRecordRelationship,
+            MdmConstants.MasterRecordOfTruthRelationship,
+            MdmConstants.CandidateLocalRelationship,
+            MdmConstants.IgnoreCandidateRelationship
+        };
+
         // Tracer
         private readonly Tracer m_traceSource = new Tracer(MdmConstants.TraceSourceName);
 
@@ -368,7 +376,14 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         {
             if (this.IsMaster(local))
             {
-                return local;
+                if (local.ClassConceptKey == MdmConstants.MasterRecordClassification)
+                {
+                    return local;
+                }
+                else
+                {
+                    return this.m_entityPersistenceService.Get(local.Key.Value, null, AuthenticationContext.SystemPrincipal);
+                }
             }
             else
             {
@@ -1401,7 +1416,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         {
             return
                 this.m_relationshipService.Query(
-                    o => (o.RelationshipTypeKey == MdmConstants.MasterRecordRelationship || o.RelationshipTypeKey == MdmConstants.OriginalMasterRelationship || o.RelationshipTypeKey == MdmConstants.CandidateLocalRelationship) && o.ObsoleteVersionSequenceId == null && o.SourceEntityKey == localKey, AuthenticationContext.SystemPrincipal)
+                    o => MDM_RELATIONSHIP_TYPES.Contains(o.RelationshipTypeKey.Value) && o.ObsoleteVersionSequenceId == null && o.SourceEntityKey == localKey, AuthenticationContext.SystemPrincipal)
                     .Union(this.m_relationshipService.Query(o => o.RelationshipTypeKey == MdmConstants.MasterRecordOfTruthRelationship && o.ObsoleteVersionSequenceId == null && o.TargetEntityKey == localKey, AuthenticationContext.SystemPrincipal))
                     .OfType<ITargetedAssociation>();
         }

@@ -177,6 +177,13 @@ namespace SanteDB.Persistence.MDM.Model
     public class EntityMaster<T> : Entity, IMdmMaster<T>
         where T : Entity, new()
     {
+
+        private static readonly Guid[] IGNORE_LOCAL_RELATIONSHIPS = new Guid[]
+        {
+             EntityRelationshipTypeKeys.Replaces,
+             EntityRelationshipTypeKeys.Duplicate
+        };
+
         /// <summary>
         /// Get the type name
         /// </summary>
@@ -287,7 +294,7 @@ namespace SanteDB.Persistence.MDM.Model
                         this.LocalRecords.OfType<Entity>().SelectMany(o => o.Relationships.Where(r => r.TargetEntityKey == this.m_masterRecord.Key || r.SourceEntityKey == this.m_masterRecord.Key))
                     ))
             {
-                if (!relationships.Any(r => r.SemanticEquals(rel) || r.SourceEntityKey == rel.SourceEntityKey && r.TargetEntityKey == rel.TargetEntityKey && r.RelationshipTypeKey == rel.RelationshipTypeKey))
+                if (!IGNORE_LOCAL_RELATIONSHIPS.Contains(rel.RelationshipTypeKey.Value) && !relationships.Any(r => r.SemanticEquals(rel) || r.SourceEntityKey == rel.SourceEntityKey && r.TargetEntityKey == rel.TargetEntityKey && r.RelationshipTypeKey == rel.RelationshipTypeKey))
                 {
                     relationships.Add(rel);
                 }
