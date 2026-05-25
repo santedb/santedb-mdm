@@ -27,6 +27,7 @@ using SanteDB.Core.Model.DataTypes;
 using SanteDB.Core.Model.Interfaces;
 using SanteDB.Core.Model.Query;
 using SanteDB.Core.Security;
+using SanteDB.Core.Security.Services;
 using SanteDB.Core.Services;
 using SanteDB.Persistence.MDM.Exceptions;
 using SanteDB.Persistence.MDM.Services.Resources;
@@ -51,15 +52,17 @@ namespace SanteDB.Persistence.MDM.Rest
 
         // Batch service
         private IDataPersistenceService<Bundle> m_batchService;
+        private readonly IPrivacyEnforcementService m_privacyEnforcement;
 
         /// <summary>
         /// Candidate operations manager
         /// </summary>
-        public MdmLinkResource(IConfigurationManager configurationManager, IDataPersistenceService<Bundle> batchService)
+        public MdmLinkResource(IConfigurationManager configurationManager, IDataPersistenceService<Bundle> batchService, IPrivacyEnforcementService privacyEnforcement)
         {
             this.m_configuration = configurationManager.GetSection<ResourceManagementConfigurationSection>();
             this.ParentTypes = this.m_configuration?.ResourceTypes.Select(o => o.Type).ToArray() ?? Type.EmptyTypes;
             this.m_batchService = batchService;
+            this.m_privacyEnforcement = privacyEnforcement;
         }
 
         /// <summary>
@@ -171,7 +174,7 @@ namespace SanteDB.Persistence.MDM.Rest
                         {
                             if (o is ITargetedAssociation ta)
                             {
-                                var tag = ta.LoadProperty(p => p.SourceEntity) as ITaggable;
+                                var tag = this.m_privacyEnforcement.Apply(ta.LoadProperty(p => p.SourceEntity) as IdentifiedData, AuthenticationContext.Current.Principal) as ITaggable;
                                 if (ta.ClassificationKey == MdmConstants.AutomagicClassification)
                                 {
                                     tag.AddTag(MdmConstants.MdmClassificationTag, "Auto");

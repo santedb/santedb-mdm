@@ -179,6 +179,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
 
         // Relationship persistence
         private IDataPersistenceServiceEx<EntityRelationship> m_relationshipPersistence;
+        private readonly IPrivacyEnforcementService m_privacyEnforcement;
 
         // Relationship persistence
         private readonly IThreadPoolService m_threadPool;
@@ -200,7 +201,13 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         /// <summary>
         /// Creates a new entity merger service
         /// </summary>
-        public MdmEntityMerger(IDataPersistenceService<Bundle> batchService, IConfigurationManager configurationManager, IThreadPoolService threadPool, IPolicyEnforcementService policyEnforcement, IDataPersistenceService<TEntity> persistenceService, IDataPersistenceServiceEx<EntityRelationship> relationshipService)
+        public MdmEntityMerger(IDataPersistenceService<Bundle> batchService, 
+            IConfigurationManager configurationManager, 
+            IThreadPoolService threadPool, 
+            IPolicyEnforcementService policyEnforcement, 
+            IPrivacyEnforcementService privacyEnforcement,
+            IDataPersistenceService<TEntity> persistenceService, 
+            IDataPersistenceServiceEx<EntityRelationship> relationshipService)
         {
             this.m_maxWorkers = Int32.TryParse(configurationManager.GetAppSetting("mdm.matchWorkers"), out var maxWork) ? maxWork : Environment.ProcessorCount / 3;
             this.m_dataManager = MdmDataManagerFactory.GetDataManager<TEntity>();
@@ -208,6 +215,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             this.m_pepService = policyEnforcement;
             this.m_entityPersistence = persistenceService;
             this.m_relationshipPersistence = relationshipService;
+            this.m_privacyEnforcement = privacyEnforcement;
             this.m_threadPool = threadPool;
             if (this.m_relationshipPersistence is IReportProgressChanged irpc)
             {
@@ -255,7 +263,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 return new TransformQueryResultSet<ITargetedAssociation, IdentifiedData>(this.m_dataManager.GetCandidateLocals(masterKey),
                     o =>
                     {
-                        var retVal = o.LoadProperty(p => p.SourceEntity) as Entity;
+                        var retVal = this.m_privacyEnforcement.Apply(o.LoadProperty(p => p.SourceEntity) as Entity, AuthenticationContext.Current.Principal);
                         if (o is EntityRelationship e)
                         {
                             retVal.AddTag(SystemTagNames.MatchScoreTag, $"{e.Strength:0#%}");
@@ -267,7 +275,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             {
                 return new TransformQueryResultSet<ITargetedAssociation, IdentifiedData>(this.m_dataManager.GetEstablishedCandidateMasters(masterKey), o =>
                     {
-                        var retVal = o.LoadProperty(p => p.TargetEntity) as Entity;
+                        var retVal = this.m_privacyEnforcement.Apply(o.LoadProperty(p => p.TargetEntity) as Entity, AuthenticationContext.Current.Principal);
                         if (o is EntityRelationship e)
                         {
                             retVal.AddTag(SystemTagNames.MatchScoreTag, $"{e.Strength:#0%}");
