@@ -306,12 +306,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 });
                 local.Notes?.Clear();
                 local.Participations?.Clear();
-                local.Identifiers?.ForEach(o =>
-                {
-                    o.Key = null;
-                    o.BatchOperation = BatchOperationType.Insert;
-                    o.SourceEntityKey = null;
-                });
+                local.Identifiers?.Clear();
                 if (local is Person psn)
                 {
                     psn.LoadProperty(o => o.LanguageCommunication).ForEach(o =>
