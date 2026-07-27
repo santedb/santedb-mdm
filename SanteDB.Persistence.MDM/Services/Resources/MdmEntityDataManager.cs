@@ -287,32 +287,32 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 local.Names?.ForEach(o =>
                 {
                     o.Key = null;
+                    o.BatchOperation = BatchOperationType.Insert;
                     ExtensionMethods.ForEach(o.Component, c => c.Key = null);
                     o.SourceEntityKey = null;
                 });
                 local.Addresses?.ForEach(o =>
                 {
                     o.Key = null;
+                    o.BatchOperation = BatchOperationType.Insert;
                     o.Component?.ForEach(c => c.Key = null);
                     o.SourceEntityKey = null;
                 });
                 local.Telecoms?.ForEach(o =>
                 {
                     o.Key = null;
+                    o.BatchOperation = BatchOperationType.Insert;
                     o.SourceEntityKey = null;
                 });
                 local.Notes?.Clear();
                 local.Participations?.Clear();
-                local.Identifiers?.ForEach(o =>
-                {
-                    o.Key = null;
-                    o.SourceEntityKey = null;
-                });
+                local.Identifiers?.Clear();
                 if (local is Person psn)
                 {
                     psn.LoadProperty(o => o.LanguageCommunication).ForEach(o =>
                     {
                         o.Key = null;
+                        o.BatchOperation = BatchOperationType.Insert;
                         o.SourceEntityKey = null;
                     });
                 }
