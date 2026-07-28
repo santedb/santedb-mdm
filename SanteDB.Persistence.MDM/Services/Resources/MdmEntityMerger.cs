@@ -264,7 +264,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     o =>
                     {
                         var retVal = this.m_privacyEnforcement.Apply(o.LoadProperty(p => p.SourceEntity) as Entity, AuthenticationContext.Current.Principal);
-                        if (o is EntityRelationship e)
+                        if (o is EntityRelationship e && retVal != null)
                         {
                             retVal.AddTag(SystemTagNames.MatchScoreTag, $"{e.Strength:0#%}");
                         }
