@@ -175,6 +175,11 @@ namespace SanteDB.Persistence.MDM.Rest
                             if (o is ITargetedAssociation ta)
                             {
                                 var tag = this.m_privacyEnforcement.Apply(ta.LoadProperty(p => p.SourceEntity) as IdentifiedData, AuthenticationContext.Current.Principal) as ITaggable;
+
+                                if(tag == null)
+                                {
+                                    return null;
+                                }
                                 if (ta.ClassificationKey == MdmConstants.AutomagicClassification)
                                 {
                                     tag.AddTag(MdmConstants.MdmClassificationTag, "Auto");
