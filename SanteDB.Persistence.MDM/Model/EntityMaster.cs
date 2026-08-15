@@ -225,7 +225,7 @@ namespace SanteDB.Persistence.MDM.Model
             this.m_masterRecord = master;
             using (AuthenticationContext.EnterSystemContext())
             {
-                this.m_recordOfTruth = this.LoadCollection<EntityRelationship>("Relationships").FirstOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordOfTruthRelationship)?.LoadProperty(o => o.TargetEntity);
+                this.m_recordOfTruth = this.LoadCollection<EntityRelationship>("Relationships").FirstOrDefault(o => o.RelationshipTypeKey == MdmConstants.MasterRecordOfTruthRelationship)?.LoadProperty(o => o.TargetEntity, forceReload: true);
             }
         }
 
