@@ -180,7 +180,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         internal virtual void OnQuerying(object sender, QueryRequestEventArgs<TModel> e)
         {
             // system does whatever tf they want
-            var query = QueryExpressionBuilder.BuildQuery<TModel>(e.Query, true, true);
+            var query = QueryExpressionBuilder.BuildQuery<TModel>(e.Query, stripNullChecks: false, stripControl: true);
 
             // They are specifically asking for records
             if (query.TryGetValue("tag[$mdm.type]", out var mdmFilter))
