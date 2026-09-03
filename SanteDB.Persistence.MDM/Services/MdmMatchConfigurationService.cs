@@ -23,6 +23,7 @@ using SanteDB.Core.Matching;
 using SanteDB.Core.Services;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 
 namespace SanteDB.Persistence.MDM.Services
@@ -163,9 +164,13 @@ namespace SanteDB.Persistence.MDM.Services
         /// </summary>
         public IRecordMatchingConfiguration SaveConfiguration(IRecordMatchingConfiguration configuration) => this.m_matchingConfigurationService.SaveConfiguration(configuration);
 
+        /// <inheritdoc/>
+        public bool TryLoadConfigurationFromStream(Stream configurationStream, out IRecordMatchingConfiguration configuration) => this.m_matchingConfigurationService.TryLoadConfigurationFromStream(configurationStream, out configuration);
+
         /// <summary>
         /// Create identity match configuration
         /// </summary>
         internal static MdmIdentityRecordMatchConfiguration CreateIdentityMatchConfiguration<T>() => new MdmIdentityRecordMatchConfiguration(new Type[] { typeof(T) });
+
     }
 }
