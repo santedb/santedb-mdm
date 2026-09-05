@@ -27,6 +27,7 @@ using SanteDB.Core.Services;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.IO;
 using System.Linq;
 using System.Linq.Expressions;
 
@@ -132,6 +133,11 @@ namespace SanteDB.Persistence.MDM.Test
         }
 
         public IRecordMatchingConfiguration DeleteConfiguration(string configurationId)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool TryLoadConfigurationFromStream(Stream configurationStream, out IRecordMatchingConfiguration configuration)
         {
             throw new NotImplementedException();
         }
