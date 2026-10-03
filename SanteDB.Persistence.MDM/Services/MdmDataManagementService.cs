@@ -147,7 +147,7 @@ namespace SanteDB.Persistence.MDM.Services
         /// </summary>
         public void Dispose()
         {
-            foreach (var i in this.m_listeners)
+            foreach (var i in this.m_listeners.ToArray())
             {
                 i.Dispose();
             }

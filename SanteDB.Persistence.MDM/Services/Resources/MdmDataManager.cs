@@ -364,7 +364,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     return null;
                 }
             }
-            return (TModel)this.GetLocalFor(master.Key.Value, ownerPrincipal);
+            return (TModel)this.GetLocalFor(master.Key.Value, ownerPrincipal) ??
+                (TModel)this.CreateLocalFor(master);
         }
 
         /// <inheritdoc/>
