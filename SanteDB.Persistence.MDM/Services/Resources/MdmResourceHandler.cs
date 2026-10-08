@@ -510,7 +510,14 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                         }
                         else if (itm.SourceEntityKey.HasValue && itm.SourceEntityKey != store.Key && itm.TargetEntityKey.HasValue && itm.TargetEntityKey != store.Key) // The source was never meant for us
                         {
-                            irelationships.RemoveRelationship(itm);
+                            if (itm is IdentifiedData idr && idr.BatchOperation != Core.Model.DataTypes.BatchOperationType.Auto)
+                            {
+                                itm.TargetEntityKey = store.Key;
+                            }
+                            else
+                            {
+                                irelationships.RemoveRelationship(itm);
+                            }
                         }
 
                     }
