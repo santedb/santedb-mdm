@@ -30,6 +30,7 @@ using SanteDB.Core.Model.Entities;
 using SanteDB.Core.Model.EntityLoader;
 using SanteDB.Core.Model.Interfaces;
 using SanteDB.Core.Security;
+using SanteDB.Core.Security.Privacy;
 using SanteDB.Core.Security.Services;
 using SanteDB.Core.Services;
 using System;
@@ -244,7 +245,14 @@ namespace SanteDB.Persistence.MDM.Model
             // Is there a relationship which is the record of truth
             var pep = ApplicationServiceContext.Current.GetService<IPrivacyEnforcementService>();
             var locals = this.LocalRecords.Select(o => pep != null ? pep.Apply(o, principal) : o).OfType<T>().ToArray();
-            master.Policies = this.LocalRecords.SelectMany(o => (o as Entity).Policies).Distinct().ToList();
+            master.Policies = this.m_masterRecord.Policies.Select(o=> {
+                o.SourceEntityKey = this.m_masterRecord.Key;
+                return o;
+            }).Concat(this.LocalRecords.SelectMany(o => (o as Entity).Policies.Select(p=>
+            {
+                p.SourceEntityKey = o.Key;
+                return p;
+            }))).Distinct().ToList();
             if(locals.Length != this.LocalRecords.Count())
             {
                 master.AddTag(SystemTagNames.PrivacyMaskingTag, "true");
