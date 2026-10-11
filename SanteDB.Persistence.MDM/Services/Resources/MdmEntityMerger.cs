@@ -589,6 +589,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     catch (Exception e)
                     {
                         matchContext.Halt(e);
+                        throw;
                     }
                     finally
                     {
