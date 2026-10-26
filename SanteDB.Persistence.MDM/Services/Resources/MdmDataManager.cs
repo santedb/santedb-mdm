@@ -345,6 +345,25 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         }
 
         /// <summary>
+        /// Resolve owned record
+        /// </summary>
+        private TModel ResolveOwnedRecordInternal(IdentifiedData identifiedData, IPrincipal ownerPrincipal)
+        {
+            if (identifiedData is TModel tmaster &&
+                tmaster.ClassConceptKey != MdmConstants.MasterRecordClassification &&
+                tmaster.Tags?.Any(t => t.TagKey == MdmConstants.MdmTypeTag && t.Value == "M") != true)
+            {
+                identifiedData = this.GetMasterRelationshipFor(tmaster.Key.Value).LoadProperty(o => o.TargetEntity) as IdentifiedData;
+                if (identifiedData == null)
+                {
+                    return null;
+                }
+            }
+            return (TModel)this.GetLocalFor(identifiedData.Key.Value, ownerPrincipal) ??
+                (TModel)this.CreateLocalFor(identifiedData);
+        }
+
+        /// <summary>
         /// Get master for <paramref name="forSource"/> or, if it is already a master or not MDM controlled return <paramref name="forSource"/>
         /// </summary>
         public TModel ResolveOwnedRecord(TModel forSource, IPrincipal ownerPrincipal)
@@ -354,18 +373,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 throw new ArgumentNullException(nameof(forSource));
             }
 
-            IdentifiedData master = forSource;
-            if (forSource.ClassConceptKey != MdmConstants.MasterRecordClassification &&
-                forSource.Tags?.Any(t => t.TagKey == MdmConstants.MdmTypeTag && t.Value == "M") != true)
-            {
-                master = this.GetMasterRelationshipFor(forSource.Key.Value).LoadProperty(o => o.TargetEntity) as IdentifiedData;
-                if (master == null)
-                {
-                    return null;
-                }
-            }
-            return (TModel)this.GetLocalFor(master.Key.Value, ownerPrincipal) ??
-                (TModel)this.CreateLocalFor(master);
+            return this.ResolveOwnedRecordInternal(forSource, ownerPrincipal);
         }
 
         /// <inheritdoc/>
@@ -455,7 +463,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         public override IdentifiedData ResolveManagedRecord(IdentifiedData forSource) => this.ResolveManagedRecord((TModel)forSource);
 
         /// <inheritdoc/>
-        public override IdentifiedData ResolveOwnedRecord(IdentifiedData forTarget, IPrincipal ownerPrincipal) => this.ResolveOwnedRecord((TModel)forTarget, ownerPrincipal);
+        public override IdentifiedData ResolveOwnedRecord(IdentifiedData forTarget, IPrincipal ownerPrincipal) => this.ResolveOwnedRecordInternal(forTarget, ownerPrincipal);
 
         /// <inheritdoc/>
         public override IdentifiedData ResolveGoldenRecord(IdentifiedData forTarget)

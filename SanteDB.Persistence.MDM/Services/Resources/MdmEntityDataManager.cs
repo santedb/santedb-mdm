@@ -1530,11 +1530,11 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             // Identity
             if (identity is IDeviceIdentity deviceIdentity)
             {
-                return this.m_persistenceService.Query(o => o.Key == localKey && o.CreatedBy.Device.Name == deviceIdentity.Name, AuthenticationContext.SystemPrincipal).Any();
+                return this.m_persistenceService.Query(o => o.Key == localKey && o.CreatedBy.Device.Name == deviceIdentity.Name && o.PreviousVersionKey == null, AuthenticationContext.SystemPrincipal).Any();
             }
             else if (identity is IApplicationIdentity applicationIdentity)
             {
-                return this.m_persistenceService.Query(o => o.Key == localKey && o.CreatedBy.Application.Name == applicationIdentity.Name, AuthenticationContext.SystemPrincipal).Any();
+                return this.m_persistenceService.Query(o => o.Key == localKey && o.CreatedBy.Application.Name == applicationIdentity.Name && o.PreviousVersionKey == null, AuthenticationContext.SystemPrincipal).Any();
             }
             else
             {
