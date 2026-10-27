@@ -1416,7 +1416,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         {
             return
                 this.m_relationshipService.Query(
-                    o => MDM_RELATIONSHIP_TYPES.Contains(o.RelationshipTypeKey.Value) && o.ObsoleteVersionSequenceId == null && o.SourceEntityKey == localKey, AuthenticationContext.SystemPrincipal)
+                    o => MDM_RELATIONSHIP_TYPES.Contains(o.RelationshipTypeKey.Value) && o.ObsoleteVersionSequenceId == null && o.SourceEntityKey == localKey && o.TargetEntity.ObsoletionTime == null, AuthenticationContext.SystemPrincipal)
                     .Union(this.m_relationshipService.Query(o => o.RelationshipTypeKey == MdmConstants.MasterRecordOfTruthRelationship && o.ObsoleteVersionSequenceId == null && o.TargetEntityKey == localKey, AuthenticationContext.SystemPrincipal))
                     .OfType<ITargetedAssociation>();
         }

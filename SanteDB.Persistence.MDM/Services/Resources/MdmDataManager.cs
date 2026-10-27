@@ -430,6 +430,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                             {
                                 context.Add(localForTarget);
                                 rel.TargetEntityKey = localForTarget.Key;
+                                rel.ConditionalClearModelProperty(r => r.TargetEntity);
                             }
                             else
                             {
@@ -439,6 +440,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                         else
                         {
                             rel.TargetEntityKey = localForTarget.Key;
+                            rel.ConditionalClearModelProperty(r => r.TargetEntity);
                         }
                     }
                 }
@@ -454,6 +456,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     else
                     {
                         rel.TargetEntityKey = myLocal.Key;
+                        rel.ConditionalClearModelProperty(r => r.TargetEntity);
+
                     }
                 }
             }

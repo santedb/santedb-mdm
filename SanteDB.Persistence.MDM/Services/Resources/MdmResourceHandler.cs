@@ -421,7 +421,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 e.Data.BatchOperation = Core.Model.DataTypes.BatchOperationType.InsertOrUpdate;
                 if (sender is Bundle bundle)
                 {
-                    bundle.Item = this.PrepareTransaction(e.Data, bundle.Item).ToList();
+                    bundle.Item = this.PrepareTransaction(e.Data, bundle.Item).Distinct().ToList();
                 }
                 else
                 {
@@ -501,6 +501,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                             else if (imdmrdr.OriginalTargetKey.HasValue && imdmrdr.OriginalTargetKey != imdmrdr.TargetEntityKey) // the pointer is to another MDM master - so fix it
                             {
                                 imdmrdr.TargetEntityKey = imdmrdr.OriginalTargetKey;
+                                imdmrdr.ConditionalClearModelProperty(rel => rel.TargetEntity);
+
                             }
                             else
                             {
@@ -513,6 +515,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                             if (itm is IdentifiedData idr && idr.BatchOperation != Core.Model.DataTypes.BatchOperationType.Auto)
                             {
                                 itm.TargetEntityKey = store.Key;
+                                itm.ConditionalClearModelProperty(rel => rel.TargetEntity);
+
                             }
                             else
                             {

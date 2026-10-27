@@ -20,6 +20,7 @@
  */
 using SanteDB.Core.BusinessRules;
 using SanteDB.Core.Exceptions;
+using SanteDB.Core.i18n;
 using SanteDB.Core.Model;
 using SanteDB.Core.Model.Acts;
 using SanteDB.Core.Model.Attributes;
@@ -322,6 +323,11 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 // We want to get the target
                 RecordMergeStatus recordMergeStatus = RecordMergeStatus.Success;
                 var survivor = this.m_dataManager.GetRaw(survivorKey) as Entity;
+                if (survivor == null)
+                {
+                    throw new KeyNotFoundException(String.Format(ErrorMessages.OBJECT_NOT_FOUND, $"{typeof(TEntity).GetSerializationName()}/{survivorKey}"));
+                }
+
                 bool isSurvivorMaster = this.m_dataManager.IsMaster(survivorKey);
                 if (isSurvivorMaster)
                 {
@@ -349,6 +355,11 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 var replaced = linkedDuplicates.Select(itm =>
                 {
                     var victim = this.m_dataManager.GetRaw(itm) as Entity;
+
+                    if(victim == null)
+                    {
+                        throw new KeyNotFoundException(String.Format(ErrorMessages.OBJECT_NOT_FOUND, $"{typeof(TEntity).GetSerializationName()}/{itm}"));
+                    }
                     var isVictimMaster = this.m_dataManager.IsMaster(itm);
                     if (isVictimMaster)
                     {
