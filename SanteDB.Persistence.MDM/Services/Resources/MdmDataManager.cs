@@ -21,6 +21,7 @@
 using SanteDB.Core;
 using SanteDB.Core.BusinessRules;
 using SanteDB.Core.Data;
+using SanteDB.Core.i18n;
 using SanteDB.Core.Model;
 using SanteDB.Core.Model.Acts;
 using SanteDB.Core.Model.Constants;
@@ -378,26 +379,40 @@ namespace SanteDB.Persistence.MDM.Services.Resources
 
         /// <inheritdoc/>
         /// <remarks>This will create a proper master from an <see cref="Entity"/> which represents it, or it will fetch teh master</remarks>
-        public TModel ResolveManagedRecord(TModel forSource)
+        public TModel ResolveManagedRecord(TModel forSource) => this.ResolveManagedRecordInternal(forSource);
+
+        /// <summary>
+        /// Resolve owned record
+        /// </summary>
+        private TModel ResolveManagedRecordInternal(IdentifiedData forSource)
         {
-            if (forSource.ClassConceptKey == MdmConstants.MasterRecordClassification)
+            if (forSource is IHasClassConcept ihc && ihc.ClassConceptKey == MdmConstants.MasterRecordClassification)
             {
-                if (forSource.TryResolveTypeConceptToType(out var mapType) && typeof(TModel) == mapType) // We are the correct handler for this
+                Type mapType = null;
+                if (forSource is IHasTypeConcept ihtc && ihtc.TryResolveTypeConceptToType(out mapType) && typeof(TModel) == mapType) // We are the correct handler for this
                 {
                     return this.CreateMasterContainerForMasterEntity(forSource).Synthesize(AuthenticationContext.Current.Principal) as TModel;
                 }
-                else if (MdmDataManagerFactory.TryGetDataManager(mapType, out var manager))// we are not
+                else if (MdmDataManagerFactory.TryGetDataManager(mapType, out var manager))// we are not the correct handler so call it 
                 {
                     return manager.CreateMasterContainerForMasterEntity(forSource).Synthesize(AuthenticationContext.Current.Principal) as TModel;
                 }
-                else
+                else if (forSource is TModel tm) // what we were passed is an already synthesized master record so return it
                 {
-                    return forSource;
+                    return tm;
                 }
+                else // Unexpected input leads to exception
+                {
+                    throw new ArgumentOutOfRangeException(String.Format(ErrorMessages.ARGUMENT_INCOMPATIBLE_TYPE, typeof(TModel), forSource.GetType()));
+                }
+            }
+            else if (forSource is TModel tm)
+            {
+                return tm;
             }
             else
             {
-                return forSource;
+                throw new ArgumentOutOfRangeException(String.Format(ErrorMessages.ARGUMENT_INCOMPATIBLE_TYPE, typeof(TModel), forSource.GetType()));
             }
         }
 
@@ -464,7 +479,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         }
 
         /// <inheritdoc/>
-        public override IdentifiedData ResolveManagedRecord(IdentifiedData forSource) => this.ResolveManagedRecord((TModel)forSource);
+        public override IdentifiedData ResolveManagedRecord(IdentifiedData forSource) => this.ResolveManagedRecordInternal(forSource);
 
         /// <inheritdoc/>
         public override IdentifiedData ResolveOwnedRecord(IdentifiedData forTarget, IPrincipal ownerPrincipal) => this.ResolveOwnedRecordInternal(forTarget, ownerPrincipal);
