@@ -155,7 +155,8 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 {
                     throw new InvalidOperationException($"Bundle object at index {i} is null");
                 }
-                else if (!(data is IHasClassConcept && data is IHasTypeConcept && data is IHasRelationships))
+                else if (!(data is IHasClassConcept && data is IHasTypeConcept && data is IHasRelationships) ||
+                    data.BatchOperation == Core.Model.DataTypes.BatchOperationType.Ignore)
                 {
                     continue;
                 }

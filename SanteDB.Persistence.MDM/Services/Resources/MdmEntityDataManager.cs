@@ -1416,7 +1416,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         {
             return
                 this.m_relationshipService.Query(
-                    o => MDM_RELATIONSHIP_TYPES.Contains(o.RelationshipTypeKey.Value) && o.ObsoleteVersionSequenceId == null && o.SourceEntityKey == localKey, AuthenticationContext.SystemPrincipal)
+                    o => MDM_RELATIONSHIP_TYPES.Contains(o.RelationshipTypeKey.Value) && o.ObsoleteVersionSequenceId == null && o.SourceEntityKey == localKey && o.TargetEntity.ObsoletionTime == null, AuthenticationContext.SystemPrincipal)
                     .Union(this.m_relationshipService.Query(o => o.RelationshipTypeKey == MdmConstants.MasterRecordOfTruthRelationship && o.ObsoleteVersionSequenceId == null && o.TargetEntityKey == localKey, AuthenticationContext.SystemPrincipal))
                     .OfType<ITargetedAssociation>();
         }
@@ -1530,11 +1530,11 @@ namespace SanteDB.Persistence.MDM.Services.Resources
             // Identity
             if (identity is IDeviceIdentity deviceIdentity)
             {
-                return this.m_persistenceService.Query(o => o.Key == localKey && o.CreatedBy.Device.Name == deviceIdentity.Name, AuthenticationContext.SystemPrincipal).Any();
+                return this.m_persistenceService.Query(o => o.Key == localKey && o.CreatedBy.Device.Name == deviceIdentity.Name && o.PreviousVersionKey == null, AuthenticationContext.SystemPrincipal).Any();
             }
             else if (identity is IApplicationIdentity applicationIdentity)
             {
-                return this.m_persistenceService.Query(o => o.Key == localKey && o.CreatedBy.Application.Name == applicationIdentity.Name, AuthenticationContext.SystemPrincipal).Any();
+                return this.m_persistenceService.Query(o => o.Key == localKey && o.CreatedBy.Application.Name == applicationIdentity.Name && o.PreviousVersionKey == null, AuthenticationContext.SystemPrincipal).Any();
             }
             else
             {

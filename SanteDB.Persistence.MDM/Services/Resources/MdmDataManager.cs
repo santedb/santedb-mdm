@@ -21,6 +21,7 @@
 using SanteDB.Core;
 using SanteDB.Core.BusinessRules;
 using SanteDB.Core.Data;
+using SanteDB.Core.i18n;
 using SanteDB.Core.Model;
 using SanteDB.Core.Model.Acts;
 using SanteDB.Core.Model.Constants;
@@ -345,6 +346,25 @@ namespace SanteDB.Persistence.MDM.Services.Resources
         }
 
         /// <summary>
+        /// Resolve owned record
+        /// </summary>
+        private TModel ResolveOwnedRecordInternal(IdentifiedData identifiedData, IPrincipal ownerPrincipal)
+        {
+            if (identifiedData is TModel tmaster &&
+                tmaster.ClassConceptKey != MdmConstants.MasterRecordClassification &&
+                tmaster.Tags?.Any(t => t.TagKey == MdmConstants.MdmTypeTag && t.Value == "M") != true)
+            {
+                identifiedData = this.GetMasterRelationshipFor(tmaster.Key.Value).LoadProperty(o => o.TargetEntity) as IdentifiedData;
+                if (identifiedData == null)
+                {
+                    return null;
+                }
+            }
+            return (TModel)this.GetLocalFor(identifiedData.Key.Value, ownerPrincipal) ??
+                (TModel)this.CreateLocalFor(identifiedData);
+        }
+
+        /// <summary>
         /// Get master for <paramref name="forSource"/> or, if it is already a master or not MDM controlled return <paramref name="forSource"/>
         /// </summary>
         public TModel ResolveOwnedRecord(TModel forSource, IPrincipal ownerPrincipal)
@@ -354,42 +374,45 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                 throw new ArgumentNullException(nameof(forSource));
             }
 
-            IdentifiedData master = forSource;
-            if (forSource.ClassConceptKey != MdmConstants.MasterRecordClassification &&
-                forSource.Tags?.Any(t => t.TagKey == MdmConstants.MdmTypeTag && t.Value == "M") != true)
-            {
-                master = this.GetMasterRelationshipFor(forSource.Key.Value).LoadProperty(o => o.TargetEntity) as IdentifiedData;
-                if (master == null)
-                {
-                    return null;
-                }
-            }
-            return (TModel)this.GetLocalFor(master.Key.Value, ownerPrincipal) ??
-                (TModel)this.CreateLocalFor(master);
+            return this.ResolveOwnedRecordInternal(forSource, ownerPrincipal);
         }
 
         /// <inheritdoc/>
         /// <remarks>This will create a proper master from an <see cref="Entity"/> which represents it, or it will fetch teh master</remarks>
-        public TModel ResolveManagedRecord(TModel forSource)
+        public TModel ResolveManagedRecord(TModel forSource) => this.ResolveManagedRecordInternal(forSource);
+
+        /// <summary>
+        /// Resolve owned record
+        /// </summary>
+        private TModel ResolveManagedRecordInternal(IdentifiedData forSource)
         {
-            if (forSource.ClassConceptKey == MdmConstants.MasterRecordClassification)
+            if (forSource is IHasClassConcept ihc && ihc.ClassConceptKey == MdmConstants.MasterRecordClassification)
             {
-                if (forSource.TryResolveTypeConceptToType(out var mapType) && typeof(TModel) == mapType) // We are the correct handler for this
+                Type mapType = null;
+                if (forSource is IHasTypeConcept ihtc && ihtc.TryResolveTypeConceptToType(out mapType) && typeof(TModel) == mapType) // We are the correct handler for this
                 {
                     return this.CreateMasterContainerForMasterEntity(forSource).Synthesize(AuthenticationContext.Current.Principal) as TModel;
                 }
-                else if (MdmDataManagerFactory.TryGetDataManager(mapType, out var manager))// we are not
+                else if (MdmDataManagerFactory.TryGetDataManager(mapType, out var manager))// we are not the correct handler so call it 
                 {
                     return manager.CreateMasterContainerForMasterEntity(forSource).Synthesize(AuthenticationContext.Current.Principal) as TModel;
                 }
-                else
+                else if (forSource is TModel tm) // what we were passed is an already synthesized master record so return it
                 {
-                    return forSource;
+                    return tm;
                 }
+                else // Unexpected input leads to exception
+                {
+                    throw new ArgumentOutOfRangeException(String.Format(ErrorMessages.ARGUMENT_INCOMPATIBLE_TYPE, typeof(TModel), forSource.GetType()));
+                }
+            }
+            else if (forSource is TModel tm)
+            {
+                return tm;
             }
             else
             {
-                return forSource;
+                throw new ArgumentOutOfRangeException(String.Format(ErrorMessages.ARGUMENT_INCOMPATIBLE_TYPE, typeof(TModel), forSource.GetType()));
             }
         }
 
@@ -422,6 +445,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                             {
                                 context.Add(localForTarget);
                                 rel.TargetEntityKey = localForTarget.Key;
+                                rel.ConditionalClearModelProperty(r => r.TargetEntity);
                             }
                             else
                             {
@@ -431,6 +455,7 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                         else
                         {
                             rel.TargetEntityKey = localForTarget.Key;
+                            rel.ConditionalClearModelProperty(r => r.TargetEntity);
                         }
                     }
                 }
@@ -446,16 +471,18 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                     else
                     {
                         rel.TargetEntityKey = myLocal.Key;
+                        rel.ConditionalClearModelProperty(r => r.TargetEntity);
+
                     }
                 }
             }
         }
 
         /// <inheritdoc/>
-        public override IdentifiedData ResolveManagedRecord(IdentifiedData forSource) => this.ResolveManagedRecord((TModel)forSource);
+        public override IdentifiedData ResolveManagedRecord(IdentifiedData forSource) => this.ResolveManagedRecordInternal(forSource);
 
         /// <inheritdoc/>
-        public override IdentifiedData ResolveOwnedRecord(IdentifiedData forTarget, IPrincipal ownerPrincipal) => this.ResolveOwnedRecord((TModel)forTarget, ownerPrincipal);
+        public override IdentifiedData ResolveOwnedRecord(IdentifiedData forTarget, IPrincipal ownerPrincipal) => this.ResolveOwnedRecordInternal(forTarget, ownerPrincipal);
 
         /// <inheritdoc/>
         public override IdentifiedData ResolveGoldenRecord(IdentifiedData forTarget)
