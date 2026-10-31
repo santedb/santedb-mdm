@@ -622,6 +622,10 @@ namespace SanteDB.Persistence.MDM.Services.Resources
                             var matches = records.Take(nRecords).SelectMany(o => this.m_dataManager.MdmTxMatchMasters(o, new IdentifiedData[0]));
                             this.m_batchPersistence.Insert(new Bundle(matches), TransactionMode.Commit, AuthenticationContext.SystemPrincipal);
                         }
+                        catch(Exception e)
+                        {
+                            this.m_tracer.TraceWarning("Matching failed due to {0} - skipping", e);
+                        }
                         finally
                         {
                             matchContext.ReleaseWorker(nRecords);
